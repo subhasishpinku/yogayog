@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/history/history_screen.dart';
+import 'package:yogayog/mywallet/mywallet.dart';
+import 'package:yogayog/savedaddresses/savedaddresses.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -26,31 +30,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.inventory_2_outlined,
                     iconColor: const Color(0xFFD49A67),
                     title: 'My Shipments',
+                    onTap: () => _open(const HistoryScreen()),
                   ),
                   _menuItem(
                     icon: Icons.location_on_outlined,
                     iconColor: const Color(0xFFFF493F),
                     title: 'Saved Addresses',
+                    onTap: () => _open(const Savedaddresses()),
                   ),
                   _menuItem(
                     icon: Icons.credit_card,
                     iconColor: const Color(0xFFFFB800),
-                    title: 'Payment Methods',
+                    title: 'My Wallet',
+                    onTap: () => _open(const Mywallet()),
                   ),
                   _menuItem(
-                    icon: Icons.notifications_none,
+                    icon: Icons.book_online,
                     iconColor: const Color(0xFFFFC400),
-                    title: 'Notifications',
+                    title: 'Booking History',
+                    onTap: () => _open(const HistoryScreen()),
                   ),
                   _menuItem(
                     icon: Icons.headphones_outlined,
                     iconColor: Colors.black,
                     title: 'Help & Support',
+                    onTap: () =>
+                        _open(const _MenuPlaceholder(title: 'Help & Support')),
                   ),
                   _menuItem(
                     icon: Icons.description_outlined,
                     iconColor: Colors.black,
                     title: 'Terms & Privacy',
+                    onTap: () =>
+                        _open(const _MenuPlaceholder(title: 'Terms & Privacy')),
                   ),
                   const SizedBox(height: 2),
                   _logoutItem(),
@@ -66,7 +78,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _header() {
     return Container(
       width: double.infinity,
-      color: const Color(0xFF202B91),
+      color: AppColors.primaryMain,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 22),
       child: const Text(
         'My Profile',
@@ -119,18 +131,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Text(
                   'Rajan Kumar',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 4),
                 Text(
                   '+91 98765 43210',
-                  style: TextStyle(
-                    color: Color(0xFF858591),
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: Color(0xFF858591), fontSize: 13),
                 ),
               ],
             ),
@@ -140,10 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextButton.styleFrom(
               backgroundColor: const Color(0xFFEFF0FF),
               foregroundColor: const Color(0xFF172786),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 13,
-                vertical: 7,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -162,11 +165,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required Color iconColor,
     required String title,
+    required VoidCallback onTap,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: InkWell(
-        onTap: () => _showMessage(title + ' selected'),
+        onTap: onTap,
         borderRadius: BorderRadius.circular(15),
         child: Container(
           height: 62,
@@ -188,10 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
-              Icon(
-                Icons.chevron_right,
-                color: Colors.grey.shade500,
-              ),
+              Icon(Icons.chevron_right, color: Colors.grey.shade500),
             ],
           ),
         ),
@@ -213,11 +214,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         child: const Row(
           children: [
-            Icon(
-              Icons.logout,
-              color: Colors.red,
-              size: 26,
-            ),
+            Icon(Icons.logout, color: Colors.red, size: 26),
             SizedBox(width: 16),
             Expanded(
               child: Text(
@@ -228,10 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.red,
-            ),
+            Icon(Icons.chevron_right, color: Colors.red),
           ],
         ),
       ),
@@ -240,6 +234,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _editProfile() {
     _showMessage('Edit profile selected');
+  }
+
+  void _open(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 
   void _logout() {
@@ -266,8 +264,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _MenuPlaceholder extends StatelessWidget {
+  final String title;
+
+  const _MenuPlaceholder({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(child: Text('$title screen')),
     );
   }
 }
