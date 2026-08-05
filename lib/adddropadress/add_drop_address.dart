@@ -105,7 +105,7 @@ class _AddDropAddressState extends State<AddDropAddress> {
 
   Widget _header() => Container(
     width: double.infinity,
-    color: AppColors.primaryBlue,
+    color: AppColors.primaryMain,
     padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,

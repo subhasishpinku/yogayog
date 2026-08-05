@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:yogayog/Invoices/invoices_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/history/history_screen.dart';
+import 'package:yogayog/mybooking/my_booking.dart';
 import 'package:yogayog/mywallet/mywallet.dart';
 import 'package:yogayog/savedaddresses/savedaddresses.dart';
 
@@ -49,6 +51,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     iconColor: const Color(0xFFFFC400),
                     title: 'Booking History',
                     onTap: () => _open(const HistoryScreen()),
+                  ),
+                  _menuItem(
+                    icon: Icons.bookmark_border_rounded,
+                    iconColor: const Color(0xFFFFC400),
+                    title: 'My Bookings',
+                    onTap: () => _open(const MyBooking()),
+                  ),
+                  _menuItem(
+                    icon: Icons.description_outlined,
+                    iconColor: const Color(0xFFFFC400),
+                    title: 'Invoices',
+                    onTap: () => _open(const InvoicesScreen()),
                   ),
                   _menuItem(
                     icon: Icons.headphones_outlined,
