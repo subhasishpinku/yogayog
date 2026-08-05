@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yogayog/Payment/payment_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 
 class TruckConfirmScreen extends StatefulWidget {
@@ -25,6 +26,12 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Proceeding to payment')));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const PaymentScreen(),
+      ),
+    );
   }
 
   @override

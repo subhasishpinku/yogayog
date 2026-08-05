@@ -251,33 +251,32 @@ class _NationalDetailsState extends State<NationalDetails> {
 
             const SizedBox(height: 28),
 
-            const Text(
-              'Service Type',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
+            // const Text(
+            //   'Service Type',
+            //   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            // ),
 
-            const SizedBox(height: 10),
+            // const SizedBox(height: 10),
 
-            _serviceCard(
-              title: 'Express (2–3 days)',
-              subtitle: 'Priority air movement',
-              price: '₹349',
-              icon: Icons.bolt,
-              iconColor: Colors.amber,
-              serviceKey: 'Express',
-            ),
+            // _serviceCard(
+            //   title: 'Express (2–3 days)',
+            //   subtitle: 'Priority air movement',
+            //   price: '₹349',
+            //   icon: Icons.bolt,
+            //   iconColor: Colors.amber,
+            //   serviceKey: 'Express',
+            // ),
 
-            const SizedBox(height: 10),
+            // const SizedBox(height: 10),
 
-            _serviceCard(
-              title: 'Standard (5–7 days)',
-              subtitle: 'Surface transport',
-              price: '₹149',
-              icon: Icons.local_shipping,
-              iconColor: Colors.green,
-              serviceKey: 'Standard',
-            ),
-
+            // _serviceCard(
+            //   title: 'Standard (5–7 days)',
+            //   subtitle: 'Surface transport',
+            //   price: '₹149',
+            //   icon: Icons.local_shipping,
+            //   iconColor: Colors.green,
+            //   serviceKey: 'Standard',
+            // ),
             const SizedBox(height: 28),
 
             InkWell(

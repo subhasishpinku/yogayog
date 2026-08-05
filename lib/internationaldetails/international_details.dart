@@ -36,6 +36,8 @@ class _InternationalDetailsState extends State<InternationalDetails> {
   final receiverNameController = TextEditingController();
   final mobileController = TextEditingController();
   final addressController = TextEditingController();
+  final countryController = TextEditingController();
+
   final cityController = TextEditingController();
   final pinController = TextEditingController();
   final piecesController = TextEditingController(text: '1');
@@ -48,6 +50,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     receiverNameController.dispose();
     mobileController.dispose();
     addressController.dispose();
+    countryController.dispose();
     cityController.dispose();
     pinController.dispose();
     piecesController.dispose();
@@ -93,6 +96,12 @@ class _InternationalDetailsState extends State<InternationalDetails> {
 
             _label('DELIVERY ADDRESS'),
             _textField(controller: addressController, hintText: 'Full address'),
+
+            _label('Country'),
+            _textField(
+              controller: countryController,
+              hintText: 'Enter Country',
+            ),
 
             Row(
               children: [
@@ -249,35 +258,34 @@ class _InternationalDetailsState extends State<InternationalDetails> {
               _packageBoxesWidget(),
             ],
 
-            const SizedBox(height: 28),
+            // const SizedBox(height: 28),
 
-            const Text(
-              'Service Type',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
+            // const Text(
+            //   'Service Type',
+            //   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            // ),
 
-            const SizedBox(height: 10),
+            // const SizedBox(height: 10),
 
-            _serviceCard(
-              title: 'Express (2–3 days)',
-              subtitle: 'Priority air movement',
-              price: '₹349',
-              icon: Icons.bolt,
-              iconColor: Colors.amber,
-              serviceKey: 'Express',
-            ),
+            // _serviceCard(
+            //   title: 'Express (2–3 days)',
+            //   subtitle: 'Priority air movement',
+            //   price: '₹349',
+            //   icon: Icons.bolt,
+            //   iconColor: Colors.amber,
+            //   serviceKey: 'Express',
+            // ),
 
-            const SizedBox(height: 10),
+            // const SizedBox(height: 10),
 
-            _serviceCard(
-              title: 'Standard (5–7 days)',
-              subtitle: 'Surface transport',
-              price: '₹149',
-              icon: Icons.local_shipping,
-              iconColor: Colors.green,
-              serviceKey: 'Standard',
-            ),
-
+            // _serviceCard(
+            //   title: 'Standard (5–7 days)',
+            //   subtitle: 'Surface transport',
+            //   price: '₹149',
+            //   icon: Icons.local_shipping,
+            //   iconColor: Colors.green,
+            //   serviceKey: 'Standard',
+            // ),
             const SizedBox(height: 28),
 
             InkWell(

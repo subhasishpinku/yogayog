@@ -184,7 +184,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           _paymentTile(
             icon: Icons.phone_android,
             iconColor: Colors.cyan,
-            title: 'UPI',
+            title: 'Online UPI Payment',
             subtitle: 'GPay, PhonePe, Paytm, any UPI ID',
             method: 'UPI',
           ),
@@ -192,18 +192,18 @@ class _PaymentScreenState extends State<PaymentScreen> {
           _paymentTile(
             icon: Icons.credit_card,
             iconColor: Colors.orange,
-            title: 'Credit / Debit Card',
+            title: 'Wallet',
             subtitle: 'Visa, Mastercard, RuPay',
             method: 'Card',
           ),
-          _divider(),
-          _paymentTile(
-            icon: Icons.account_balance,
-            iconColor: Colors.green,
-            title: 'Net Banking',
-            subtitle: 'All major Indian banks',
-            method: 'Net Banking',
-          ),
+          // _divider(),
+          // _paymentTile(
+          //   icon: Icons.account_balance,
+          //   iconColor: Colors.green,
+          //   title: 'Net Banking',
+          //   subtitle: 'All major Indian banks',
+          //   method: 'Net Banking',
+          // ),
           _divider(),
           _paymentTile(
             icon: Icons.money,
