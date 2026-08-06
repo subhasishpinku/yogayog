@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/loginscreen/login_save.dart';
 import 'package:yogayog/loginscreen/provider/auth_provider.dart';
-import 'package:yogayog/loginscreen/provider/otp_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:yogayog/otpscreen/provider/otp_provider.dart';
 
 class OtpScreen extends StatefulWidget {
   final String phoneNumber;
@@ -71,7 +71,9 @@ class _OtpScreenState extends State<OtpScreen> {
     if (!mounted) return;
     if (!sent) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(authProvider.errorMessage ?? 'Unable to resend OTP')),
+        SnackBar(
+          content: Text(authProvider.errorMessage ?? 'Unable to resend OTP'),
+        ),
       );
       return;
     }
@@ -110,9 +112,10 @@ class _OtpScreenState extends State<OtpScreen> {
 
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const LoginSaveScreen()),
+      MaterialPageRoute(
+        builder: (_) => LoginSaveScreen(mobileNumber: widget.mobileNumber),
+      ),
     );
-    // এখানে আপনার verification API বা next screen navigation করুন
   }
 
   @override

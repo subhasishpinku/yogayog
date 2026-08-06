@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/dashboard/dashboard_scren.dart';
+import 'package:yogayog/loginscreen/provider/login_save_provider.dart';
+import 'package:provider/provider.dart';
 
 class LoginSaveScreen extends StatefulWidget {
-  const LoginSaveScreen({super.key});
+  final String mobileNumber;
+
+  const LoginSaveScreen({super.key, required this.mobileNumber});
 
   @override
   State<LoginSaveScreen> createState() => _LoginSaveScreenState();
@@ -41,7 +45,7 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
     super.dispose();
   }
 
-  void _createAccount() {
+  Future<void> _createAccount() async {
     if (!_formKey.currentState!.validate()) return;
 
     if (!acceptedTerms) {
@@ -51,8 +55,29 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
       return;
     }
 
+    final provider = context.read<LoginSaveProvider>();
+    final created = await provider.registerCustomer(
+      name: nameController.text.trim(),
+      email: emailController.text.trim(),
+      clientType: accountType!.toLowerCase(),
+      paymentMode: paymentMode!.toLowerCase(),
+      address: addressController.text.trim(),
+      city: cityController.text.trim(),
+      state: stateController.text.trim(),
+      pincode: pinController.text.trim(),
+      mobile: widget.mobileNumber,
+    );
+    if (!mounted) return;
+
+    if (!created) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(provider.errorMessage ?? 'Unable to create account')),
+      );
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Account created successfully')),
+      SnackBar(content: Text(provider.response?.message ?? 'Account created successfully')),
     );
     Navigator.pushReplacement(
       context,
@@ -99,7 +124,7 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
                   value: paymentMode,
                   hint: 'Select Payment mode',
                   icon: Icons.qr_code_2,
-                  items: const ['Cash', 'Online Payment', 'Card'],
+                  items: const ['Prepaid', 'Postpaid'],
                   onChanged: (value) {
                     setState(() => paymentMode = value);
                   },
@@ -231,18 +256,13 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
 
                 const SizedBox(height: 8),
 
-                InkWell(
-                  onTap: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => const Dashboard()),
-                    );
-                  },
-                  child: SizedBox(
+                SizedBox(
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: _createAccount,
+                      onPressed: context.watch<LoginSaveProvider>().isLoading
+                          ? null
+                          : _createAccount,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: yellow,
                         foregroundColor: primaryBlue,
@@ -252,12 +272,17 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
                         ),
                       ),
 
-                      child: const Text(
-                        'Create Account',
-                        style: TextStyle(fontSize: 14, color: Colors.white),
-                      ),
+                      child: context.watch<LoginSaveProvider>().isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'Create Account',
+                              style: TextStyle(fontSize: 14, color: Colors.white),
+                            ),
                     ),
-                  ),
                 ),
               ],
             ),

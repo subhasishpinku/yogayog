@@ -4,7 +4,8 @@ import 'package:yogayog/core/network/api_client.dart';
 import 'package:yogayog/core/services/otp_service.dart';
 
 class OtpProvider extends ChangeNotifier {
-  OtpProvider({OtpService? otpService}) : _otpService = otpService ?? OtpService();
+  OtpProvider({OtpService? otpService})
+    : _otpService = otpService ?? OtpService();
 
   final OtpService _otpService;
   bool _isLoading = false;
@@ -15,10 +16,7 @@ class OtpProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   VerifyOtpResponse? get response => _response;
 
-  Future<bool> verifyOtp({
-    required String mobile,
-    required String otp,
-  }) async {
+  Future<bool> verifyOtp({required String mobile, required String otp}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();

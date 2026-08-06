@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yogayog/OnboardingScreen/onboarding_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/dashboard/dashboard_scren.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,12 +16,20 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
 
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 3), () async {
       if (!mounted) return;
+
+      final preferences = await SharedPreferences.getInstance();
+      final token = preferences.getString('auth_token');
+      if (!mounted) return;
+
+      final nextScreen = token != null && token.isNotEmpty
+          ? const Dashboard()
+          : const OnboardingScreen();
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        MaterialPageRoute(builder: (context) => nextScreen),
       );
     });
   }

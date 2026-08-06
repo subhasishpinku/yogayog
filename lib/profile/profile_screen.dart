@@ -5,6 +5,9 @@ import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/mybooking/my_booking.dart';
 import 'package:yogayog/mywallet/mywallet.dart';
 import 'package:yogayog/savedaddresses/savedaddresses.dart';
+import 'package:yogayog/OnboardingScreen/onboarding_screen.dart';
+import 'package:yogayog/profile/provider/profile_provider.dart';
+import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -266,14 +269,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showMessage('Logged out');
-            },
-            child: const Text('Log Out'),
+            onPressed: context.watch<ProfileProvider>().isLoading
+                ? null
+                : () => _confirmLogout(context),
+            child: context.watch<ProfileProvider>().isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Log Out'),
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _confirmLogout(BuildContext dialogContext) async {
+    Navigator.pop(dialogContext);
+    final provider = context.read<ProfileProvider>();
+    final loggedOut = await provider.logout();
+    if (!mounted) return;
+
+    if (!loggedOut) {
+      _showMessage(provider.errorMessage ?? 'Unable to log out');
+      return;
+    }
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+      (_) => false,
     );
   }
 

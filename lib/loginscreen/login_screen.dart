@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/loginscreen/login_save.dart';
 import 'package:yogayog/loginscreen/provider/auth_provider.dart';
 import 'package:yogayog/otpscreen/otp_screen.dart';
 import 'package:provider/provider.dart';
@@ -45,7 +46,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (!sent) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(authProvider.errorMessage ?? 'Unable to send OTP')),
+        SnackBar(
+          content: Text(authProvider.errorMessage ?? 'Unable to send OTP'),
+        ),
+      );
+      // Navigator.push(
+      //   context,
+      //   MaterialPageRoute(
+      //     builder: (_) => OtpScreen(
+      //       phoneNumber: '+${_selectedCountry.phoneCode} $phone',
+      //       mobileNumber: phone,
+      //     ),
+      //   ),
+      // );
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => LoginSaveScreen(mobileNumber: phone)),
       );
       return;
     }
@@ -53,11 +69,10 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            OtpScreen(
-              phoneNumber: '+${_selectedCountry.phoneCode} $phone',
-              mobileNumber: phone,
-            ),
+        builder: (_) => OtpScreen(
+          phoneNumber: '+${_selectedCountry.phoneCode} $phone',
+          mobileNumber: phone,
+        ),
       ),
     );
   }
@@ -157,7 +172,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : const Text(
                                       'Send OTP',

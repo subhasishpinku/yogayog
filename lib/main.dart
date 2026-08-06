@@ -7,9 +7,11 @@ import 'package:yogayog/core/providers/locationProvider.dart';
 import 'package:yogayog/core/providers/location_service_provider.dart';
 import 'package:yogayog/core/providers/network_provider.dart';
 import 'package:yogayog/loginscreen/provider/auth_provider.dart';
-import 'package:yogayog/loginscreen/provider/otp_provider.dart';
+import 'package:yogayog/loginscreen/provider/login_save_provider.dart';
+import 'package:yogayog/profile/provider/profile_provider.dart';
 import 'package:yogayog/gps_offScreen.dart';
 import 'package:yogayog/no_internet.dart';
+import 'package:yogayog/otpscreen/provider/otp_provider.dart';
 import 'package:yogayog/splash_screen.dart';
 import 'package:yogayog/utils/BackgroundTask/background_task.dart';
 import 'package:yogayog/utils/sound_service.dart';
@@ -42,6 +44,8 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => NetworkProvider()),
         ChangeNotifierProvider(create: (_) => LocationServiceProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => LoginSaveProvider()),
+        ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => OtpProvider()),
       ],
       child: const MyApp(),
