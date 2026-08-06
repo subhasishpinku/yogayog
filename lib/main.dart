@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:yogayog/core/network/api_client.dart';
 import 'package:yogayog/core/providers/locationProvider.dart';
 import 'package:yogayog/core/providers/location_service_provider.dart';
 import 'package:yogayog/core/providers/network_provider.dart';
+import 'package:yogayog/loginscreen/provider/auth_provider.dart';
+import 'package:yogayog/loginscreen/provider/otp_provider.dart';
 import 'package:yogayog/gps_offScreen.dart';
 import 'package:yogayog/no_internet.dart';
 import 'package:yogayog/splash_screen.dart';
@@ -13,6 +16,8 @@ import 'package:yogayog/utils/sound_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await ApiClient.loadToken();
 
   await Permission.notification.request();
 
@@ -36,6 +41,8 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => NetworkProvider()),
         ChangeNotifierProvider(create: (_) => LocationServiceProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => OtpProvider()),
       ],
       child: const MyApp(),
     ),

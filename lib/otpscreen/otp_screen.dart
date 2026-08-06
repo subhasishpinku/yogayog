@@ -4,11 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/loginscreen/login_save.dart';
+import 'package:yogayog/loginscreen/provider/auth_provider.dart';
+import 'package:yogayog/loginscreen/provider/otp_provider.dart';
+import 'package:provider/provider.dart';
 
 class OtpScreen extends StatefulWidget {
   final String phoneNumber;
+  final String mobileNumber;
 
-  const OtpScreen({super.key, required this.phoneNumber});
+  const OtpScreen({
+    super.key,
+    required this.phoneNumber,
+    required this.mobileNumber,
+  });
 
   @override
   State<OtpScreen> createState() => _OtpScreenState();
@@ -55,8 +63,18 @@ class _OtpScreenState extends State<OtpScreen> {
     }
   }
 
-  void _resendOtp() {
+  Future<void> _resendOtp() async {
     if (_seconds != 0) return;
+
+    final authProvider = context.read<AuthProvider>();
+    final sent = await authProvider.sendOtp(widget.mobileNumber);
+    if (!mounted) return;
+    if (!sent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(authProvider.errorMessage ?? 'Unable to resend OTP')),
+      );
+      return;
+    }
 
     setState(() => _seconds = 28);
     _startTimer();
@@ -66,7 +84,7 @@ class _OtpScreenState extends State<OtpScreen> {
     ).showSnackBar(const SnackBar(content: Text('OTP resent successfully')));
   }
 
-  void _verifyOtp() {
+  Future<void> _verifyOtp() async {
     final otp = _controllers.map((controller) => controller.text).join();
 
     if (otp.length != 4) {
@@ -75,6 +93,21 @@ class _OtpScreenState extends State<OtpScreen> {
       );
       return;
     }
+
+    final otpProvider = context.read<OtpProvider>();
+    final verified = await otpProvider.verifyOtp(
+      mobile: widget.mobileNumber,
+      otp: otp,
+    );
+    if (!mounted) return;
+
+    if (!verified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(otpProvider.errorMessage ?? 'Invalid OTP')),
+      );
+      return;
+    }
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const LoginSaveScreen()),
@@ -128,7 +161,9 @@ class _OtpScreenState extends State<OtpScreen> {
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
-                          onPressed: _verifyOtp,
+                          onPressed: context.watch<OtpProvider>().isLoading
+                              ? null
+                              : _verifyOtp,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: yellow,
                             foregroundColor: primaryBlue,
@@ -137,13 +172,21 @@ class _OtpScreenState extends State<OtpScreen> {
                               borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          child: const Text(
-                            'Verify & Continue',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child: context.watch<OtpProvider>().isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  'Verify & Continue',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                       ),
                     ],

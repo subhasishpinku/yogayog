@@ -23,7 +23,6 @@ class PackageBox {
 
 class InternationalDetails extends StatefulWidget {
   const InternationalDetails({super.key});
-
   @override
   State<InternationalDetails> createState() => _InternationalDetailsState();
 }

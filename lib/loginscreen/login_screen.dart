@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/loginscreen/provider/auth_provider.dart';
 import 'package:yogayog/otpscreen/otp_screen.dart';
+import 'package:provider/provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,7 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _sendOtp() {
+  Future<void> _sendOtp() async {
     final phone = _phoneController.text.trim();
 
     if (phone.length != 10) {
@@ -39,11 +39,25 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    final authProvider = context.read<AuthProvider>();
+    final sent = await authProvider.sendOtp(phone);
+    if (!mounted) return;
+
+    if (!sent) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(authProvider.errorMessage ?? 'Unable to send OTP')),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) =>
-            OtpScreen(phoneNumber: '+${_selectedCountry.phoneCode} ${phone}'),
+            OtpScreen(
+              phoneNumber: '+${_selectedCountry.phoneCode} $phone',
+              mobileNumber: phone,
+            ),
       ),
     );
   }
@@ -128,7 +142,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             width: double.infinity,
                             height: 48,
                             child: ElevatedButton(
-                              onPressed: _sendOtp,
+                              onPressed: context.watch<AuthProvider>().isLoading
+                                  ? null
+                                  : _sendOtp,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: yellow,
                                 foregroundColor: primaryBlue,
@@ -137,13 +153,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                               ),
-                              child: const Text(
-                                'Send OTP',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              child: context.watch<AuthProvider>().isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Text(
+                                      'Send OTP',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                             ),
                           ),
 
