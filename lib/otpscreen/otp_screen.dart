@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/dashboard/dashboard_scren.dart';
 import 'package:yogayog/loginscreen/login_save.dart';
 import 'package:yogayog/loginscreen/provider/auth_provider.dart';
 import 'package:provider/provider.dart';
@@ -110,12 +111,7 @@ class _OtpScreenState extends State<OtpScreen> {
       return;
     }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LoginSaveScreen(mobileNumber: widget.mobileNumber),
-      ),
-    );
+    Navigator.push(context, MaterialPageRoute(builder: (_) => Dashboard()));
   }
 
   @override

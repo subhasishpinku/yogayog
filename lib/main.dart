@@ -10,6 +10,7 @@ import 'package:yogayog/loginscreen/provider/auth_provider.dart';
 import 'package:yogayog/loginscreen/provider/login_save_provider.dart';
 import 'package:yogayog/profile/provider/profile_provider.dart';
 import 'package:yogayog/gps_offScreen.dart';
+import 'package:yogayog/homescreen/home_provider.dart';
 import 'package:yogayog/no_internet.dart';
 import 'package:yogayog/otpscreen/provider/otp_provider.dart';
 import 'package:yogayog/splash_screen.dart';
@@ -46,6 +47,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => LoginSaveProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
+        ChangeNotifierProvider(create: (_) => HomeProvider()),
         ChangeNotifierProvider(create: (_) => OtpProvider()),
       ],
       child: const MyApp(),

@@ -1,8 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/homescreen/home_provider.dart';
+import 'package:provider/provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<HomeProvider>().loadProfile();
+    });
+  }
 
   // static const blue = Color(0xFF202A8D);
   // static const yellow = Color(0xFFFFC400);
@@ -35,6 +50,8 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildHeader() {
+    final profile = context.watch<HomeProvider>().profile;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
       decoration: const BoxDecoration(
@@ -54,8 +71,8 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 3),
           Row(
             children: [
-              const Text(
-                'Rajan Kumar',
+              Text(
+                profile?.name.isNotEmpty == true ? profile!.name : 'Loading...',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -63,11 +80,11 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 18,
                 backgroundColor: yellow,
                 child: Text(
-                  'RK',
+                  profile?.initials ?? 'U',
                   style: TextStyle(color: blue, fontWeight: FontWeight.bold),
                 ),
               ),

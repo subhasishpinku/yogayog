@@ -19,6 +19,7 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
 
   final nameController = TextEditingController();
   final emailController = TextEditingController();
+  final emailOtpController = TextEditingController();
   final pinController = TextEditingController();
   final cityController = TextEditingController();
   final stateController = TextEditingController();
@@ -38,6 +39,7 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
   void dispose() {
     nameController.dispose();
     emailController.dispose();
+    emailOtpController.dispose();
     pinController.dispose();
     cityController.dispose();
     stateController.dispose();
@@ -56,6 +58,13 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
     }
 
     final provider = context.read<LoginSaveProvider>();
+    if (!provider.emailOtpVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please verify your email OTP first')),
+      );
+      return;
+    }
+
     final created = await provider.registerCustomer(
       name: nameController.text.trim(),
       email: emailController.text.trim(),
@@ -71,17 +80,119 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
 
     if (!created) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(provider.errorMessage ?? 'Unable to create account')),
+        SnackBar(
+          content: Text(provider.errorMessage ?? 'Unable to create account'),
+        ),
       );
       return;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(provider.response?.message ?? 'Account created successfully')),
+      SnackBar(
+        content: Text(
+          provider.response?.message ?? 'Account created successfully',
+        ),
+      ),
     );
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const Dashboard()),
+    );
+  }
+
+  Future<void> _sendEmailOtp() async {
+    final email = emailController.text.trim();
+    final name = nameController.text.trim();
+    if (name.isEmpty || email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter name and email first')),
+      );
+      return;
+    }
+
+    final provider = context.read<LoginSaveProvider>();
+    final sent = await provider.sendEmailOtp(email: email, name: name);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          sent
+              ? 'Verification code sent to your email'
+              : provider.errorMessage ?? 'Unable to send email OTP',
+        ),
+      ),
+    );
+
+    if (sent) {
+      await _showEmailOtpDialog();
+    }
+  }
+
+  Future<void> _showEmailOtpDialog() async {
+    emailOtpController.clear();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Enter OTP'),
+          content: TextField(
+            controller: emailOtpController,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: const InputDecoration(
+              hintText: 'Enter the OTP sent to your email',
+              counterText: '',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: context.watch<LoginSaveProvider>().isVerifyingEmailOtp
+                  ? null
+                  : () async {
+                      if (emailOtpController.text.trim().length < 4) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Enter a valid OTP')),
+                        );
+                        return;
+                      }
+                      final provider = context.read<LoginSaveProvider>();
+                      final verified = await provider.verifyEmailOtp(
+                        email: emailController.text.trim(),
+                        otp: emailOtpController.text.trim(),
+                      );
+                      if (!mounted) return;
+                      if (verified) {
+                        Navigator.pop(dialogContext);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              provider.errorMessage ?? 'Invalid OTP',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+              child: context.watch<LoginSaveProvider>().isVerifyingEmailOtp
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Verify'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -147,13 +258,10 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
                     width: 115,
                     height: 46,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (emailController.text.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Enter email first')),
-                          );
-                        }
-                      },
+                      onPressed:
+                          context.watch<LoginSaveProvider>().isSendingEmailOtp
+                          ? null
+                          : _sendEmailOtp,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: yellow,
                         foregroundColor: Colors.white,
@@ -162,10 +270,19 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      child: const Text(
-                        'Verify',
-                        style: TextStyle(fontSize: 20),
-                      ),
+                      child:
+                          context.watch<LoginSaveProvider>().isSendingEmailOtp
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              context.watch<LoginSaveProvider>().emailOtpSent
+                                  ? 'Sent OTP'
+                                  : 'Verify Mail',
+                              style: const TextStyle(fontSize: 16),
+                            ),
                     ),
                   ),
                 ),
@@ -257,32 +374,34 @@ class _LoginSaveScreenState extends State<LoginSaveScreen> {
                 const SizedBox(height: 8),
 
                 SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: context.watch<LoginSaveProvider>().isLoading
-                          ? null
-                          : _createAccount,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: yellow,
-                        foregroundColor: primaryBlue,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed:
+                        context.watch<LoginSaveProvider>().isLoading ||
+                            !context.watch<LoginSaveProvider>().emailOtpVerified
+                        ? null
+                        : _createAccount,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: yellow,
+                      foregroundColor: primaryBlue,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
-
-                      child: context.watch<LoginSaveProvider>().isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text(
-                              'Create Account',
-                              style: TextStyle(fontSize: 14, color: Colors.white),
-                            ),
                     ),
+
+                    child: context.watch<LoginSaveProvider>().isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Create Account',
+                            style: TextStyle(fontSize: 14, color: Colors.white),
+                          ),
+                  ),
                 ),
               ],
             ),

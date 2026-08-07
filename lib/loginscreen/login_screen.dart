@@ -64,17 +64,17 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (_) => LoginSaveScreen(mobileNumber: phone)),
       );
       return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OtpScreen(
-          phoneNumber: '+${_selectedCountry.phoneCode} $phone',
-          mobileNumber: phone,
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OtpScreen(
+            phoneNumber: '+${_selectedCountry.phoneCode} $phone',
+            mobileNumber: phone,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   @override
