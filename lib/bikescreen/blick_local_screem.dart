@@ -1,4 +1,9 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 
@@ -9,18 +14,596 @@ class BikeLocalScreen extends StatefulWidget {
   State<BikeLocalScreen> createState() => _BikeLocalScreenState();
 }
 
+class _PlaceSuggestion {
+  const _PlaceSuggestion({required this.placeId, required this.description});
+
+  final String placeId;
+  final String description;
+}
+
+class _DropLocation {
+  const _DropLocation({
+    required this.address,
+    required this.city,
+    required this.pincode,
+    required this.state,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  final String address;
+  final String city;
+  final String pincode;
+  final String state;
+  final double? latitude;
+  final double? longitude;
+}
+
+class _PickupEditDialog extends StatefulWidget {
+  const _PickupEditDialog({
+    required this.initialAddress,
+    required this.initialCity,
+    required this.initialPincode,
+    required this.initialState,
+    required this.initialLatitude,
+    required this.initialLongitude,
+    required this.searchPlaces,
+    required this.getPlaceDetails,
+  });
+
+  final String initialAddress;
+  final String initialCity;
+  final String initialPincode;
+  final String initialState;
+  final double? initialLatitude;
+  final double? initialLongitude;
+  final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
+  final Future<_DropLocation> Function(String) getPlaceDetails;
+
+  @override
+  State<_PickupEditDialog> createState() => _PickupEditDialogState();
+}
+
+class _PickupEditDialogState extends State<_PickupEditDialog> {
+  late final TextEditingController _addressController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _pincodeController;
+  late final TextEditingController _stateController;
+  late final TextEditingController _latitudeController;
+  late final TextEditingController _longitudeController;
+  Timer? _debounce;
+  List<_PlaceSuggestion> _suggestions = [];
+  String? _error;
+  double? _latitude;
+  double? _longitude;
+
+  @override
+  void initState() {
+    super.initState();
+    _addressController = TextEditingController(text: widget.initialAddress);
+    _cityController = TextEditingController(text: widget.initialCity);
+    _pincodeController = TextEditingController(text: widget.initialPincode);
+    _stateController = TextEditingController(text: widget.initialState);
+    _latitude = widget.initialLatitude;
+    _longitude = widget.initialLongitude;
+    _latitudeController = TextEditingController(
+      text: _latitude?.toString() ?? '',
+    );
+    _longitudeController = TextEditingController(
+      text: _longitude?.toString() ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _addressController.dispose();
+    _cityController.dispose();
+    _pincodeController.dispose();
+    _stateController.dispose();
+    _latitudeController.dispose();
+    _longitudeController.dispose();
+    super.dispose();
+  }
+
+  void _searchAddress(String value) {
+    _debounce?.cancel();
+    if (value.trim().length < 2) {
+      setState(() => _suggestions = []);
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      try {
+        final result = await widget.searchPlaces(value);
+        if (!mounted) return;
+        setState(() {
+          _suggestions = result;
+          _error = null;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(
+          () => _error = error.toString().replaceFirst('Exception: ', ''),
+        );
+      }
+    });
+  }
+
+  Future<void> _selectAddress(_PlaceSuggestion suggestion) async {
+    try {
+      final location = await widget.getPlaceDetails(suggestion.placeId);
+      if (!mounted) return;
+      setState(() {
+        _addressController.text = location.address;
+        _cityController.text = location.city;
+        _pincodeController.text = location.pincode;
+        _stateController.text = location.state;
+        _latitude = location.latitude;
+        _longitude = location.longitude;
+        _latitudeController.text = _latitude?.toString() ?? '';
+        _longitudeController.text = _longitude?.toString() ?? '';
+        _suggestions = [];
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Widget _field(
+    TextEditingController controller,
+    String label, {
+    TextInputType? type,
+    ValueChanged<String>? onChanged,
+    bool readOnly = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: controller,
+        keyboardType: type,
+        onChanged: onChanged,
+        readOnly: readOnly,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Pickup Location'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _field(_addressController, 'Address', onChanged: _searchAddress),
+            if (_error != null)
+              Text(_error!, style: const TextStyle(color: Colors.red)),
+            if (_suggestions.isNotEmpty)
+              Column(
+                children: _suggestions.take(4).map((suggestion) {
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.location_on_outlined),
+                    title: Text(suggestion.description),
+                    onTap: () => _selectAddress(suggestion),
+                  );
+                }).toList(),
+              ),
+            _field(_cityController, 'City'),
+            _field(_pincodeController, 'Pincode', type: TextInputType.number),
+            _field(_stateController, 'State'),
+            _field(_latitudeController, 'Latitude', readOnly: true),
+            _field(_longitudeController, 'Longitude', readOnly: true),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(
+            context,
+            _PickupLocation(
+              address: _addressController.text.trim(),
+              city: _cityController.text.trim(),
+              pincode: _pincodeController.text.trim(),
+              state: _stateController.text.trim(),
+              latitude: _latitude,
+              longitude: _longitude,
+            ),
+          ),
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PlaceSearchDialog extends StatefulWidget {
+  const _PlaceSearchDialog({
+    this.title = 'Choose Drop Location',
+    required this.searchPlaces,
+    required this.getPlaceDetails,
+  });
+
+  final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
+  final Future<_DropLocation> Function(String) getPlaceDetails;
+  final String title;
+
+  @override
+  State<_PlaceSearchDialog> createState() => _PlaceSearchDialogState();
+}
+
+class _PlaceSearchDialogState extends State<_PlaceSearchDialog> {
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  List<_PlaceSuggestion> _suggestions = [];
+  String? _error;
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    if (value.trim().length < 2) {
+      setState(() {
+        _suggestions = [];
+        _error = null;
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      if (!mounted) return;
+      setState(() => _loading = true);
+      try {
+        final suggestions = await widget.searchPlaces(value);
+        if (!mounted) return;
+        setState(() {
+          _suggestions = suggestions;
+          _error = null;
+          _loading = false;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() {
+          _error = error.toString().replaceFirst('Exception: ', '');
+          _loading = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _selectPlace(_PlaceSuggestion suggestion) async {
+    setState(() => _loading = true);
+    try {
+      final location = await widget.getPlaceDetails(suggestion.placeId);
+      if (mounted) Navigator.pop(context, location);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString().replaceFirst('Exception: ', '');
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.45,
+        ),
+        child: SingleChildScrollView(
+          child: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  onChanged: _onSearchChanged,
+                  decoration: const InputDecoration(
+                    hintText: 'Search address, city or pincode',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_loading) const LinearProgressIndicator(),
+                if (_error != null)
+                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                if (_suggestions.isNotEmpty)
+                  Column(
+                    children: _suggestions.take(4).map((suggestion) {
+                      return ListTile(
+                        leading: const Icon(Icons.location_on_outlined),
+                        title: Text(suggestion.description),
+                        onTap: () => _selectPlace(suggestion),
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PickupLocation {
+  const _PickupLocation({
+    required this.address,
+    required this.city,
+    required this.pincode,
+    required this.state,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  final String address;
+  final String city;
+  final String pincode;
+  final String state;
+  final double? latitude;
+  final double? longitude;
+}
+
 class _BikeLocalScreenState extends State<BikeLocalScreen> {
   final packageController = TextEditingController();
   final weightController = TextEditingController(text: '2');
+  String _pickupAddress = 'Fetching current location...';
+  String _pickupCity = '';
+  String _pickupPincode = '';
+  String _pickupState = '';
+  double? _pickupLatitude;
+  double? _pickupLongitude;
+  String _dropAddress = 'Tap to add destination';
+  String _dropCity = '';
+  String _dropPincode = '';
+  String _dropState = '';
+  double? _dropLatitude;
+  double? _dropLongitude;
+
+  static const _googlePlacesApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: 'AIzaSyC6atqg-XZ8SVzSlLrt5W5mhCgkG-8h6Lo',
+  );
 
   static const Color blue = AppColors.primaryMain;
   static const Color yellow = AppColors.primaryButton;
   @override
+  void initState() {
+    super.initState();
+    _loadCurrentPickupLocation();
+  }
+
   @override
   void dispose() {
     packageController.dispose();
     weightController.dispose();
     super.dispose();
+  }
+
+  Future<List<_PlaceSuggestion>> _searchPlaces(String query) async {
+    if (query.trim().length < 2 || _googlePlacesApiKey.isEmpty) return [];
+    final response = await Dio().get(
+      'https://maps.googleapis.com/maps/api/place/autocomplete/json',
+      queryParameters: {
+        'input': query.trim(),
+        'key': _googlePlacesApiKey,
+        'components': 'country:in',
+      },
+    );
+    final data = response.data;
+    if (data is! Map ||
+        data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
+      throw Exception(
+        data is Map
+            ? data['error_message'] ?? 'Places search failed'
+            : 'Places search failed',
+      );
+    }
+    final predictions = data['predictions'];
+    return predictions is List
+        ? predictions
+              .whereType<Map>()
+              .map(
+                (item) => _PlaceSuggestion(
+                  placeId: item['place_id']?.toString() ?? '',
+                  description: item['description']?.toString() ?? '',
+                ),
+              )
+              .toList()
+        : [];
+  }
+
+  Future<_DropLocation> _getPlaceDetails(String placeId) async {
+    final response = await Dio().get(
+      'https://maps.googleapis.com/maps/api/place/details/json',
+      queryParameters: {
+        'place_id': placeId,
+        'fields': 'formatted_address,address_component,geometry',
+        'key': _googlePlacesApiKey,
+      },
+    );
+    final data = response.data;
+    final result = data is Map ? data['result'] : null;
+    if (data is! Map || data['status'] != 'OK' || result is! Map) {
+      throw Exception(
+        data is Map
+            ? data['error_message'] ?? 'Unable to load place'
+            : 'Unable to load place',
+      );
+    }
+    String component(String type) {
+      final components = result['address_components'];
+      if (components is! List) return '';
+      for (final item in components.whereType<Map>()) {
+        final types = item['types'];
+        if (types is List && types.contains(type))
+          return item['long_name']?.toString() ?? '';
+      }
+      return '';
+    }
+
+    final geometry = result['geometry'];
+    final location = geometry is Map ? geometry['location'] : null;
+    double? coordinate(Object? value) {
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '');
+    }
+
+    return _DropLocation(
+      address: result['formatted_address']?.toString() ?? '',
+      city: component('locality').isNotEmpty
+          ? component('locality')
+          : component('administrative_area_level_2'),
+      pincode: component('postal_code'),
+      state: component('administrative_area_level_1'),
+      latitude: location is Map ? coordinate(location['lat']) : null,
+      longitude: location is Map ? coordinate(location['lng']) : null,
+    );
+  }
+
+  Future<void> _editDrop() async {
+    if (_googlePlacesApiKey.isEmpty) {
+      _showMessage('Google Places API key is not configured');
+      return;
+    }
+    final selected = await showDialog<_DropLocation>(
+      context: context,
+      builder: (_) => _PlaceSearchDialog(
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _dropAddress = selected.address;
+      _dropCity = selected.city;
+      _dropPincode = selected.pincode;
+      _dropState = selected.state;
+      _dropLatitude = selected.latitude;
+      _dropLongitude = selected.longitude;
+    });
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _loadCurrentPickupLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw Exception('Please turn on location services');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission is required');
+      }
+
+      final Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      final place = placemarks.isNotEmpty ? placemarks.first : null;
+      if (!mounted) return;
+      setState(() {
+        _pickupLatitude = position.latitude;
+        _pickupLongitude = position.longitude;
+        _pickupAddress = [
+          place?.street,
+          place?.subLocality,
+          place?.locality,
+        ].where((value) => value?.trim().isNotEmpty == true).join(', ');
+        _pickupCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+        _pickupPincode = place?.postalCode ?? '';
+        _pickupState = place?.administrativeArea ?? '';
+        if (_pickupAddress.isEmpty) _pickupAddress = 'Current location';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _pickupAddress = error.toString().replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
+  Future<void> _editPickup() async {
+    final result = await showDialog<_PickupLocation>(
+      context: context,
+      builder: (_) => _PickupEditDialog(
+        initialAddress: _pickupAddress,
+        initialCity: _pickupCity,
+        initialPincode: _pickupPincode,
+        initialState: _pickupState,
+        initialLatitude: _pickupLatitude,
+        initialLongitude: _pickupLongitude,
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _pickupAddress = result.address;
+      _pickupCity = result.city;
+      _pickupPincode = result.pincode;
+      _pickupState = result.state;
+      _pickupLatitude = result.latitude;
+      _pickupLongitude = result.longitude;
+    });
+  }
+
+  Widget _dialogField(
+    TextEditingController controller,
+    String label, {
+    TextInputType? type,
+    bool readOnly = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: controller,
+        readOnly: readOnly,
+        keyboardType: type,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
   }
 
   void _chooseVehicle() {
@@ -290,7 +873,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
 
               const SizedBox(width: 14),
 
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -304,7 +887,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                     ),
                     SizedBox(height: 3),
                     Text(
-                      'Jodhpur Park, Kolkata',
+                      _pickupAddress,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
@@ -312,7 +895,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                     ),
                     SizedBox(height: 2),
                     Text(
-                      '700068, West Bengal',
+                      '${_pickupPincode.isNotEmpty ? _pickupPincode : 'Pincode unavailable'}, ${_pickupState.isNotEmpty ? _pickupState : 'State unavailable'}',
                       style: TextStyle(color: Color(0xFF8A8F9C), fontSize: 13),
                     ),
                   ],
@@ -320,7 +903,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
               ),
 
               TextButton(
-                onPressed: () {},
+                onPressed: _editPickup,
                 child: const Text(
                   'Edit',
                   style: TextStyle(color: blue, fontWeight: FontWeight.bold),
@@ -338,23 +921,50 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
 
               const SizedBox(width: 14),
 
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'DROP',
-                    style: TextStyle(
-                      color: Color(0xFF8A8F9C),
-                      fontSize: 11,
-                      letterSpacing: .8,
-                    ),
+              Expanded(
+                child: InkWell(
+                  onTap: _editDrop,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'DROP',
+                        style: TextStyle(
+                          color: Color(0xFF8A8F9C),
+                          fontSize: 11,
+                          letterSpacing: .8,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        _dropAddress,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _dropAddress == 'Tap to add destination'
+                              ? const Color(0xFF8A8F9C)
+                              : Colors.black,
+                          fontSize: 14,
+                          fontWeight: _dropAddress == 'Tap to add destination'
+                              ? FontWeight.normal
+                              : FontWeight.bold,
+                        ),
+                      ),
+                      if (_dropAddress != 'Tap to add destination') ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_dropPincode.isNotEmpty ? _dropPincode : 'Pincode unavailable'}, ${_dropState.isNotEmpty ? _dropState : 'State unavailable'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF8A8F9C),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  SizedBox(height: 3),
-                  Text(
-                    'Tap to add destination',
-                    style: TextStyle(color: Color(0xFF8A8F9C), fontSize: 14),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
