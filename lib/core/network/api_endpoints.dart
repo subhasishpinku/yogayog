@@ -9,4 +9,5 @@ class ApiEndpoints {
   static const String profile = "profile";
   static const String customerWalletLedger = "customer-wallet-ledger";
   static const String bookings = "bookings";
+  static const String locations = "locations";
 }

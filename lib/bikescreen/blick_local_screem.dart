@@ -6,6 +6,9 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/bikescreen_service.dart';
+import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
+import 'package:provider/provider.dart';
 
 class BikeLocalScreen extends StatefulWidget {
   const BikeLocalScreen({super.key});
@@ -517,6 +520,29 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _openSavedLocations() async {
+    final provider = context.read<BikescreenProvider>();
+    await provider.loadLocations();
+    if (!mounted) return;
+    if (provider.errorMessage != null && provider.locations.isEmpty) {
+      _showMessage(provider.errorMessage!);
+      return;
+    }
+    final selected = await showDialog<SavedLocation>(
+      context: context,
+      builder: (_) => _SavedLocationDialog(locations: provider.locations),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _pickupAddress = selected.address;
+      _pickupCity = selected.city;
+      _pickupPincode = selected.pincode;
+      _pickupState = selected.state;
+      _pickupLatitude = selected.latitude;
+      _pickupLongitude = selected.longitude;
+    });
+  }
+
   Future<void> _loadCurrentPickupLocation() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
@@ -866,6 +892,8 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       ),
       child: Column(
         children: [
+          _savedLocationSearchBox(),
+          const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -973,6 +1001,35 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     );
   }
 
+  Widget _savedLocationSearchBox() {
+    return InkWell(
+      onTap: _openSavedLocations,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F7FC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE0E2E8)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.search, color: Color(0xFF667085)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Search saved pickup location',
+                style: TextStyle(color: Color(0xFF667085)),
+              ),
+            ),
+            Icon(Icons.keyboard_arrow_down, color: Color(0xFF667085)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _locationIndicator(Color color) {
     return Column(
       children: [
@@ -1005,6 +1062,86 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         borderRadius: BorderRadius.circular(14),
         borderSide: const BorderSide(color: blue, width: 1.5),
       ),
+    );
+  }
+}
+
+class _SavedLocationDialog extends StatefulWidget {
+  const _SavedLocationDialog({required this.locations});
+
+  final List<SavedLocation> locations;
+
+  @override
+  State<_SavedLocationDialog> createState() => _SavedLocationDialogState();
+}
+
+class _SavedLocationDialogState extends State<_SavedLocationDialog> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _query.trim().toLowerCase();
+    final locations = widget.locations.where((location) {
+      if (query.isEmpty) return true;
+      return '${location.name} ${location.address} ${location.city} ${location.pincode}'
+          .toLowerCase()
+          .contains(query);
+    }).toList();
+
+    return AlertDialog(
+      title: const Text('Select Pickup Location'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 360,
+        child: Column(
+          children: [
+            TextField(
+              autofocus: true,
+              onChanged: (value) => setState(() => _query = value),
+              decoration: const InputDecoration(
+                hintText: 'Search address or city',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: locations.isEmpty
+                  ? const Center(child: Text('No saved locations found'))
+                  : ListView.separated(
+                      itemCount: locations.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (_, index) {
+                        final location = locations[index];
+                        return ListTile(
+                          leading: Icon(
+                            location.flag == 'pick'
+                                ? Icons.location_on
+                                : Icons.location_on_outlined,
+                            color: AppColors.primaryMain,
+                          ),
+                          title: Text(
+                            location.address,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${location.city}, ${location.pincode}, ${location.state}',
+                          ),
+                          onTap: () => Navigator.pop(context, location),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
     );
   }
 }
