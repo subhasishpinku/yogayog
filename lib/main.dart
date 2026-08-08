@@ -16,6 +16,8 @@ import 'package:yogayog/otpscreen/provider/otp_provider.dart';
 import 'package:yogayog/splash_screen.dart';
 import 'package:yogayog/utils/BackgroundTask/background_task.dart';
 import 'package:yogayog/utils/sound_service.dart';
+import 'package:yogayog/viewledger/provider/viewledger_provider.dart';
+import 'package:yogayog/history/provider/history_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,6 +51,8 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
         ChangeNotifierProvider(create: (_) => HomeProvider()),
         ChangeNotifierProvider(create: (_) => OtpProvider()),
+        ChangeNotifierProvider(create: (_) => ViewledgerProvider()),
+        ChangeNotifierProvider(create: (_) => HistoryProvider()),
       ],
       child: const MyApp(),
     ),

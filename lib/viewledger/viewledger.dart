@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/viewledger_service.dart';
+import 'package:yogayog/viewledger/provider/viewledger_provider.dart';
+import 'package:provider/provider.dart';
 
 class Viewledger extends StatefulWidget {
   const Viewledger({super.key});
@@ -11,6 +14,14 @@ class Viewledger extends StatefulWidget {
 class _ViewledgerState extends State<Viewledger> {
   static const _blue = AppColors.primaryBlue;
   static const _background = Color(0xFFF4F4FA);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ViewledgerProvider>().loadLedger();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +127,7 @@ class _ViewledgerState extends State<Viewledger> {
   }
 
   Widget _balanceSummary() {
+    final ledger = context.watch<ViewledgerProvider>().ledger;
     return Column(
       children: [
         Row(
@@ -123,7 +135,7 @@ class _ViewledgerState extends State<Viewledger> {
             Expanded(
               child: _summaryCard(
                 title: 'CURRENT BALANCE',
-                amount: '₹10,000',
+                amount: _money(ledger?.currentBalance),
                 color: _blue,
               ),
             ),
@@ -131,7 +143,7 @@ class _ViewledgerState extends State<Viewledger> {
             Expanded(
               child: _summaryCard(
                 title: 'TOTAL CREDIT',
-                amount: '₹10,000',
+                amount: _money(ledger?.totalCredit),
                 color: const Color(0xFF2DBE58),
               ),
             ),
@@ -140,7 +152,7 @@ class _ViewledgerState extends State<Viewledger> {
         const SizedBox(height: 12),
         _summaryCard(
           title: 'TOTAL DEBIT',
-          amount: '₹0.00',
+          amount: _money(ledger?.totalDebit),
           color: const Color(0xFFD13A2E),
           fullWidth: true,
         ),
@@ -195,6 +207,137 @@ class _ViewledgerState extends State<Viewledger> {
   }
 
   Widget _transactionCard() {
+    final provider = context.watch<ViewledgerProvider>();
+    if (provider.isLoading && provider.ledger == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    if (provider.errorMessage != null && provider.ledger == null) {
+      return Column(
+        children: [
+          Text(
+            provider.errorMessage!,
+            style: const TextStyle(color: Colors.red),
+          ),
+          TextButton(
+            onPressed: provider.loadLedger,
+            child: const Text('Retry'),
+          ),
+        ],
+      );
+    }
+    final transactions =
+        provider.ledger?.transactions ?? const <WalletTransaction>[];
+    if (transactions.isEmpty) {
+      return const Center(child: Text('No transactions found'));
+    }
+    return Column(children: transactions.map(_transactionItem).toList());
+  }
+
+  Widget _transactionItem(WalletTransaction transaction) {
+    final isCredit = transaction.type.toLowerCase() == 'credit';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                transaction.transactionId,
+                style: const TextStyle(color: Colors.grey, fontSize: 11),
+              ),
+              Text(
+                '${isCredit ? '+' : '-'} ${isCredit ? 'Credit' : 'Debit'}',
+                style: TextStyle(
+                  color: isCredit
+                      ? const Color(0xFF27943D)
+                      : const Color(0xFFD13A2E),
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      transaction.transaction,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Description: ${transaction.description}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      transaction.createdAt,
+                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${isCredit ? '+' : '-'}${_money(transaction.amount)}',
+                    style: TextStyle(
+                      color: isCredit
+                          ? const Color(0xFF27943D)
+                          : const Color(0xFFD13A2E),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Balance: ${_money(transaction.runningBalance)}',
+                    style: const TextStyle(
+                      color: _blue,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _money(double? amount) => '₹${(amount ?? 0).toStringAsFixed(2)}';
+
+  Widget _transactionCardStatic() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(

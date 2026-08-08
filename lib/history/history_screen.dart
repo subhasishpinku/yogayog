@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/history_service.dart';
+import 'package:yogayog/history/provider/history_provider.dart';
+import 'package:provider/provider.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -10,6 +13,17 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   int selectedFilter = 0;
+
+  static const filters = <_HistoryFilter>[
+    _HistoryFilter('All'),
+    // _HistoryFilter('Local', 1),
+    _HistoryFilter('Bike', 1, 2),
+    _HistoryFilter('Truck', 1, 3),
+    _HistoryFilter('National/Domestic', 4),
+    // _HistoryFilter('International', 7),
+    _HistoryFilter('Import', 7, 8),
+    _HistoryFilter('Export', 7, 9),
+  ];
 
   final shipments = const [
     _Shipment(
@@ -58,6 +72,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadFilter(filters[selectedFilter]);
+    });
+  }
+
+  void _loadFilter(_HistoryFilter filter) {
+    context.read<HistoryProvider>().loadBookings(
+      serviceId: filter.serviceId,
+      subServiceId: filter.subServiceId,
+    );
+  }
+
   List<_Shipment> get filteredShipments {
     if (selectedFilter == 1) {
       return shipments.where((x) => x.status == 'In Transit').toList();
@@ -76,27 +105,145 @@ class _HistoryScreenState extends State<HistoryScreen> {
         child: Column(
           children: [
             _header(),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-                itemCount: filteredShipments.length,
-                itemBuilder: (_, index) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _shipmentCard(filteredShipments[index]),
-                  );
-                },
-              ),
-            ),
+            Expanded(child: _buildBookings()),
           ],
         ),
       ),
     );
   }
 
-  Widget _header() {
-    const filters = ['All', 'Active', 'Delivered', 'Local', 'National'];
+  Widget _buildBookings() {
+    final provider = context.watch<HistoryProvider>();
+    if (provider.isLoading && provider.history == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (provider.errorMessage != null && provider.history == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              provider.errorMessage!,
+              style: const TextStyle(color: Colors.red),
+            ),
+            TextButton(
+              onPressed: provider.loadBookings,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+    final bookings = provider.history?.ordersToDisplay ?? const <Booking>[];
+    if (bookings.isEmpty) {
+      return const Center(child: Text('No bookings found'));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+      itemCount: bookings.length,
+      itemBuilder: (_, index) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: _bookingCard(bookings[index]),
+      ),
+    );
+  }
 
+  Widget _bookingCard(Booking item) {
+    final delivered = item.status.toLowerCase() == 'delivered';
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF0FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.local_shipping,
+                  color: delivered
+                      ? const Color(0xFF62D746)
+                      : const Color(0xFFFFC400),
+                  size: 25,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.orderNo,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      '${item.serviceName} - ${item.orderDate}',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _statusBadge(item.status),
+            ],
+          ),
+          const SizedBox(height: 13),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${item.pickupCity}  →  ${item.dropCity}',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          const Divider(height: 22),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '₹${item.amount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  color: Color(0xFF172786),
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                item.subServiceName,
+                style: const TextStyle(
+                  color: Color(0xFF172786),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _header() {
     return Container(
       width: double.infinity,
       color: AppColors.primaryMain,
@@ -127,7 +274,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
               itemBuilder: (_, index) {
                 final active = selectedFilter == index;
                 return GestureDetector(
-                  onTap: () => setState(() => selectedFilter = index),
+                  onTap: () {
+                    setState(() => selectedFilter = index);
+                    _loadFilter(filters[index]);
+                  },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 15),
                     alignment: Alignment.center,
@@ -138,7 +288,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Text(
-                      filters[index],
+                      filters[index].label,
                       style: TextStyle(
                         color: active
                             ? const Color(0xFF172786)
@@ -302,4 +452,12 @@ class _Shipment {
   final String status;
   final IconData icon;
   final Color color;
+}
+
+class _HistoryFilter {
+  const _HistoryFilter(this.label, [this.serviceId, this.subServiceId]);
+
+  final String label;
+  final int? serviceId;
+  final int? subServiceId;
 }

@@ -71,15 +71,45 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 3),
           Row(
             children: [
-              Text(
-                profile?.name.isNotEmpty == true ? profile!.name : 'Loading...',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      profile?.name.isNotEmpty == true
+                          ? profile!.name
+                          : 'Loading...',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (profile?.email.isNotEmpty == true) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        profile!.email,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                    if (profile?.mobile.isNotEmpty == true) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        profile!.mobile,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const Spacer(),
+
               CircleAvatar(
                 radius: 18,
                 backgroundColor: yellow,
@@ -91,19 +121,19 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          TextField(
-            decoration: InputDecoration(
-              hintText: 'Book a delivery or track...',
-              hintStyle: const TextStyle(color: Colors.white54),
-              prefixIcon: const Icon(Icons.search, color: Colors.white54),
-              filled: true,
-              fillColor: Colors.white.withOpacity(.15),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
+          // TextField(
+          //   decoration: InputDecoration(
+          //     hintText: 'Book a delivery or track...',
+          //     hintStyle: const TextStyle(color: Colors.white54),
+          //     prefixIcon: const Icon(Icons.search, color: Colors.white54),
+          //     filled: true,
+          //     fillColor: Colors.white.withOpacity(.15),
+          //     border: OutlineInputBorder(
+          //       borderRadius: BorderRadius.circular(10),
+          //       borderSide: BorderSide.none,
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );

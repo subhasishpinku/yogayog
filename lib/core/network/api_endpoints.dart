@@ -7,4 +7,6 @@ class ApiEndpoints {
   static const String mailVerifyOtp = "mail/verify-otp";
   static const String authLogout = "logout";
   static const String profile = "profile";
+  static const String customerWalletLedger = "customer-wallet-ledger";
+  static const String bookings = "bookings";
 }
