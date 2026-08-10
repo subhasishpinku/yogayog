@@ -1,5 +1,351 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:yogayog/choosecourier/choose_courier.dart';
+import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
+import 'package:yogayog/core/services/bikescreen_service.dart';
+import 'package:provider/provider.dart';
+import 'package:yogayog/constants/app_colors.dart';
+
+class _PlaceSuggestion {
+  const _PlaceSuggestion({required this.placeId, required this.description});
+  final String placeId;
+  final String description;
+}
+
+class _GeoLocation {
+  const _GeoLocation({
+    required this.address,
+    required this.city,
+    required this.pincode,
+    required this.state,
+    this.latitude,
+    this.longitude,
+  });
+  final String address;
+  final String city;
+  final String pincode;
+  final String state;
+  final double? latitude;
+  final double? longitude;
+}
+
+class _PlaceSearchDialog extends StatefulWidget {
+  const _PlaceSearchDialog({
+    this.title = 'Choose Drop Location',
+    required this.searchPlaces,
+    required this.getPlaceDetails,
+  });
+
+  final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
+  final Future<_GeoLocation> Function(String) getPlaceDetails;
+  final String title;
+
+  @override
+  State<_PlaceSearchDialog> createState() => _PlaceSearchDialogState();
+}
+
+class _PlaceSearchDialogState extends State<_PlaceSearchDialog> {
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  List<_PlaceSuggestion> _suggestions = [];
+  String? _error;
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    if (value.trim().length < 2) {
+      setState(() {
+        _suggestions = [];
+        _error = null;
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      if (!mounted) return;
+      setState(() => _loading = true);
+      try {
+        final suggestions = await widget.searchPlaces(value);
+        if (!mounted) return;
+        setState(() {
+          _suggestions = suggestions;
+          _error = null;
+          _loading = false;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() {
+          _error = error.toString().replaceFirst('Exception: ', '');
+          _loading = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _selectPlace(_PlaceSuggestion suggestion) async {
+    setState(() => _loading = true);
+    try {
+      final location = await widget.getPlaceDetails(suggestion.placeId);
+      if (mounted) Navigator.pop(context, location);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString().replaceFirst('Exception: ', '');
+        _loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.45,
+        ),
+        child: SingleChildScrollView(
+          child: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  onChanged: _onSearchChanged,
+                  decoration: const InputDecoration(
+                    hintText: 'Search address, city or pincode',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_loading) const LinearProgressIndicator(),
+                if (_error != null)
+                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                if (_suggestions.isNotEmpty)
+                  Column(
+                    children: _suggestions.take(4).map((suggestion) {
+                      return ListTile(
+                        leading: const Icon(Icons.location_on_outlined),
+                        title: Text(suggestion.description),
+                        onTap: () => _selectPlace(suggestion),
+                      );
+                    }).toList(),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PickupEditDialog extends StatefulWidget {
+  const _PickupEditDialog({
+    required this.initialAddress,
+    required this.initialCity,
+    required this.initialPincode,
+    required this.initialState,
+    required this.initialLatitude,
+    required this.initialLongitude,
+    required this.searchPlaces,
+    required this.getPlaceDetails,
+  });
+
+  final String initialAddress;
+  final String initialCity;
+  final String initialPincode;
+  final String initialState;
+  final double? initialLatitude;
+  final double? initialLongitude;
+  final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
+  final Future<_GeoLocation> Function(String) getPlaceDetails;
+
+  @override
+  State<_PickupEditDialog> createState() => _PickupEditDialogState();
+}
+
+class _PickupEditDialogState extends State<_PickupEditDialog> {
+  late final TextEditingController _addressController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _pincodeController;
+  late final TextEditingController _stateController;
+  late final TextEditingController _latitudeController;
+  late final TextEditingController _longitudeController;
+  Timer? _debounce;
+  List<_PlaceSuggestion> _suggestions = [];
+  String? _error;
+  double? _latitude;
+  double? _longitude;
+
+  @override
+  void initState() {
+    super.initState();
+    _addressController = TextEditingController(text: widget.initialAddress);
+    _cityController = TextEditingController(text: widget.initialCity);
+    _pincodeController = TextEditingController(text: widget.initialPincode);
+    _stateController = TextEditingController(text: widget.initialState);
+    _latitude = widget.initialLatitude;
+    _longitude = widget.initialLongitude;
+    _latitudeController = TextEditingController(
+      text: _latitude?.toString() ?? '',
+    );
+    _longitudeController = TextEditingController(
+      text: _longitude?.toString() ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _addressController.dispose();
+    _cityController.dispose();
+    _pincodeController.dispose();
+    _stateController.dispose();
+    _latitudeController.dispose();
+    _longitudeController.dispose();
+    super.dispose();
+  }
+
+  void _searchAddress(String value) {
+    _debounce?.cancel();
+    if (value.trim().length < 2) {
+      setState(() => _suggestions = []);
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      try {
+        final result = await widget.searchPlaces(value);
+        if (!mounted) return;
+        setState(() {
+          _suggestions = result;
+          _error = null;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(
+          () => _error = error.toString().replaceFirst('Exception: ', ''),
+        );
+      }
+    });
+  }
+
+  Future<void> _selectAddress(_PlaceSuggestion suggestion) async {
+    try {
+      final location = await widget.getPlaceDetails(suggestion.placeId);
+      if (!mounted) return;
+      setState(() {
+        _addressController.text = location.address;
+        _cityController.text = location.city;
+        _pincodeController.text = location.pincode;
+        _stateController.text = location.state;
+        _latitude = location.latitude;
+        _longitude = location.longitude;
+        _latitudeController.text = _latitude?.toString() ?? '';
+        _longitudeController.text = _longitude?.toString() ?? '';
+        _suggestions = [];
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Widget _field(
+    TextEditingController controller,
+    String label, {
+    TextInputType? type,
+    ValueChanged<String>? onChanged,
+    bool readOnly = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: controller,
+        keyboardType: type,
+        onChanged: onChanged,
+        readOnly: readOnly,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edit Pickup Location'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _field(_addressController, 'Address', onChanged: _searchAddress),
+            if (_error != null)
+              Text(_error!, style: const TextStyle(color: Colors.red)),
+            if (_suggestions.isNotEmpty)
+              Column(
+                children: _suggestions.take(4).map((suggestion) {
+                  return ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.location_on_outlined),
+                    title: Text(suggestion.description),
+                    onTap: () => _selectAddress(suggestion),
+                  );
+                }).toList(),
+              ),
+            _field(_cityController, 'City'),
+            _field(_pincodeController, 'Pincode', type: TextInputType.number),
+            _field(_stateController, 'State'),
+            _field(_latitudeController, 'Latitude', readOnly: true),
+            _field(_longitudeController, 'Longitude', readOnly: true),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(
+            context,
+            _GeoLocation(
+              address: _addressController.text.trim(),
+              city: _cityController.text.trim(),
+              pincode: _pincodeController.text.trim(),
+              state: _stateController.text.trim(),
+              latitude: _latitude,
+              longitude: _longitude,
+            ),
+          ),
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
 
 class PackageBox {
   final lengthController = TextEditingController();
@@ -10,7 +356,6 @@ class PackageBox {
     final length = double.tryParse(lengthController.text) ?? 0;
     final breadth = double.tryParse(breadthController.text) ?? 0;
     final height = double.tryParse(heightController.text) ?? 0;
-
     return (length * breadth * height) / 5000;
   }
 
@@ -29,6 +374,11 @@ class NationalDetails extends StatefulWidget {
 }
 
 class _NationalDetailsState extends State<NationalDetails> {
+  static const placesKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: 'AIzaSyC6atqg-XZ8SVzSlLrt5W5mhCgkG-8h6Lo',
+  );
+
   String selectedPackageType = 'Document';
   String selectedPackageSize = '0 - 500g';
   String selectedService = 'Express';
@@ -43,6 +393,26 @@ class _NationalDetailsState extends State<NationalDetails> {
 
   final List<PackageBox> packageBoxes = [];
 
+  String pickupAddress = 'Fetching current location...';
+  String pickupCity = '';
+  String pickupPincode = '';
+  String pickupState = '';
+  double? pickupLatitude;
+  double? pickupLongitude;
+
+  String dropAddress = 'Tap to add destination';
+  String dropCity = '';
+  String dropPincode = '';
+  String dropState = '';
+  double? dropLatitude;
+  double? dropLongitude;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentPickupLocation();
+  }
+
   @override
   void dispose() {
     receiverNameController.dispose();
@@ -52,12 +422,708 @@ class _NationalDetailsState extends State<NationalDetails> {
     pinController.dispose();
     piecesController.dispose();
     approximateWeightController.dispose();
-
     for (final box in packageBoxes) {
       box.dispose();
     }
-
     super.dispose();
+  }
+
+  // ==================== Google Places API ====================
+
+  Future<List<_PlaceSuggestion>> _searchPlaces(String query) async {
+    if (query.trim().length < 2 || placesKey.isEmpty) return [];
+    final response = await Dio().get(
+      'https://maps.googleapis.com/maps/api/place/autocomplete/json',
+      queryParameters: {
+        'input': query.trim(),
+        'key': placesKey,
+        'components': 'country:in',
+      },
+    );
+    final data = response.data;
+    if (data is! Map ||
+        data['status'] != 'OK' && data['status'] != 'ZERO_RESULTS') {
+      throw Exception('Places search failed');
+    }
+    final predictions = data['predictions'];
+    return predictions is List
+        ? predictions
+              .whereType<Map>()
+              .map(
+                (item) => _PlaceSuggestion(
+                  placeId: item['place_id']?.toString() ?? '',
+                  description: item['description']?.toString() ?? '',
+                ),
+              )
+              .toList()
+        : [];
+  }
+
+  Future<_GeoLocation> _getPlaceDetails(String placeId) async {
+    final response = await Dio().get(
+      'https://maps.googleapis.com/maps/api/place/details/json',
+      queryParameters: {
+        'place_id': placeId,
+        'fields': 'formatted_address,address_component,geometry',
+        'key': placesKey,
+      },
+    );
+    final data = response.data;
+    final result = data is Map ? data['result'] : null;
+    if (data is! Map || data['status'] != 'OK' || result is! Map) {
+      throw Exception('Unable to load place');
+    }
+    String component(String type) {
+      final components = result['address_components'];
+      if (components is! List) return '';
+      for (final item in components.whereType<Map>()) {
+        final types = item['types'];
+        if (types is List && types.contains(type))
+          return item['long_name']?.toString() ?? '';
+      }
+      return '';
+    }
+
+    final geometry = result['geometry'];
+    final location = geometry is Map ? geometry['location'] : null;
+    double? coordinate(Object? value) {
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '');
+    }
+
+    return _GeoLocation(
+      address: result['formatted_address']?.toString() ?? '',
+      city: component('locality').isNotEmpty
+          ? component('locality')
+          : component('administrative_area_level_2'),
+      pincode: component('postal_code'),
+      state: component('administrative_area_level_1'),
+      latitude: location is Map ? coordinate(location['lat']) : null,
+      longitude: location is Map ? coordinate(location['lng']) : null,
+    );
+  }
+
+  // ==================== Pickup Location ====================
+
+  Future<void> _loadCurrentPickupLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        throw Exception('Please turn on location services');
+      }
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission is required');
+      }
+
+      final Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      final place = placemarks.isNotEmpty ? placemarks.first : null;
+      if (!mounted) return;
+      setState(() {
+        pickupLatitude = position.latitude;
+        pickupLongitude = position.longitude;
+        pickupAddress = [
+          place?.street,
+          place?.subLocality,
+          place?.locality,
+        ].where((value) => value?.trim().isNotEmpty == true).join(', ');
+        pickupCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+        pickupPincode = place?.postalCode ?? '';
+        pickupState = place?.administrativeArea ?? '';
+        if (pickupAddress.isEmpty) pickupAddress = 'Current location';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(
+        () => pickupAddress = error.toString().replaceFirst('Exception: ', ''),
+      );
+    }
+  }
+
+  Future<void> _editPickup() async {
+    final result = await showDialog<_GeoLocation>(
+      context: context,
+      builder: (_) => _PickupEditDialog(
+        initialAddress: pickupAddress,
+        initialCity: pickupCity,
+        initialPincode: pickupPincode,
+        initialState: pickupState,
+        initialLatitude: pickupLatitude,
+        initialLongitude: pickupLongitude,
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      pickupAddress = result.address;
+      pickupCity = result.city;
+      pickupPincode = result.pincode;
+      pickupState = result.state;
+      pickupLatitude = result.latitude;
+      pickupLongitude = result.longitude;
+    });
+  }
+
+  Future<void> _openSavedLocations() async {
+    final provider = context.read<BikescreenProvider>();
+    await provider.loadLocations();
+    if (!mounted) return;
+    if (provider.errorMessage != null && provider.locations.isEmpty) {
+      _showMessage(provider.errorMessage!);
+      return;
+    }
+    final selected = await showDialog<SavedLocation>(
+      context: context,
+      builder: (_) => _SavedLocationDialog(locations: provider.locations),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      pickupAddress = selected.address;
+      pickupCity = selected.city;
+      pickupPincode = selected.pincode;
+      pickupState = selected.state;
+      pickupLatitude = selected.latitude;
+      pickupLongitude = selected.longitude;
+    });
+  }
+
+  // ==================== Drop Location ====================
+
+  Future<void> _editDrop() async {
+    if (placesKey.isEmpty) {
+      _showMessage('Google Places API key is not configured');
+      return;
+    }
+    final selected = await showDialog<_GeoLocation>(
+      context: context,
+      builder: (_) => _PlaceSearchDialog(
+        title: 'Choose Drop Location',
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      dropAddress = selected.address;
+      dropCity = selected.city;
+      dropPincode = selected.pincode;
+      dropState = selected.state;
+      dropLatitude = selected.latitude;
+      dropLongitude = selected.longitude;
+      addressController.text = dropAddress;
+      cityController.text = dropCity;
+      pinController.text = dropPincode;
+    });
+  }
+
+  // ==================== Helper Methods ====================
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _onPiecesChanged(String value) {
+    if (selectedPackageType != 'Non-document') return;
+    final count = int.tryParse(value) ?? 0;
+    setState(() {
+      _syncPackageBoxes(count);
+    });
+  }
+
+  void _syncPackageBoxes(int count) {
+    final safeCount = count < 0 ? 0 : count;
+    while (packageBoxes.length < safeCount) {
+      packageBoxes.add(PackageBox());
+    }
+    while (packageBoxes.length > safeCount) {
+      packageBoxes.last.dispose();
+      packageBoxes.removeLast();
+    }
+  }
+
+  // ==================== Widget Builders ====================
+
+  Widget _label(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, top: 12, bottom: 6),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Color(0xFF536078),
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  Widget _textField({
+    required TextEditingController controller,
+    required String hintText,
+    TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      onChanged: onChanged,
+      style: const TextStyle(color: Color(0xFF536078), fontSize: 16),
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: const TextStyle(color: Color(0xFF536078), fontSize: 16),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFFE1E1E6)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFF17249B), width: 1.5),
+        ),
+      ),
+    );
+  }
+
+  Widget _locationCard() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x18000000),
+            blurRadius: 9,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: _openSavedLocations,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 49,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F8FC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE1E1E6)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.search, color: Color(0xFF667085), size: 23),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Search saved pickup location',
+                      style: TextStyle(color: Color(0xFF667085), fontSize: 14),
+                    ),
+                  ),
+                  Icon(Icons.keyboard_arrow_down, color: Color(0xFF667085)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _locationRow('PICKUP', pickupAddress, pickupCity, pickupPincode, true, _editPickup),
+          const Padding(
+            padding: EdgeInsets.only(left: 6),
+            child: Divider(height: 20),
+          ),
+          _locationRow('DROP', dropAddress, dropCity, dropPincode, false, _editDrop),
+        ],
+      ),
+    );
+  }
+
+  Widget _locationRow(
+    String label,
+    String address,
+    String city,
+    String pincode,
+    bool pickup,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Column(
+              children: [
+                Container(
+                  width: 13,
+                  height: 13,
+                  decoration: BoxDecoration(
+                    color: pickup ? const Color(0xFFFFC400) : Colors.black,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                if (pickup)
+                  Container(
+                    width: 2,
+                    height: 26,
+                    color: const Color(0xFFD9DCE5),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF8A8F9C),
+                    fontSize: 11,
+                    letterSpacing: .8,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  address,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: pickup ? FontWeight.w700 : FontWeight.normal,
+                    color: pickup ? Colors.black : const Color(0xFF8A8F9C),
+                  ),
+                ),
+                if (city.isNotEmpty || pincode.isNotEmpty)
+                  Text(
+                    [city, pincode].where((value) => value.isNotEmpty).join(', '),
+                    style: const TextStyle(
+                      color: Color(0xFF8A8F9C),
+                      fontSize: 13,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (pickup)
+            TextButton(
+              onPressed: onTap,
+              child: const Text(
+                'Edit',
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _packageTypeCard({
+    required String title,
+    required IconData icon,
+    required String packageType,
+  }) {
+    final isSelected = selectedPackageType == packageType;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          selectedPackageType = packageType;
+          if (packageType == 'Non-document') {
+            _syncPackageBoxes(int.tryParse(piecesController.text) ?? 1);
+          } else {
+            for (final box in packageBoxes) {
+              box.dispose();
+            }
+            packageBoxes.clear();
+          }
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 68,
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEFF8FF) : Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF00A6A6) : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 5,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? const Color(0xFF008C8C) : Colors.brown,
+              size: 25,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _packageSizeChip(String size) {
+    final isSelected = selectedPackageSize == size;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          selectedPackageSize = size;
+          if (size == '0 - 500g') {
+            approximateWeightController.text = '0.5';
+          } else if (size == '500g - 1kg') {
+            approximateWeightController.text = '1';
+          } else {
+            approximateWeightController.clear();
+          }
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFF2FFFF) : const Color(0xFFF7F7F7),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF009B9B)
+                : const Color(0xFFD0D0D0),
+          ),
+        ),
+        child: Text(
+          size,
+          style: TextStyle(
+            color: isSelected ? const Color(0xFF008C8C) : Colors.black,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _packageBoxesWidget() {
+    final totalWeight = packageBoxes.fold<double>(
+      0,
+      (total, box) => total + box.volumetricWeight,
+    );
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: const Color(0xFFE1E1E6)),
+      ),
+      child: Column(
+        children: [
+          ...List.generate(
+            packageBoxes.length,
+            (index) => _boxCard(box: packageBoxes[index], index: index),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE7F4FF),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Total Volumetric Weight: ${totalWeight.toStringAsFixed(2)} kg',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _boxCard({required PackageBox box, required int index}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: const Color(0xFFD9D9D9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Box ${index + 1}',
+                style: const TextStyle(
+                  color: Color(0xFF536078),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (packageBoxes.length > 1)
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      box.dispose();
+                      packageBoxes.removeAt(index);
+                      piecesController.text = packageBoxes.length.toString();
+                    });
+                  },
+                  child: const CircleAvatar(
+                    radius: 12,
+                    backgroundColor: Colors.redAccent,
+                    child: Icon(Icons.close, color: Colors.white, size: 15),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _dimensionField(
+                  controller: box.lengthController,
+                  hintText: 'Length (cm)',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _dimensionField(
+                  controller: box.breadthController,
+                  hintText: 'Breadth (cm)',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _dimensionField(
+                  controller: box.heightController,
+                  hintText: 'Height (cm)',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Volumetric Weight: ${box.volumetricWeight.toStringAsFixed(2)} kg',
+            style: const TextStyle(
+              color: Color(0xFF536078),
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dimensionField({
+    required TextEditingController controller,
+    required String hintText,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: const TextStyle(color: Color(0xFF536078), fontSize: 13),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: 12,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(5),
+          borderSide: const BorderSide(color: Color(0xFFD6D6D6)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(5),
+          borderSide: const BorderSide(color: Color(0xFF00A6A6)),
+        ),
+      ),
+    );
+  }
+
+  void _reviewAndConfirm() {
+    FocusScope.of(context).unfocus();
+    final approximateWeight =
+        double.tryParse(approximateWeightController.text) ?? 0;
+    final volumetricWeight = packageBoxes.fold<double>(
+      0,
+      (total, box) => total + box.volumetricWeight,
+    );
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirm Shipment'),
+        content: Text(
+          'Package: $selectedPackageType\n'
+          'Size: $selectedPackageSize\n'
+          'Pieces: ${piecesController.text}\n'
+          'Service: $selectedService',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChooseCourier(
+                    approximateWeightKg: approximateWeight,
+                    volumetricWeightKg: volumetricWeight,
+                  ),
+                ),
+              );
+            },
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -84,6 +1150,9 @@ class _NationalDetailsState extends State<NationalDetails> {
               hintText: 'Full name',
             ),
 
+            const SizedBox(height: 14),
+            _locationCard(),
+
             _label('MOBILE'),
             _textField(
               controller: mobileController,
@@ -93,6 +1162,13 @@ class _NationalDetailsState extends State<NationalDetails> {
 
             _label('DELIVERY ADDRESS'),
             _textField(controller: addressController, hintText: 'Full address'),
+
+            _label('APPROXIMATE WEIGHT (KG)'),
+            _textField(
+              controller: approximateWeightController,
+              hintText: 'e.g. 2.5',
+              keyboardType: TextInputType.number,
+            ),
 
             Row(
               children: [
@@ -229,9 +1305,7 @@ class _NationalDetailsState extends State<NationalDetails> {
                         Padding(
                           padding: const EdgeInsets.only(left: 4, top: 4),
                           child: Text(
-                            '💡 Weight set to '
-                            '${approximateWeightController.text}kg '
-                            'for this size',
+                            '💡 Weight set to ${approximateWeightController.text}kg for this size',
                             style: const TextStyle(
                               color: Color(0xFF536078),
                               fontSize: 12,
@@ -251,53 +1325,22 @@ class _NationalDetailsState extends State<NationalDetails> {
 
             const SizedBox(height: 28),
 
-            // const Text(
-            //   'Service Type',
-            //   style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            // ),
-
-            // const SizedBox(height: 10),
-
-            // _serviceCard(
-            //   title: 'Express (2–3 days)',
-            //   subtitle: 'Priority air movement',
-            //   price: '₹349',
-            //   icon: Icons.bolt,
-            //   iconColor: Colors.amber,
-            //   serviceKey: 'Express',
-            // ),
-
-            // const SizedBox(height: 10),
-
-            // _serviceCard(
-            //   title: 'Standard (5–7 days)',
-            //   subtitle: 'Surface transport',
-            //   price: '₹149',
-            //   icon: Icons.local_shipping,
-            //   iconColor: Colors.green,
-            //   serviceKey: 'Standard',
-            // ),
-            const SizedBox(height: 28),
-
-            InkWell(
-              onTap: () {},
-              child: SizedBox(
-                width: double.infinity,
-                height: 57,
-                child: ElevatedButton(
-                  onPressed: _reviewAndConfirm,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFC400),
-                    foregroundColor: const Color(0xFF101B8F),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+            SizedBox(
+              width: double.infinity,
+              height: 57,
+              child: ElevatedButton(
+                onPressed: _reviewAndConfirm,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFC400),
+                  foregroundColor: const Color(0xFF101B8F),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Text(
-                    'Review & Confirm →',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                ),
+                child: const Text(
+                  'Review & Confirm →',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -306,468 +1349,85 @@ class _NationalDetailsState extends State<NationalDetails> {
       ),
     );
   }
+}
 
-  Widget _label(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 20, top: 12, bottom: 6),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Color(0xFF536078),
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.8,
-        ),
-      ),
-    );
-  }
+// ==================== Saved Location Dialog ====================
 
-  Widget _textField({
-    required TextEditingController controller,
-    required String hintText,
-    TextInputType? keyboardType,
-    ValueChanged<String>? onChanged,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      onChanged: onChanged,
-      style: const TextStyle(color: Color(0xFF536078), fontSize: 16),
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFF536078), fontSize: 16),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 15,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Color(0xFFE1E1E6)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Color(0xFF17249B), width: 1.5),
-        ),
-      ),
-    );
-  }
+class _SavedLocationDialog extends StatefulWidget {
+  const _SavedLocationDialog({required this.locations});
+  final List<SavedLocation> locations;
 
-  Widget _packageTypeCard({
-    required String title,
-    required IconData icon,
-    required String packageType,
-  }) {
-    final isSelected = selectedPackageType == packageType;
+  @override
+  State<_SavedLocationDialog> createState() => _SavedLocationDialogState();
+}
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedPackageType = packageType;
+class _SavedLocationDialogState extends State<_SavedLocationDialog> {
+  String _query = '';
 
-          if (packageType == 'Non-document') {
-            _syncPackageBoxes(int.tryParse(piecesController.text) ?? 1);
-          } else {
-            for (final box in packageBoxes) {
-              box.dispose();
-            }
-            packageBoxes.clear();
-          }
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 68,
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEFF8FF) : Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF00A6A6) : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 5,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
+  @override
+  Widget build(BuildContext context) {
+    final query = _query.trim().toLowerCase();
+    final locations = widget.locations.where((location) {
+      if (query.isEmpty) return true;
+      return '${location.name} ${location.address} ${location.city} ${location.pincode}'
+          .toLowerCase()
+          .contains(query);
+    }).toList();
+
+    return AlertDialog(
+      title: const Text('Select Pickup Location'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 360,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: isSelected ? const Color(0xFF008C8C) : Colors.brown,
-              size: 25,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _packageSizeChip(String size) {
-    final isSelected = selectedPackageSize == size;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedPackageSize = size;
-
-          if (size == '0 - 500g') {
-            approximateWeightController.text = '0.5';
-          } else if (size == '500g - 1kg') {
-            approximateWeightController.text = '1';
-          } else {
-            approximateWeightController.clear();
-          }
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFF2FFFF) : const Color(0xFFF7F7F7),
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(
-            color: isSelected
-                ? const Color(0xFF009B9B)
-                : const Color(0xFFD0D0D0),
-          ),
-        ),
-        child: Text(
-          size,
-          style: TextStyle(
-            color: isSelected ? const Color(0xFF008C8C) : Colors.black,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _packageBoxesWidget() {
-    final totalWeight = packageBoxes.fold<double>(
-      0,
-      (total, box) => total + box.volumetricWeight,
-    );
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: const Color(0xFFE1E1E6)),
-      ),
-      child: Column(
-        children: [
-          ...List.generate(
-            packageBoxes.length,
-            (index) => _boxCard(box: packageBoxes[index], index: index),
-          ),
-
-          const SizedBox(height: 10),
-
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE7F4FF),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              'Total Volumetric Weight: '
-              '${totalWeight.toStringAsFixed(2)} kg',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _boxCard({required PackageBox box, required int index}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FA),
-        borderRadius: BorderRadius.circular(9),
-        border: Border.all(color: const Color(0xFFD9D9D9)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Box ${index + 1}',
-                style: const TextStyle(
-                  color: Color(0xFF536078),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+            TextField(
+              autofocus: true,
+              onChanged: (value) => setState(() => _query = value),
+              decoration: const InputDecoration(
+                hintText: 'Search address or city',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
               ),
-
-              if (packageBoxes.length > 1)
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      box.dispose();
-                      packageBoxes.removeAt(index);
-                      piecesController.text = packageBoxes.length.toString();
-                    });
-                  },
-                  child: const CircleAvatar(
-                    radius: 12,
-                    backgroundColor: Colors.redAccent,
-                    child: Icon(Icons.close, color: Colors.white, size: 15),
-                  ),
-                ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          Row(
-            children: [
-              Expanded(
-                child: _dimensionField(
-                  controller: box.lengthController,
-                  hintText: 'Length (cm)',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _dimensionField(
-                  controller: box.breadthController,
-                  hintText: 'Breadth (cm)',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _dimensionField(
-                  controller: box.heightController,
-                  hintText: 'Height (cm)',
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 6),
-
-          Text(
-            'Volumetric Weight: '
-            '${box.volumetricWeight.toStringAsFixed(2)} kg',
-            style: const TextStyle(
-              color: Color(0xFF536078),
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _dimensionField({
-    required TextEditingController controller,
-    required String hintText,
-  }) {
-    return TextField(
-      controller: controller,
-      keyboardType: TextInputType.number,
-      onChanged: (_) {
-        setState(() {});
-      },
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: const TextStyle(color: Color(0xFF536078), fontSize: 13),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 12,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(5),
-          borderSide: const BorderSide(color: Color(0xFFD6D6D6)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(5),
-          borderSide: const BorderSide(color: Color(0xFF00A6A6)),
-        ),
-      ),
-    );
-  }
-
-  Widget _serviceCard({
-    required String title,
-    required String subtitle,
-    required String price,
-    required IconData icon,
-    required Color iconColor,
-    required String serviceKey,
-  }) {
-    final isSelected = selectedService == serviceKey;
-
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedService = serviceKey;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: 62,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF17249B) : Colors.transparent,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF0FF),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: iconColor, size: 25),
-            ),
-
-            const SizedBox(width: 12),
-
+            const SizedBox(height: 10),
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
+              child: locations.isEmpty
+                  ? const Center(child: Text('No saved locations found'))
+                  : ListView.separated(
+                      itemCount: locations.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (_, index) {
+                        final location = locations[index];
+                        return ListTile(
+                          leading: Icon(
+                            location.flag == 'pick'
+                                ? Icons.location_on
+                                : Icons.location_on_outlined,
+                            color: AppColors.primaryMain,
+                          ),
+                          title: Text(
+                            location.address,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            '${location.city}, ${location.pincode}, ${location.state}',
+                          ),
+                          onTap: () => Navigator.pop(context, location),
+                        );
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: Color(0xFF9A9AAA),
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Text(
-              price,
-              style: const TextStyle(
-                color: Color(0xFF17249B),
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected
-                  ? const Color(0xFF17249B)
-                  : const Color(0xFFE0E1E8),
-              size: 22,
             ),
           ],
         ),
       ),
-    );
-  }
-
-  void _onPiecesChanged(String value) {
-    if (selectedPackageType != 'Non-document') return;
-
-    final count = int.tryParse(value) ?? 0;
-
-    setState(() {
-      _syncPackageBoxes(count);
-    });
-  }
-
-  void _syncPackageBoxes(int count) {
-    final safeCount = count < 0 ? 0 : count;
-
-    while (packageBoxes.length < safeCount) {
-      packageBoxes.add(PackageBox());
-    }
-
-    while (packageBoxes.length > safeCount) {
-      packageBoxes.last.dispose();
-      packageBoxes.removeLast();
-    }
-  }
-
-  void _reviewAndConfirm() {
-    FocusScope.of(context).unfocus();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Confirm Shipment'),
-          content: Text(
-            'Package: $selectedPackageType\n'
-            'Size: $selectedPackageSize\n'
-            'Pieces: ${piecesController.text}\n'
-            'Service: $selectedService',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final approximateWeight =
-                    double.tryParse(approximateWeightController.text) ?? 0;
-
-                final volumetricWeight = packageBoxes.fold<double>(
-                  0,
-                  (total, box) => total + box.volumetricWeight,
-                );
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChooseCourier(
-                      approximateWeightKg: approximateWeight,
-                      volumetricWeightKg: volumetricWeight,
-                    ),
-                  ),
-                );
-              },
-              child: const Text('Confirm'),
-            ),
-          ],
-        );
-      },
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
     );
   }
 }

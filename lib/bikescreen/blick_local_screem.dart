@@ -10,6 +10,26 @@ import 'package:yogayog/core/services/bikescreen_service.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:provider/provider.dart';
 
+class PackageBox {
+  final lengthController = TextEditingController();
+  final breadthController = TextEditingController();
+  final heightController = TextEditingController();
+
+  double get volumetricWeight {
+    final length = double.tryParse(lengthController.text) ?? 0;
+    final breadth = double.tryParse(breadthController.text) ?? 0;
+    final height = double.tryParse(heightController.text) ?? 0;
+
+    return (length * breadth * height) / 5000;
+  }
+
+  void dispose() {
+    lengthController.dispose();
+    breadthController.dispose();
+    heightController.dispose();
+  }
+}
+
 class BikeLocalScreen extends StatefulWidget {
   const BikeLocalScreen({super.key});
 
@@ -377,6 +397,11 @@ class _PickupLocation {
 class _BikeLocalScreenState extends State<BikeLocalScreen> {
   final packageController = TextEditingController();
   final weightController = TextEditingController(text: '2');
+  final approximateWeightController = TextEditingController(text: '0.5');
+  final piecesController = TextEditingController(text: '1');
+  final List<PackageBox> packageBoxes = [];
+  String selectedPackageSize = '0 - 500g';
+  String selectedPackageType = 'Document';
   String _pickupAddress = 'Fetching current location...';
   String _pickupCity = '';
   String _pickupPincode = '';
@@ -407,6 +432,11 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   void dispose() {
     packageController.dispose();
     weightController.dispose();
+    approximateWeightController.dispose();
+    piecesController.dispose();
+    for (final box in packageBoxes) {
+      box.dispose();
+    }
     super.dispose();
   }
 
@@ -633,9 +663,31 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   }
 
   void _chooseVehicle() {
-    if (packageController.text.trim().isEmpty) {
+    // if (packageController.text.trim().isEmpty) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(content: Text('Please enter package description')),
+    //   );
+    if (weightController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter package description')),
+        const SnackBar(content: Text('Please enter Approx weight')),
+      );
+
+      final approximateWeight =
+          double.tryParse(approximateWeightController.text) ?? 0;
+
+      final volumetricWeight = packageBoxes.fold<double>(
+        0,
+        (total, box) => total + box.volumetricWeight,
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChooseBikeScreen(
+            approximateWeightKg: approximateWeight,
+            volumetricWeightKg: volumetricWeight,
+          ),
+        ),
       );
       return;
     }
@@ -643,6 +695,277 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ChooseBikeScreen()),
+    );
+  }
+
+  Widget _textField({
+    required TextEditingController controller,
+    required String hintText,
+    TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hintText,
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 15,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+      ),
+    );
+  }
+
+  Widget _packageTypeCard({
+    required String title,
+    required IconData icon,
+    required String packageType,
+  }) {
+    final isSelected = selectedPackageType == packageType;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          selectedPackageType = packageType;
+
+          if (packageType == 'Non-document') {
+            _syncPackageBoxes(int.tryParse(piecesController.text) ?? 1);
+          } else {
+            for (final box in packageBoxes) {
+              box.dispose();
+            }
+            packageBoxes.clear();
+          }
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 68,
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEFF8FF) : Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF00A6A6) : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 5,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? const Color(0xFF008C8C) : Colors.brown,
+              size: 25,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _onPiecesChanged(String value) {
+    if (selectedPackageType != 'Non-document') return;
+
+    final count = int.tryParse(value) ?? 0;
+
+    setState(() {
+      _syncPackageBoxes(count);
+    });
+  }
+
+  void _syncPackageBoxes(int count) {
+    final safeCount = count < 0 ? 0 : count;
+
+    while (packageBoxes.length < safeCount) {
+      packageBoxes.add(PackageBox());
+    }
+
+    while (packageBoxes.length > safeCount) {
+      packageBoxes.last.dispose();
+      packageBoxes.removeLast();
+    }
+  }
+
+  Widget _packageBoxesWidget() {
+    final totalWeight = packageBoxes.fold<double>(
+      0,
+      (total, box) => total + box.volumetricWeight,
+    );
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: const Color(0xFFE1E1E6)),
+      ),
+      child: Column(
+        children: [
+          ...List.generate(
+            packageBoxes.length,
+            (index) => _packageBoxCard(index, packageBoxes[index]),
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE7F4FF),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Total Volumetric Weight: ${totalWeight.toStringAsFixed(2)} kg',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _packageBoxCard(int index, PackageBox box) {
+    InputDecoration decoration(String hint) => InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: const Color(0xFFD9D9D9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Box ${index + 1}',
+                style: const TextStyle(
+                  color: Color(0xFF536078),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              if (packageBoxes.length > 1)
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      box.dispose();
+                      packageBoxes.removeAt(index);
+                      piecesController.text = packageBoxes.length.toString();
+                    });
+                  },
+                  child: const CircleAvatar(
+                    radius: 12,
+                    backgroundColor: Colors.redAccent,
+                    child: Icon(Icons.close, color: Colors.white, size: 15),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: box.lengthController,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
+                  decoration: decoration('Length (cm)'),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextField(
+                  controller: box.breadthController,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
+                  decoration: decoration('Breadth (cm)'),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextField(
+                  controller: box.heightController,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
+                  decoration: decoration('Height (cm)'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Volumetric weight: ${box.volumetricWeight.toStringAsFixed(2)} kg',
+            style: const TextStyle(
+              color: Color(0xFF536078),
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _packageSizeChip(String size) {
+    final isSelected = selectedPackageSize == size;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          selectedPackageSize = size;
+          if (size == '0 - 500g') {
+            approximateWeightController.text = '0.5';
+          } else if (size == '500g - 1kg') {
+            approximateWeightController.text = '1';
+          } else {
+            approximateWeightController.clear();
+          }
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFF2FFFF) : const Color(0xFFF7F7F7),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF009B9B)
+                : const Color(0xFFD0D0D0),
+          ),
+        ),
+        child: Text(
+          size,
+          style: TextStyle(
+            color: isSelected ? const Color(0xFF008C8C) : Colors.black,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
     );
   }
 
@@ -667,27 +990,162 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
 
                     _buildLocationCard(),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 22),
 
-                    const Text(
-                      'PACKAGE DESCRIPTION',
-                      style: TextStyle(
-                        color: Color(0xFF667085),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: .6,
-                      ),
-                    ),
+                    // const Text(
+                    //   'Select Your Package',
+                    //   style: TextStyle(
+                    //     fontSize: 18,
+                    //     fontWeight: FontWeight.bold,
+                    //   ),
+                    // ),
 
-                    const SizedBox(height: 6),
+                    // const SizedBox(height: 8),
+                    // Row(
+                    //   children: [
+                    //     Expanded(
+                    //       child: _packageTypeCard(
+                    //         title: 'Document',
+                    //         icon: Icons.mail_outline,
+                    //         packageType: 'Document',
+                    //       ),
+                    //     ),
+                    //     const SizedBox(width: 18),
+                    //     Expanded(
+                    //       child: _packageTypeCard(
+                    //         title: 'Non-document',
+                    //         icon: Icons.inventory_2_outlined,
+                    //         packageType: 'Non-document',
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
+                    // const Text(
+                    //   'Select Package Size',
+                    //   style: TextStyle(
+                    //     fontSize: 18,
+                    //     fontWeight: FontWeight.bold,
+                    //   ),
+                    // ),
 
-                    TextField(
-                      controller: packageController,
-                      decoration: _inputDecoration(
-                        'e.g. Documents, parcel, spare parts...',
-                      ),
-                    ),
+                    // const SizedBox(height: 8),
 
+                    // Wrap(
+                    //   spacing: 8,
+                    //   children: [
+                    //     _packageSizeChip('0 - 500g'),
+                    //     _packageSizeChip('500g - 1kg'),
+                    //     _packageSizeChip('Greater than 1kg'),
+                    //   ],
+                    // ),
+
+                    // const SizedBox(height: 18),
+
+                    // const Text(
+                    //   'Enter Package Details',
+                    //   style: TextStyle(
+                    //     fontSize: 18,
+                    //     fontWeight: FontWeight.bold,
+                    //   ),
+                    // ),
+
+                    // const SizedBox(height: 10),
+
+                    // Row(
+                    //   children: [
+                    //     const SizedBox(
+                    //       width: 190,
+                    //       child: Text(
+                    //         'Number of Total Pieces :',
+                    //         style: TextStyle(
+                    //           fontSize: 13,
+                    //           fontWeight: FontWeight.bold,
+                    //         ),
+                    //       ),
+                    //     ),
+                    //     Expanded(
+                    //       child: _textField(
+                    //         controller: piecesController,
+                    //         hintText: '1',
+                    //         keyboardType: TextInputType.number,
+                    //         onChanged: _onPiecesChanged,
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
+
+                    // const SizedBox(height: 8),
+
+                    // Row(
+                    //   crossAxisAlignment: CrossAxisAlignment.start,
+                    //   children: [
+                    //     const SizedBox(
+                    //       width: 190,
+                    //       child: Padding(
+                    //         padding: EdgeInsets.only(top: 14),
+                    //         child: Text(
+                    //           'Approximate Weight (KG) :',
+                    //           style: TextStyle(
+                    //             fontSize: 13,
+                    //             fontWeight: FontWeight.bold,
+                    //           ),
+                    //         ),
+                    //       ),
+                    //     ),
+                    //     Expanded(
+                    //       child: Column(
+                    //         crossAxisAlignment: CrossAxisAlignment.start,
+                    //         children: [
+                    //           _textField(
+                    //             controller: approximateWeightController,
+                    //             hintText: 'e.g., 2.5',
+                    //             keyboardType: TextInputType.number,
+                    //           ),
+                    //           if (selectedPackageSize != 'Greater than 1kg')
+                    //             Padding(
+                    //               padding: const EdgeInsets.only(
+                    //                 left: 4,
+                    //                 top: 4,
+                    //               ),
+                    //               child: Text(
+                    //                 '💡 Weight set to '
+                    //                 '${approximateWeightController.text}kg '
+                    //                 'for this size',
+                    //                 style: const TextStyle(
+                    //                   color: Color(0xFF536078),
+                    //                   fontSize: 12,
+                    //                 ),
+                    //               ),
+                    //             ),
+                    //         ],
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
+
+                    // if (selectedPackageType == 'Non-document') ...[
+                    //   const SizedBox(height: 16),
+                    //   _packageBoxesWidget(),
+                    // ],
+
+                    // const Text(
+                    //   'PACKAGE DESCRIPTION',
+                    //   style: TextStyle(
+                    //     color: Color(0xFF667085),
+                    //     fontSize: 12,
+                    //     fontWeight: FontWeight.w600,
+                    //     letterSpacing: .6,
+                    //   ),
+                    // ),
+
+                    // const SizedBox(height: 6),
+
+                    // TextField(
+                    //   controller: packageController,
+                    //   decoration: _inputDecoration(
+                    //     'e.g. Documents, parcel, spare parts...',
+                    //   ),
+                    // ),
                     const SizedBox(height: 16),
 
                     const Text(
@@ -734,34 +1192,24 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
 
                     const SizedBox(height: 30),
 
-                    InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ChooseBikeScreen(),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _chooseVehicle,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: yellow,
+                          foregroundColor: blue,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                        );
-                      },
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _chooseVehicle,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: yellow,
-                            foregroundColor: blue,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          child: const Text(
-                            'Choose Vehicle →',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
+                        ),
+                        child: const Text(
+                          'Choose Vehicle →',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),

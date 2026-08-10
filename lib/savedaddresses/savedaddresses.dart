@@ -4,6 +4,7 @@ import 'package:yogayog/bookscreen/book_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/homescreen/home_screen.dart';
+import 'package:yogayog/more/tools_information.dart';
 import 'package:yogayog/profile/profile_screen.dart';
 import 'package:yogayog/trackscreen/track_screen.dart';
 
@@ -237,7 +238,7 @@ class _SavedaddressesState extends State<Savedaddresses> {
         const BookScreen(),
         const TrackScreen(),
         const HistoryScreen(),
-        const ProfileScreen(),
+        const ToolInformation(),
       ];
       Navigator.pushReplacement(
         context,
@@ -255,7 +256,7 @@ class _SavedaddressesState extends State<Savedaddresses> {
       _navItem('assets/images/book.png', 'Book'),
       _navItem('assets/images/track.png', 'Track'),
       _navItem('assets/images/history.png', 'History'),
-      _navItem('assets/images/profile.png', 'Profile'),
+      _navItem('assets/images/more.png', 'More'),
     ],
   );
 

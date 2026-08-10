@@ -3,7 +3,14 @@ import 'package:yogayog/bikescreen/bike_confirm_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 
 class ChooseBikeScreen extends StatefulWidget {
-  const ChooseBikeScreen({super.key});
+  const ChooseBikeScreen({
+    super.key,
+    this.approximateWeightKg = 0,
+    this.volumetricWeightKg = 0,
+  });
+
+  final double approximateWeightKg;
+  final double volumetricWeightKg;
 
   @override
   State<ChooseBikeScreen> createState() => _ChooseBikeScreenState();
@@ -15,6 +22,11 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
 
   int selectedVehicle = 0;
   bool scheduleLater = false;
+
+  double get totalWeight =>
+      widget.approximateWeightKg > widget.volumetricWeightKg
+      ? widget.approximateWeightKg
+      : widget.volumetricWeightKg;
 
   final vehicles = const [
     {
@@ -145,9 +157,9 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
 
           const SizedBox(height: 3),
 
-          const Text(
-            'Prices include pickup & drop',
-            style: TextStyle(color: Colors.white60, fontSize: 12),
+          Text(
+            'Prices include pickup & drop · ${totalWeight.toStringAsFixed(2)} kg',
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
           ),
         ],
       ),

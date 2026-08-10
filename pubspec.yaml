@@ -94,6 +94,7 @@ flutter:
     - assets/images/history.png
     - assets/images/profile.png
     - assets/images/track.png
+    - assets/images/more.png
     - assets/images/tracking_pin.png
     - assets/notification_sound.mp3
   #   - images/a_dot_ham.jpeg

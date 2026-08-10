@@ -365,14 +365,14 @@ class PackageBox {
   }
 }
 
-class InternationalDetails extends StatefulWidget {
-  const InternationalDetails({super.key});
+class InternationalImport extends StatefulWidget {
+  const InternationalImport({super.key});
 
   @override
-  State<InternationalDetails> createState() => _InternationalDetailsState();
+  State<InternationalImport> createState() => _InternationalImportState();
 }
 
-class _InternationalDetailsState extends State<InternationalDetails> {
+class _InternationalImportState extends State<InternationalImport> {
   static const placesKey = String.fromEnvironment(
     'GOOGLE_MAPS_API_KEY',
     defaultValue: 'AIzaSyC6atqg-XZ8SVzSlLrt5W5mhCgkG-8h6Lo',

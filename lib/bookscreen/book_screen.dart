@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:yogayog/bikescreen/blick_local_screem.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/internationaldetails/international_details.dart';
+import 'package:yogayog/internationalimport/internationalimport.dart';
 import 'package:yogayog/nationaldetails/national_details.dart';
 import 'package:yogayog/truckscreen/truck_local_screen.dart';
 
@@ -120,6 +121,22 @@ class _BookScreenState extends State<BookScreen> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => const InternationalDetails(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  _freightCard(
+                    icon: '✈️',
+                    title: 'International Import',
+                    description: 'Ship out of India — all docs handled',
+                    buttonText: 'Start Export Shipment →',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const InternationalImport(),
                         ),
                       );
                     },

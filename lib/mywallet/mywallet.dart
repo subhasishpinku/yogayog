@@ -4,6 +4,7 @@ import 'package:yogayog/bookscreen/book_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/homescreen/home_screen.dart';
+import 'package:yogayog/more/tools_information.dart';
 import 'package:yogayog/profile/profile_screen.dart';
 import 'package:yogayog/trackscreen/track_screen.dart';
 import 'package:yogayog/viewledger/viewledger.dart';
@@ -362,7 +363,7 @@ class _MywalletState extends State<Mywallet> {
       const BookScreen(),
       const TrackScreen(),
       const HistoryScreen(),
-      const ProfileScreen(),
+      const ToolInformation(),
     ];
 
     Navigator.pushReplacement(

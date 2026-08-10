@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/homescreen/home_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:yogayog/profile/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -110,12 +111,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: yellow,
-                child: Text(
-                  profile?.initials ?? 'U',
-                  style: TextStyle(color: blue, fontWeight: FontWeight.bold),
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                  );
+                },
+                child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: yellow,
+                  child: Text(
+                    profile?.initials ?? 'U',
+                    style: TextStyle(color: blue, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],

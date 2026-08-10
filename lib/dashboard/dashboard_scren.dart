@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:yogayog/bookscreen/book_screen.dart';
 import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/homescreen/home_screen.dart';
+import 'package:yogayog/more/tools_information.dart';
 import 'package:yogayog/profile/profile_screen.dart';
 import 'package:yogayog/trackscreen/track_screen.dart';
 
@@ -20,7 +21,7 @@ class _DashboardState extends State<Dashboard> {
     BookScreen(),
     TrackScreen(),
     HistoryScreen(),
-    ProfileScreen(),
+    ToolInformation(),
   ];
 
   @override
@@ -64,9 +65,9 @@ class _DashboardState extends State<Dashboard> {
             label: 'History',
           ),
           BottomNavigationBarItem(
-            icon: _navIcon('assets/images/profile.png'),
-            activeIcon: _navIcon('assets/images/profile.png'),
-            label: 'Profile',
+            icon: _navIcon('assets/images/more.png'),
+            activeIcon: _navIcon('assets/images/more.png'),
+            label: 'More',
           ),
         ],
       ),
