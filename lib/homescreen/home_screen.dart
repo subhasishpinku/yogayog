@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:yogayog/bikescreen/blick_local_screem.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/homescreen/home_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:yogayog/internationalimport/internationalimport.dart';
 import 'package:yogayog/profile/profile_screen.dart';
+import 'package:yogayog/bikescreen/choose_bike_screen.dart';
+import 'package:yogayog/trackscreen/track_screen.dart';
+import 'package:yogayog/truckscreen/choose_truck_screen.dart';
+import 'package:yogayog/nationaldetails/national_details.dart';
+import 'package:yogayog/internationaldetails/international_details.dart';
+import 'package:yogayog/truckscreen/truck_local_screen.dart';
+import 'package:yogayog/history/provider/history_provider.dart';
+import 'package:yogayog/core/services/history_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<HomeProvider>().loadProfile();
+      if (mounted) context.read<HistoryProvider>().loadBookings();
     });
   }
 
@@ -40,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   _buildCategories(),
                   _buildActiveShipment(),
                   _buildServices(),
-                  _buildRecentShipments(),
+                  _buildRecentShipmentsFromApi(),
                 ],
               ),
             ),
@@ -153,11 +165,47 @@ class _HomeScreenState extends State<HomeScreen> {
       height: 100,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: const [
-          _Category(icon: '🏍️', title: 'Local Bike'),
-          _Category(icon: '🚚', title: 'Local Truck'),
-          _Category(icon: '🚛', title: 'National'),
-          _Category(icon: '🌍', title: "Int'l"),
+        children: [
+          _Category(
+            icon: '🏍️',
+            title: 'Local Bike',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BikeLocalScreen()),
+            ),
+          ),
+          _Category(
+            icon: '🚚',
+            title: 'Local Truck',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TruckLocalScreen()),
+            ),
+          ),
+          _Category(
+            icon: '🚛',
+            title: 'National',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NationalDetails()),
+            ),
+          ),
+          _Category(
+            icon: '🌍',
+            title: "Int'Export",
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const InternationalDetails()),
+            ),
+          ),
+          _Category(
+            icon: '🌍',
+            title: "Int'Import",
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const InternationalImport()),
+            ),
+          ),
         ],
       ),
     );
@@ -246,6 +294,75 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildRecentShipmentsFromApi() {
+    final history = context.watch<HistoryProvider>();
+
+    return Column(
+      children: [
+        _sectionTitle(
+          'Recent Shipments',
+          'See all',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const HistoryScreen()),
+          ),
+        ),
+        if (history.isLoading)
+          const Padding(
+            padding: EdgeInsets.all(20),
+            child: CircularProgressIndicator(),
+          )
+        else if (history.errorMessage != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Text(
+              history.errorMessage!,
+              style: const TextStyle(color: Colors.red, fontSize: 13),
+            ),
+          )
+        else if (history.history == null ||
+            history.history!.ordersToDisplay.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Text(
+              'No recent shipments found.',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          )
+        else
+          ...history.history!.ordersToDisplay.take(3).map(_bookingTile),
+      ],
+    );
+  }
+
+  Widget _bookingTile(Booking booking) {
+    final route = [
+      booking.pickupCity,
+      booking.dropCity,
+    ].where((city) => city.trim().isNotEmpty).join(' → ');
+    final details = [
+      booking.orderNo,
+      booking.orderDate,
+    ].where((value) => value.trim().isNotEmpty).join(' · ');
+
+    return _shipment(
+      _bookingIcon(booking.serviceName),
+      route.isEmpty ? 'Shipment' : route,
+      details.isEmpty ? booking.subServiceName : details,
+      booking.status.isEmpty ? 'Processing' : booking.status,
+    );
+  }
+
+  String _bookingIcon(String serviceName) {
+    final service = serviceName.toLowerCase();
+    if (service.contains('bike')) return '🏍️';
+    if (service.contains('truck')) return '🚚';
+    if (service.contains('international') || service.contains('export')) {
+      return '✈️';
+    }
+    return '🚛';
+  }
+
   Widget _buildRecentShipments() {
     return Column(
       children: [
@@ -256,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _sectionTitle(String title, String action) {
+  Widget _sectionTitle(String title, String action, {VoidCallback? onTap}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
       child: Row(
@@ -266,12 +383,19 @@ class _HomeScreenState extends State<HomeScreen> {
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
           const Spacer(),
-          Text(
-            action,
-            style: const TextStyle(
-              color: blue,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+              child: Text(
+                action,
+                style: const TextStyle(
+                  color: blue,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
@@ -280,20 +404,84 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _shipment(String icon, String location, String number, String status) {
-    return ListTile(
-      leading: CircleAvatar(backgroundColor: Colors.white, child: Text(icon)),
-      title: Text(
-        location,
-        style: const TextStyle(fontWeight: FontWeight.bold),
+    final isDelivered = status.toLowerCase().contains('delivered');
+    final isTransit = status.toLowerCase().contains('transit');
+    final statusColor = isDelivered
+        ? const Color(0xFF08743D)
+        : isTransit
+        ? const Color(0xFFB36A00)
+        : blue;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
       ),
-      subtitle: Text(number),
-      trailing: Text(
-        status,
-        style: TextStyle(
-          color: status == 'Delivered' ? Colors.green : Colors.orange,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE9F3FF),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(icon, style: const TextStyle(fontSize: 23)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  location,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  number,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF7B8493),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(
+                color: statusColor,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -302,22 +490,34 @@ class _HomeScreenState extends State<HomeScreen> {
 class _Category extends StatelessWidget {
   final String icon;
   final String title;
+  final VoidCallback onTap;
 
-  const _Category({required this.icon, required this.title});
+  const _Category({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        CircleAvatar(
-          radius: 23,
-          backgroundColor: const Color(0xFFE9EDFF),
-          child: Text(icon, style: const TextStyle(fontSize: 20)),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(5),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 23,
+              backgroundColor: const Color(0xFFE9EDFF),
+              child: Text(icon, style: const TextStyle(fontSize: 20)),
+            ),
+            const SizedBox(height: 6),
+            Text(title, style: const TextStyle(fontSize: 10)),
+          ],
         ),
-        const SizedBox(height: 6),
-        Text(title, style: const TextStyle(fontSize: 10)),
-      ],
+      ),
     );
   }
 }
