@@ -59,7 +59,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                 ],
               ),
             ),
-            _bottomNavigation(),
+            // _bottomNavigation(),
           ],
         ),
       ),

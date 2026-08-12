@@ -50,8 +50,8 @@ class _BookingSuccessState extends State<BookingSuccess> {
               const SizedBox(height: 21),
               const _TrackingCard(),
               const SizedBox(height: 20),
-              const _CommissionCard(),
-              const SizedBox(height: 21),
+              // const _CommissionCard(),
+              // const SizedBox(height: 21),
               SizedBox(
                 width: double.infinity,
                 height: 57,

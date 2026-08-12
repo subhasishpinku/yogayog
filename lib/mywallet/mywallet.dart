@@ -42,7 +42,7 @@ class _MywalletState extends State<Mywallet> {
                 ],
               ),
             ),
-            _bottomNavigation(),
+            // _bottomNavigation(),
           ],
         ),
       ),
@@ -318,7 +318,9 @@ class _MywalletState extends State<Mywallet> {
 
   Widget _bottomNavigation() {
     return BottomNavigationBar(
-      currentIndex: 4,
+      // My Wallet is opened from Profile, so keep the index valid for the
+      // four navigation items shown below.
+      currentIndex: 0,
       onTap: _openTab,
       type: BottomNavigationBarType.fixed,
       backgroundColor: Colors.white,

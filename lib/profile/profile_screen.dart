@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/Invoices/invoices_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/helpsupport/help_support.dart';
 import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/mybooking/my_booking.dart';
 import 'package:yogayog/mywallet/mywallet.dart';
+import 'package:yogayog/profile/profile_edit_screen.dart';
 import 'package:yogayog/savedaddresses/savedaddresses.dart';
 import 'package:yogayog/OnboardingScreen/onboarding_screen.dart';
 import 'package:yogayog/profile/provider/profile_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:yogayog/termsprivacy/term_privacy.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -71,15 +74,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.headphones_outlined,
                     iconColor: Colors.black,
                     title: 'Help & Support',
-                    onTap: () =>
-                        _open(const _MenuPlaceholder(title: 'Help & Support')),
+                    onTap: () => _open(const HelpSupport()),
                   ),
                   _menuItem(
                     icon: Icons.description_outlined,
                     iconColor: Colors.black,
                     title: 'Terms & Privacy',
-                    onTap: () =>
-                        _open(const _MenuPlaceholder(title: 'Terms & Privacy')),
+                    onTap: () => _open(const TermPrivacy()),
                   ),
                   const SizedBox(height: 2),
                   _logoutItem(),
@@ -227,22 +228,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: const Color(0xFFFFBABA)),
+          // border: Border.all(color: const Color(0xFFFFBABA)),
         ),
         child: const Row(
           children: [
-            Icon(Icons.logout, color: Colors.red, size: 26),
+            Icon(Icons.logout, color: Colors.black, size: 26),
             SizedBox(width: 16),
             Expanded(
               child: Text(
                 'Log Out',
                 style: TextStyle(
-                  color: Colors.red,
+                  color: Colors.black,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            Icon(Icons.chevron_right, color: Colors.red),
+            Icon(Icons.chevron_right, color: Colors.black),
           ],
         ),
       ),
@@ -251,6 +252,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _editProfile() {
     _showMessage('Edit profile selected');
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProfileEditScreen()),
+    );
   }
 
   void _open(Widget page) {

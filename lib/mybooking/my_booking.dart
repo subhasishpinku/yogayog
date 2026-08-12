@@ -50,7 +50,7 @@ class _MyBookingState extends State<MyBooking> {
             _header(),
             _tabs(),
             Expanded(child: _bookingList()),
-            _bottomNavigation(),
+            // _bottomNavigation(),
           ],
         ),
       ),

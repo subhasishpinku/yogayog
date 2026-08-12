@@ -4,6 +4,7 @@ import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/homescreen/home_screen.dart';
 import 'package:yogayog/more/tools_information.dart';
 import 'package:yogayog/profile/profile_screen.dart';
+import 'package:yogayog/trackscreen/track_allorder.dart';
 import 'package:yogayog/trackscreen/track_screen.dart';
 
 class Dashboard extends StatefulWidget {
@@ -19,7 +20,8 @@ class _DashboardState extends State<Dashboard> {
   final List<Widget> pages = const [
     HomeScreen(),
     // BookScreen(),
-    TrackScreen(),
+    // TrackScreen(),
+    TrackAllOrder(),
     HistoryScreen(),
     ToolInformation(),
   ];

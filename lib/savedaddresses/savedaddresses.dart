@@ -80,7 +80,7 @@ class _SavedaddressesState extends State<Savedaddresses> {
                 ],
               ),
             ),
-            _bottomNavigation(),
+            // _bottomNavigation(),
           ],
         ),
       ),
@@ -94,19 +94,25 @@ class _SavedaddressesState extends State<Savedaddresses> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          style: IconButton.styleFrom(backgroundColor: const Color(0xFF4D59A7)),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Saved Addresses',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-          ),
+        Row(
+          children: [
+            IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFF4D59A7),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Saved Addresses',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 3),
         const Text(
@@ -231,7 +237,9 @@ class _SavedaddressesState extends State<Savedaddresses> {
       );
 
   Widget _bottomNavigation() => BottomNavigationBar(
-    currentIndex: 4,
+    // This screen is opened from Profile, so no bottom-nav item is selected.
+    // Keep the index valid for the four available items.
+    currentIndex: 0,
     onTap: (index) {
       final pages = [
         const HomeScreen(),
