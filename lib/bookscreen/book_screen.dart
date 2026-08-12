@@ -152,7 +152,7 @@ class _BookScreenState extends State<BookScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return SizedBox(
-      height: 128,
+      height: 100,
       width: double.infinity,
       child: Stack(
         children: [
@@ -163,25 +163,24 @@ class _BookScreenState extends State<BookScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.arrow_back,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                ),
+                // GestureDetector(
+                //   onTap: () => Navigator.pop(context),
+                //   child: Container(
+                //     width: 34,
+                //     height: 34,
+                //     decoration: BoxDecoration(
+                //       color: Colors.white.withOpacity(0.18),
+                //       borderRadius: BorderRadius.circular(8),
+                //     ),
+                //     child: const Icon(
+                //       Icons.arrow_back,
+                //       color: Colors.white,
+                //       size: 20,
+                //     ),
+                //   ),
+                // ),
 
-                const SizedBox(height: 6),
-
+                // const SizedBox(height: 6),
                 const Text(
                   'What are you sending?',
                   style: TextStyle(

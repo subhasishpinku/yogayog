@@ -235,7 +235,7 @@ class _SavedaddressesState extends State<Savedaddresses> {
     onTap: (index) {
       final pages = [
         const HomeScreen(),
-        const BookScreen(),
+        // const BookScreen(),
         const TrackScreen(),
         const HistoryScreen(),
         const ToolInformation(),
@@ -253,7 +253,7 @@ class _SavedaddressesState extends State<Savedaddresses> {
     unselectedFontSize: 10,
     items: [
       _navItem('assets/images/home.png', 'Home'),
-      _navItem('assets/images/book.png', 'Book'),
+      // _navItem('assets/images/book.png', 'Book'),
       _navItem('assets/images/track.png', 'Track'),
       _navItem('assets/images/history.png', 'History'),
       _navItem('assets/images/more.png', 'More'),

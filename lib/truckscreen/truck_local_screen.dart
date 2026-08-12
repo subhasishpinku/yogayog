@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
@@ -9,6 +10,7 @@ import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/bikescreen_service.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:yogayog/truckscreen/choose_truck_screen.dart';
 
 class PackageBox {
   final lengthController = TextEditingController();
@@ -398,6 +400,8 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
   final packageController = TextEditingController();
   final weightController = TextEditingController(text: '2');
   final approximateWeightController = TextEditingController(text: '0.5');
+  final pickupPincodeController = TextEditingController();
+  final pincodeController = TextEditingController();
   final piecesController = TextEditingController(text: '1');
   final List<PackageBox> packageBoxes = [];
   String selectedPackageSize = '0 - 500g';
@@ -433,6 +437,8 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     packageController.dispose();
     weightController.dispose();
     approximateWeightController.dispose();
+    pickupPincodeController.dispose();
+    pincodeController.dispose();
     piecesController.dispose();
     for (final box in packageBoxes) {
       box.dispose();
@@ -538,6 +544,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       _dropAddress = selected.address;
       _dropCity = selected.city;
       _dropPincode = selected.pincode;
+      pincodeController.text = selected.pincode;
       _dropState = selected.state;
       _dropLatitude = selected.latitude;
       _dropLongitude = selected.longitude;
@@ -567,9 +574,34 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       _pickupAddress = selected.address;
       _pickupCity = selected.city;
       _pickupPincode = selected.pincode;
+      pickupPincodeController.text = selected.pincode;
       _pickupState = selected.state;
       _pickupLatitude = selected.latitude;
       _pickupLongitude = selected.longitude;
+    });
+  }
+
+  Future<void> _openSavedDropLocations() async {
+    final provider = context.read<BikescreenProvider>();
+    await provider.loadLocations();
+    if (!mounted) return;
+    if (provider.errorMessage != null && provider.locations.isEmpty) {
+      _showMessage(provider.errorMessage!);
+      return;
+    }
+    final selected = await showDialog<SavedLocation>(
+      context: context,
+      builder: (_) => _SavedLocationDialog(locations: provider.locations),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _dropAddress = selected.address;
+      _dropCity = selected.city;
+      _dropPincode = selected.pincode;
+      pincodeController.text = selected.pincode;
+      _dropState = selected.state;
+      _dropLatitude = selected.latitude;
+      _dropLongitude = selected.longitude;
     });
   }
 
@@ -606,6 +638,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         ].where((value) => value?.trim().isNotEmpty == true).join(', ');
         _pickupCity = place?.locality ?? place?.subAdministrativeArea ?? '';
         _pickupPincode = place?.postalCode ?? '';
+        pickupPincodeController.text = _pickupPincode;
         _pickupState = place?.administrativeArea ?? '';
         if (_pickupAddress.isEmpty) _pickupAddress = 'Current location';
       });
@@ -636,6 +669,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       _pickupAddress = result.address;
       _pickupCity = result.city;
       _pickupPincode = result.pincode;
+      pickupPincodeController.text = result.pincode;
       _pickupState = result.state;
       _pickupLatitude = result.latitude;
       _pickupLongitude = result.longitude;
@@ -667,34 +701,35 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     //   ScaffoldMessenger.of(context).showSnackBar(
     //     const SnackBar(content: Text('Please enter package description')),
     //   );
-    if (weightController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter Approx weight')),
-      );
+    // if (weightController.text.trim().isEmpty) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(content: Text('Please enter Approx weight')),
+    //   );
 
-      final approximateWeight =
-          double.tryParse(approximateWeightController.text) ?? 0;
+    //   final approximateWeight =
+    //       double.tryParse(approximateWeightController.text) ?? 0;
 
-      final volumetricWeight = packageBoxes.fold<double>(
-        0,
-        (total, box) => total + box.volumetricWeight,
-      );
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ChooseBikeScreen(
-            approximateWeightKg: approximateWeight,
-            volumetricWeightKg: volumetricWeight,
-          ),
-        ),
-      );
-      return;
-    }
-
+    //   final volumetricWeight = packageBoxes.fold<double>(
+    //     0,
+    //     (total, box) => total + box.volumetricWeight,
+    //   );
+    //  Navigator.push(
+    //         context,
+    //         MaterialPageRoute(
+    //           builder: (_) => ChooseTruckScreen(
+    //             approximateWeightKg: approximateWeight,
+    //             volumetricWeightKg: volumetricWeight,
+    //           ),
+    //         ),
+    //       );
+    //   return;
+    // }
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ChooseBikeScreen()),
+      MaterialPageRoute(
+        builder: (_) =>
+            ChooseTruckScreen(approximateWeightKg: 0, volumetricWeightKg: 0),
+      ),
     );
   }
 
@@ -1147,6 +1182,43 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                     const SizedBox(height: 16),
 
                     const Text(
+                      'PIN CODE',
+                      style: TextStyle(
+                        color: Color(0xFF667085),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: .6,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _pinCodeField(
+                            label: 'Pickup PIN',
+                            controller: pickupPincodeController,
+                            hint: 'Pickup PIN',
+                            readOnly: true,
+                            onChanged: (value) => _pickupPincode = value,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _pinCodeField(
+                            label: 'Drop PIN',
+                            controller: pincodeController,
+                            hint: 'Drop PIN',
+                            onChanged: (value) {
+                              if (value.length == 6) _dropPincode = value;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    const Text(
                       'APPROX. WEIGHT',
                       style: TextStyle(
                         color: Color(0xFF667085),
@@ -1224,7 +1296,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return SizedBox(
-      height: 188,
+      height: 100,
       width: double.infinity,
       child: Container(
         color: blue,
@@ -1232,28 +1304,32 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(.18),
-                  borderRadius: BorderRadius.circular(10),
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(.18),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.arrow_back, color: Colors.white),
+                  ),
                 ),
-                child: const Icon(Icons.arrow_back, color: Colors.white),
-              ),
-            ),
 
-            const SizedBox(height: 14),
+                const SizedBox(width: 12),
 
-            const Text(
-              'Local Delivery',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 21,
-                fontWeight: FontWeight.bold,
-              ),
+                const Text(
+                  'Local Truck Delivery',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
 
             const SizedBox(height: 3),
@@ -1367,10 +1443,23 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    SizedBox(height: 2),
+                    if (_pickupCity.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _pickupCity,
+                        style: const TextStyle(
+                          color: Color(0xFF8A8F9C),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 2),
                     Text(
                       '${_pickupPincode.isNotEmpty ? _pickupPincode : 'Pincode unavailable'}, ${_pickupState.isNotEmpty ? _pickupState : 'State unavailable'}',
-                      style: TextStyle(color: Color(0xFF8A8F9C), fontSize: 13),
+                      style: const TextStyle(
+                        color: Color(0xFF8A8F9C),
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -1387,6 +1476,9 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
           ),
 
           const Divider(height: 22),
+
+          _savedDropLocationSearchBox(),
+          const SizedBox(height: 12),
 
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1425,6 +1517,16 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                         ),
                       ),
                       if (_dropAddress != 'Tap to add destination') ...[
+                        if (_dropCity.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            _dropCity,
+                            style: const TextStyle(
+                              color: Color(0xFF8A8F9C),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 2),
                         Text(
                           '${_dropPincode.isNotEmpty ? _dropPincode : 'Pincode unavailable'}, ${_dropState.isNotEmpty ? _dropState : 'State unavailable'}',
@@ -1486,6 +1588,67 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         ),
         Container(width: 2, height: 30, color: const Color(0xFFD9DCE5)),
       ],
+    );
+  }
+
+  Widget _pinCodeField({
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+    required ValueChanged<String> onChanged,
+    bool readOnly = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF667085),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 5),
+        TextField(
+          controller: controller,
+          readOnly: readOnly,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          onChanged: onChanged,
+          decoration: _inputDecoration(hint).copyWith(counterText: ''),
+        ),
+      ],
+    );
+  }
+
+  Widget _savedDropLocationSearchBox() {
+    return InkWell(
+      onTap: _openSavedDropLocations,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F7FC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE0E2E8)),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.search, color: Color(0xFF667085)),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Search saved drop location',
+                style: TextStyle(color: Color(0xFF667085)),
+              ),
+            ),
+            Icon(Icons.keyboard_arrow_down, color: Color(0xFF667085)),
+          ],
+        ),
+      ),
     );
   }
 

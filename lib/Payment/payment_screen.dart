@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/bookingsuccess/bookingsuccess.dart';
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key, this.amount = 149});
@@ -37,6 +38,44 @@ class _PaymentScreenState extends State<PaymentScreen> {
               ),
             ),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton(
+              onPressed: () {
+                if (selectedMethod == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please select a payment method'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const BookingSuccess()),
+                  (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryButton,
+                foregroundColor: Colors.black,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              child: const Text('Process Payment →'),
+            ),
+          ),
         ),
       ),
     );

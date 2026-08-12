@@ -28,9 +28,7 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
     ).showSnackBar(const SnackBar(content: Text('Proceeding to payment')));
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const PaymentScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const PaymentScreen()),
     );
   }
 
@@ -92,7 +90,13 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
                     ),
 
                     const SizedBox(height: 26),
+                    // _buildCommissionCard(),
+                    // const SizedBox(height: 12),
+                    // _buildDocumentNotice(),
+                    const SizedBox(height: 14),
+                    _buildBookingActions(),
 
+                    /*
                     SizedBox(
                       width: double.infinity,
                       height: 52,
@@ -115,6 +119,7 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
                         ),
                       ),
                     ),
+                    */
                   ],
                 ),
               ),
@@ -127,35 +132,39 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      height: 162,
+      height: 100,
       width: double.infinity,
       color: blue,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.18),
-                borderRadius: BorderRadius.circular(10),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.18),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.arrow_back, color: Colors.white),
+                ),
               ),
-              child: const Icon(Icons.arrow_back, color: Colors.white),
-            ),
-          ),
 
-          const SizedBox(height: 14),
+              const SizedBox(width: 12),
 
-          const Text(
-            'Confirm Booking',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+              const Text(
+                'Confirm Booking',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 3),
@@ -267,6 +276,137 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCommissionCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B8048),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'YOUR COMMISSION',
+                  style: TextStyle(
+                    color: Color(0xFFB8DDC8),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: .5,
+                  ),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  '₹89.00',
+                  style: TextStyle(
+                    color: AppColors.primaryButton,
+                    fontSize: 27,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  '8% · Credited after delivery',
+                  style: TextStyle(color: Color(0xFFB8DDC8), fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 43,
+            height: 43,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryButton,
+              shape: BoxShape.circle,
+            ),
+            child: const Text('💰', style: TextStyle(fontSize: 23)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5EF),
+        border: Border.all(color: const Color(0xFFB5DCC7)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Text(
+        '📋 Ensure customer has signed the Consignment\nNote. Check required docs before rider pickup.',
+        style: TextStyle(
+          color: AppColors.primaryMain,
+          fontSize: 12,
+          height: 1.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookingActions() {
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 80,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Document checklist is ready.')),
+                );
+              },
+              icon: const Text('📄', style: TextStyle(fontSize: 20)),
+              label: const Text(
+                'Check Docs',
+                style: TextStyle(
+                  color: AppColors.primaryMain,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: const Color(0xFFE8F5EF),
+                side: BorderSide.none,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: SizedBox(
+            height: 80,
+            child: ElevatedButton(
+              onPressed: _proceedToPayment,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: yellow,
+                foregroundColor: Colors.black,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+              child: const Text(
+                'Confirm\nBooking',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

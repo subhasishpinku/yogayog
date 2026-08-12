@@ -40,13 +40,21 @@ class ProfileData {
     required this.mobile,
     required this.paymentMode,
     required this.accountType,
+    required this.address,
+    required this.city,
+    required this.pin,
+    required this.state,
   });
 
   final String name;
   final String email;
   final String mobile;
   final String paymentMode;
-  final String accountType;
+  final String? accountType;
+  final String? address;
+  final String? city;
+  final String? pin;
+  final String? state;
 
   factory ProfileData.fromJson(Map<String, dynamic> json) {
     return ProfileData(
@@ -55,6 +63,10 @@ class ProfileData {
       mobile: json['mobile']?.toString() ?? '',
       paymentMode: json['payment_mode']?.toString() ?? '',
       accountType: json['acc_type']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      city: json['city']?.toString() ?? '',
+      pin: json['pin']?.toString() ?? '',
+      state: json['state']?.toString() ?? '',
     );
   }
 

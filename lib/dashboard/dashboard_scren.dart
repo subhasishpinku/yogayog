@@ -18,7 +18,7 @@ class _DashboardState extends State<Dashboard> {
 
   final List<Widget> pages = const [
     HomeScreen(),
-    BookScreen(),
+    // BookScreen(),
     TrackScreen(),
     HistoryScreen(),
     ToolInformation(),
@@ -49,11 +49,11 @@ class _DashboardState extends State<Dashboard> {
             activeIcon: _navIcon('assets/images/home.png'),
             label: 'Home',
           ),
-          BottomNavigationBarItem(
-            icon: _navIcon('assets/images/book.png'),
-            activeIcon: _navIcon('assets/images/book.png'),
-            label: 'Book',
-          ),
+          // BottomNavigationBarItem(
+          //   icon: _navIcon('assets/images/book.png'),
+          //   activeIcon: _navIcon('assets/images/book.png'),
+          //   label: 'Book',
+          // ),
           BottomNavigationBarItem(
             icon: _navIcon('assets/images/track.png'),
             activeIcon: _navIcon('assets/images/track.png'),

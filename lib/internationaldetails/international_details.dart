@@ -385,7 +385,9 @@ class _InternationalDetailsState extends State<InternationalDetails> {
   final receiverNameController = TextEditingController();
   final mobileController = TextEditingController();
   final addressController = TextEditingController();
+  final countryController = TextEditingController(text: '');
   final cityController = TextEditingController();
+  final pickupPinController = TextEditingController();
   final pinController = TextEditingController();
   final piecesController = TextEditingController(text: '1');
   final approximateWeightController = TextEditingController(text: '0.5');
@@ -417,7 +419,9 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     receiverNameController.dispose();
     mobileController.dispose();
     addressController.dispose();
+    countryController.dispose();
     cityController.dispose();
+    pickupPinController.dispose();
     pinController.dispose();
     piecesController.dispose();
     approximateWeightController.dispose();
@@ -433,11 +437,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     if (query.trim().length < 2 || placesKey.isEmpty) return [];
     final response = await Dio().get(
       'https://maps.googleapis.com/maps/api/place/autocomplete/json',
-      queryParameters: {
-        'input': query.trim(),
-        'key': placesKey,
-        'components': 'country:in',
-      },
+      queryParameters: {'input': query.trim(), 'key': placesKey},
     );
     final data = response.data;
     if (data is! Map ||
@@ -537,6 +537,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         ].where((value) => value?.trim().isNotEmpty == true).join(', ');
         pickupCity = place?.locality ?? place?.subAdministrativeArea ?? '';
         pickupPincode = place?.postalCode ?? '';
+        pickupPinController.text = pickupPincode;
         pickupState = place?.administrativeArea ?? '';
         if (pickupAddress.isEmpty) pickupAddress = 'Current location';
       });
@@ -567,6 +568,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       pickupAddress = result.address;
       pickupCity = result.city;
       pickupPincode = result.pincode;
+      pickupPinController.text = pickupPincode;
       pickupState = result.state;
       pickupLatitude = result.latitude;
       pickupLongitude = result.longitude;
@@ -590,9 +592,36 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       pickupAddress = selected.address;
       pickupCity = selected.city;
       pickupPincode = selected.pincode;
+      pickupPinController.text = pickupPincode;
       pickupState = selected.state;
       pickupLatitude = selected.latitude;
       pickupLongitude = selected.longitude;
+    });
+  }
+
+  Future<void> _openSavedDropLocations() async {
+    final provider = context.read<BikescreenProvider>();
+    await provider.loadLocations();
+    if (!mounted) return;
+    if (provider.errorMessage != null && provider.locations.isEmpty) {
+      _showMessage(provider.errorMessage!);
+      return;
+    }
+    final selected = await showDialog<SavedLocation>(
+      context: context,
+      builder: (_) => _SavedLocationDialog(locations: provider.locations),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      dropAddress = selected.address;
+      dropCity = selected.city;
+      dropPincode = selected.pincode;
+      dropState = selected.state;
+      dropLatitude = selected.latitude;
+      dropLongitude = selected.longitude;
+      addressController.text = dropAddress;
+      cityController.text = dropCity;
+      pinController.text = dropPincode;
     });
   }
 
@@ -674,9 +703,11 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     required String hintText,
     TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
+    bool readOnly = false,
   }) {
     return TextField(
       controller: controller,
+      readOnly: readOnly,
       keyboardType: keyboardType,
       onChanged: onChanged,
       style: const TextStyle(color: Color(0xFF536078), fontSize: 16),
@@ -744,12 +775,53 @@ class _InternationalDetailsState extends State<InternationalDetails> {
             ),
           ),
           const SizedBox(height: 12),
-          _locationRow('PICKUP', pickupAddress, pickupCity, true, _editPickup),
+          _locationRow(
+            'PICKUP',
+            pickupAddress,
+            pickupCity,
+            pickupPincode,
+            true,
+            _editPickup,
+          ),
           const Padding(
             padding: EdgeInsets.only(left: 6),
             child: Divider(height: 20),
           ),
-          _locationRow('DROP', dropAddress, dropCity, false, _editDrop),
+          InkWell(
+            onTap: _openSavedDropLocations,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 49,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8F8FC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE1E1E6)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.search, color: Color(0xFF667085), size: 23),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Search saved drop location',
+                      style: TextStyle(color: Color(0xFF667085), fontSize: 14),
+                    ),
+                  ),
+                  Icon(Icons.keyboard_arrow_down, color: Color(0xFF667085)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _locationRow(
+            'DROP',
+            dropAddress,
+            dropCity,
+            dropPincode,
+            false,
+            _editDrop,
+          ),
         ],
       ),
     );
@@ -759,6 +831,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     String label,
     String address,
     String city,
+    String pincode,
     bool pickup,
     VoidCallback onTap,
   ) {
@@ -813,7 +886,8 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                     color: pickup ? Colors.black : const Color(0xFF8A8F9C),
                   ),
                 ),
-                if (city.isNotEmpty)
+                if (city.isNotEmpty) ...[
+                  const SizedBox(height: 2),
                   Text(
                     city,
                     style: const TextStyle(
@@ -821,6 +895,17 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                       fontSize: 13,
                     ),
                   ),
+                ],
+                if (pincode.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'PIN: $pincode',
+                    style: const TextStyle(
+                      color: Color(0xFF8A8F9C),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1142,27 +1227,66 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _label('RECEIVER NAME'),
-            _textField(
-              controller: receiverNameController,
-              hintText: 'Full name',
-            ),
-
-            const SizedBox(height: 14),
             _locationCard(),
 
-            _label('MOBILE'),
-            _textField(
-              controller: mobileController,
-              hintText: '+91 XXXXX XXXXX',
-              keyboardType: TextInputType.phone,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label('FULL NAME'),
+                      _textField(
+                        controller: receiverNameController,
+                        hintText: 'Full name',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label('MOBILE'),
+                      _textField(
+                        controller: mobileController,
+                        hintText: 'Mobile no.',
+                        keyboardType: TextInputType.phone,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
 
             _label('DELIVERY ADDRESS'),
             _textField(controller: addressController, hintText: 'Full address'),
 
+            _label('APPROX. WEIGHT (KG)'),
+            _textField(
+              controller: approximateWeightController,
+              hintText: 'e.g. 2.5',
+              keyboardType: TextInputType.number,
+            ),
+
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label('COUNTRY'),
+                      _textField(
+                        controller: countryController,
+                        hintText: 'Country',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1172,15 +1296,35 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                     ],
                   ),
                 ),
+              ],
+            ),
+
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label('PICKUP PIN'),
+                      _textField(
+                        controller: pickupPinController,
+                        hintText: 'Pickup PIN',
+                        keyboardType: TextInputType.number,
+                        readOnly: true,
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _label('PIN'),
+                      _label('DROP PIN'),
                       _textField(
                         controller: pinController,
-                        hintText: 'PIN',
+                        hintText: 'Drop PIN',
                         keyboardType: TextInputType.number,
                       ),
                     ],

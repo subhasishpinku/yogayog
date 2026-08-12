@@ -333,11 +333,11 @@ class _MywalletState extends State<Mywallet> {
           activeIcon: _navIcon('assets/images/home.png'),
           label: 'Home',
         ),
-        BottomNavigationBarItem(
-          icon: _navIcon('assets/images/book.png'),
-          activeIcon: _navIcon('assets/images/book.png'),
-          label: 'Book',
-        ),
+        // BottomNavigationBarItem(
+        //   icon: _navIcon('assets/images/book.png'),
+        //   activeIcon: _navIcon('assets/images/book.png'),
+        //   label: 'Book',
+        // ),
         BottomNavigationBarItem(
           icon: _navIcon('assets/images/track.png'),
           activeIcon: _navIcon('assets/images/track.png'),
@@ -360,7 +360,7 @@ class _MywalletState extends State<Mywallet> {
   void _openTab(int index) {
     final pages = <Widget>[
       const HomeScreen(),
-      const BookScreen(),
+      // const BookScreen(),
       const TrackScreen(),
       const HistoryScreen(),
       const ToolInformation(),
