@@ -3,7 +3,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/core/network/api_client.dart';
-import 'package:yogayog/core/providers/locationProvider.dart';
 import 'package:yogayog/core/providers/location_service_provider.dart';
 import 'package:yogayog/core/providers/network_provider.dart';
 import 'package:yogayog/loginscreen/provider/auth_provider.dart';
@@ -44,7 +43,6 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => LocationProvider()),
         ChangeNotifierProvider(create: (_) => NetworkProvider()),
         ChangeNotifierProvider(create: (_) => LocationServiceProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),

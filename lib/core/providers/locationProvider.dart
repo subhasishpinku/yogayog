@@ -14,18 +14,18 @@ class LocationProvider extends ChangeNotifier {
   double? get lng => _lng;
 
   Future<bool> _requestPermission() async {
-    var status = await Permission.location.request();
-    if (status.isDenied || status.isPermanentlyDenied) {
-      openAppSettings();
+    // HomeScreen only needs the user's current location while the app is
+    // open. Asking for `locationAlways` here sends users to App Info/settings
+    // on newer Android versions, so request foreground location only.
+    final status = await Permission.locationWhenInUse.request();
+    if (!status.isGranted) {
+      _address = status.isPermanentlyDenied
+          ? 'Location permission is disabled'
+          : 'Location permission not granted';
+      notifyListeners();
       return false;
     }
-
-    var bgStatus = await Permission.locationAlways.request();
-    if (bgStatus.isDenied || bgStatus.isPermanentlyDenied) {
-      openAppSettings();
-      return false;
-    }
-    return bgStatus.isGranted || status.isGranted;
+    return true;
   }
 
   Future<void> startTracking() async {

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:yogayog/bikescreen/blick_local_screem.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/history/history_screen.dart';
@@ -25,13 +27,76 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  String _currentAddress = 'Fetching current location...';
+  double? _currentLatitude;
+  double? _currentLongitude;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<HomeProvider>().loadProfile();
       if (mounted) context.read<HistoryProvider>().loadBookings();
+      _loadCurrentLocation();
     });
+  }
+
+  Future<void> _loadCurrentLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        if (mounted)
+          setState(() => _currentAddress = 'Location service is off');
+        return;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        if (mounted)
+          setState(() => _currentAddress = 'Location permission not granted');
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      var address = 'Current location';
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        final parts =
+            [
+                  place.name,
+                  place.street,
+                  place.subLocality,
+                  place.locality,
+                  place.subAdministrativeArea,
+                  place.administrativeArea,
+                  place.postalCode,
+                  place.country,
+                ]
+                .whereType<String>()
+                .map((part) => part.trim())
+                .where((part) => part.isNotEmpty)
+                .toList();
+        address = parts.toSet().join(', ');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _currentAddress = address;
+        _currentLatitude = position.latitude;
+        _currentLongitude = position.longitude;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _currentAddress = 'Unable to fetch location');
+    }
   }
 
   // static const blue = Color(0xFF202A8D);
@@ -197,18 +262,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (profile?.email.isNotEmpty == true) ...[
                         const SizedBox(height: 3),
                         Text(
-                          profile!.email,
+                          'Email: ${profile!.email}  Number: ${profile.mobile}',
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                      if (profile?.mobile.isNotEmpty == true) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          profile!.mobile,
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 12,
@@ -216,21 +271,23 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
 
+                      // if (profile?.mobile.isNotEmpty == true) ...[
+                      //   const SizedBox(height: 2),
+                      //   Text(
+                      //     profile!.mobile,
+                      //     style: const TextStyle(
+                      //       color: Colors.white70,
+                      //       fontSize: 12,
+                      //     ),
+                      //   ),
+                      // ],
                       if (profile?.address?.isNotEmpty == true ||
                           profile?.city?.isNotEmpty == true ||
                           profile?.pin?.isNotEmpty == true ||
                           profile?.state?.isNotEmpty == true) ...[
                         const SizedBox(height: 2),
                         Text(
-                          [
-                            if (profile?.address?.isNotEmpty == true)
-                              profile!.address!,
-                            if (profile?.city?.isNotEmpty == true)
-                              profile!.city!,
-                            if (profile?.pin?.isNotEmpty == true) profile!.pin!,
-                            if (profile?.state?.isNotEmpty == true)
-                              profile!.state!,
-                          ].join(' - '),
+                          'Profile address: ${[if (profile?.address?.isNotEmpty == true) profile!.address!, if (profile?.city?.isNotEmpty == true) profile!.city!, if (profile?.pin?.isNotEmpty == true) profile!.pin!, if (profile?.state?.isNotEmpty == true) profile!.state!].join(' - ')}',
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white70,
@@ -238,6 +295,46 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ],
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          // const Icon(
+                          //   Icons.my_location,
+                          //   color: yellow,
+                          //   size: 13,
+                          // ),
+                          // const SizedBox(width: 4),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // const Text(
+                                //   'Current address:',
+                                //   style: TextStyle(
+                                //     color: Colors.white54,
+                                //     fontSize: 10,
+                                //     fontWeight: FontWeight.w600,
+                                //   ),
+                                // ),
+                                Text(
+                                  _currentLatitude != null &&
+                                          _currentLongitude != null
+                                      ? 'Current address: $_currentAddress · '
+                                            'Lat: ${_currentLatitude!.toStringAsFixed(6)} · '
+                                            'Lng: ${_currentLongitude!.toStringAsFixed(6)}'
+                                      : _currentAddress,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),

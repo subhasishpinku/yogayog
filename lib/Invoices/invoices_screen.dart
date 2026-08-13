@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
+import 'package:pdf/pdf.dart' as pdf;
+import 'package:pdf/widgets.dart' as pw;
 import 'package:yogayog/bookscreen/book_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/history/history_screen.dart';
@@ -69,7 +73,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   Widget _summaryHeader() => Container(
     width: double.infinity,
     padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-    color: AppColors.primaryBlue,
+    color: AppColors.primaryMain,
     child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -210,7 +214,16 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               ],
             ),
             TextButton.icon(
-              onPressed: () => _message('PDF download started'),
+              onPressed: () => _downloadInvoicePdf(
+                id: id,
+                order: order,
+                date: date,
+                type: type,
+                senderAddress: senderAddress,
+                receiver: receiver,
+                receiverAddress: receiverAddress,
+                amount: amount,
+              ),
               icon: const Icon(Icons.download, size: 16),
               label: const Text('PDF'),
               style: TextButton.styleFrom(
@@ -280,6 +293,90 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           ],
         ),
       ),
+    ],
+  );
+
+  Future<void> _downloadInvoicePdf({
+    required String id,
+    required String order,
+    required String date,
+    required String type,
+    required String senderAddress,
+    required String? receiver,
+    required String? receiverAddress,
+    required String amount,
+  }) async {
+    final document = pw.Document();
+    document.addPage(
+      pw.Page(
+        margin: const pw.EdgeInsets.all(36),
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'YOGAYOG',
+              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text('Invoice', style: pw.TextStyle(fontSize: 18)),
+            pw.Divider(),
+            pw.SizedBox(height: 12),
+            pw.Text('Invoice ID: $id'),
+            pw.Text('Order: $order'),
+            pw.Text('Date: $date'),
+            pw.SizedBox(height: 18),
+            pw.Text(
+              type,
+              style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 12),
+            pw.Table(
+              border: pw.TableBorder.all(color: pdf.PdfColors.grey300),
+              children: [
+                _pdfRow('Sender address', senderAddress),
+                if (receiver != null) _pdfRow('Receiver', receiver),
+                if (receiverAddress != null)
+                  _pdfRow('Receiver address', receiverAddress),
+                _pdfRow('Payment status', 'Pending'),
+                _pdfRow('Total amount', amount),
+              ],
+            ),
+            pw.SizedBox(height: 32),
+            pw.Text('Thank you for choosing Yogayog.'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final bytes = await document.save();
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save invoice PDF',
+        fileName:
+            'invoice_${order.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        bytes: Uint8List.fromList(bytes),
+      );
+      if (!mounted) return;
+      _message(
+        path == null ? 'PDF download cancelled' : 'PDF saved successfully',
+      );
+    } catch (_) {
+      if (mounted) _message('Unable to create PDF');
+    }
+  }
+
+  pw.TableRow _pdfRow(String label, String value) => pw.TableRow(
+    children: [
+      pw.Padding(
+        padding: const pw.EdgeInsets.all(8),
+        child: pw.Text(
+          label,
+          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+        ),
+      ),
+      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(value)),
     ],
   );
 

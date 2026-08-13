@@ -12,6 +12,7 @@ import 'package:yogayog/OnboardingScreen/onboarding_screen.dart';
 import 'package:yogayog/profile/provider/profile_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/termsprivacy/term_privacy.dart';
+import 'package:yogayog/homescreen/home_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -21,6 +22,14 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<HomeProvider>().loadProfile();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -39,7 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.inventory_2_outlined,
                     iconColor: const Color(0xFFD49A67),
                     title: 'My Shipments',
-                    onTap: () => _open(const HistoryScreen()),
+                    onTap: () => _open(const MyShipments()),
                   ),
                   _menuItem(
                     icon: Icons.location_on_outlined,
@@ -111,6 +120,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _profileCard() {
+    final profile = context.watch<HomeProvider>().profile;
+    final name = profile?.name.trim().isNotEmpty == true
+        ? profile!.name
+        : 'Loading...';
+    final mobile = profile?.mobile.trim().isNotEmpty == true
+        ? profile!.mobile
+        : 'Phone number unavailable';
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -134,9 +151,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               color: const Color(0xFFFFC400),
               borderRadius: BorderRadius.circular(17),
             ),
-            child: const Text(
-              'RK',
-              style: TextStyle(
+            child: Text(
+              profile?.initials ?? 'U',
+              style: const TextStyle(
                 color: Color(0xFF172786),
                 fontSize: 23,
                 fontWeight: FontWeight.bold,
@@ -144,18 +161,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Rajan Kumar',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  '+91 98765 43210',
-                  style: TextStyle(color: Color(0xFF858591), fontSize: 13),
+                  mobile,
+                  style: const TextStyle(
+                    color: Color(0xFF858591),
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
