@@ -104,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const Mywallet()),
+                            MaterialPageRoute(builder: (_) => const MyWallet()),
                           );
                         },
                         borderRadius: BorderRadius.circular(18),
@@ -735,10 +735,46 @@ class _HomeScreenState extends State<HomeScreen> {
                 subtitle: 'Pan-India',
                 price: 'From ₹89/kg',
               ),
+              _ServiceCard(
+                icon: '🌍',
+                title: "Int'l Import",
+                subtitle: 'Worldwide',
+                price: 'From ₹499',
+              ),
+              _ServiceCard(
+                icon: '✈️',
+                title: "Int'l Export",
+                subtitle: 'Worldwide',
+                price: 'From ₹599',
+              ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildInternationalServices() {
+    return SizedBox(
+      height: 145,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        children: const [
+          _ServiceCard(
+            icon: '🌍',
+            title: "Int'l Import",
+            subtitle: 'Worldwide',
+            price: 'From ₹499',
+          ),
+          _ServiceCard(
+            icon: '✈️',
+            title: "Int'l Export",
+            subtitle: 'Worldwide',
+            price: 'From ₹599',
+          ),
+        ],
+      ),
     );
   }
 

@@ -9,14 +9,14 @@ import 'package:yogayog/profile/profile_screen.dart';
 import 'package:yogayog/trackscreen/track_screen.dart';
 import 'package:yogayog/viewledger/viewledger.dart';
 
-class Mywallet extends StatefulWidget {
-  const Mywallet({super.key});
+class MyWallet extends StatefulWidget {
+  const MyWallet({super.key});
 
   @override
-  State<Mywallet> createState() => _MywalletState();
+  State<MyWallet> createState() => _MyWalletState();
 }
 
-class _MywalletState extends State<Mywallet> {
+class _MyWalletState extends State<MyWallet> {
   static const _blue = AppColors.primaryMain;
   static const _pageBackground = Color(0xFFF4F4FA);
 
@@ -54,19 +54,32 @@ class _MywalletState extends State<Mywallet> {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
       color: _blue,
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'My Wallet',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 23,
-              fontWeight: FontWeight.w800,
-            ),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF4D59A7),
+                  padding: const EdgeInsets.all(8),
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'My Wallet',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 23,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 3),
-          Text(
+          const SizedBox(height: 3),
+          const Text(
             'Yogayog Credits',
             style: TextStyle(color: Color(0xFFCFD3FF), fontSize: 14),
           ),

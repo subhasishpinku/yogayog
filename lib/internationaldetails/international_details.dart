@@ -577,7 +577,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
 
   Future<void> _openSavedLocations() async {
     final provider = context.read<BikescreenProvider>();
-    await provider.loadLocations();
+    await provider.loadLocations(serviceId: 7);
     if (!mounted) return;
     if (provider.errorMessage != null && provider.locations.isEmpty) {
       _showMessage(provider.errorMessage!);
@@ -601,7 +601,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
 
   Future<void> _openSavedDropLocations() async {
     final provider = context.read<BikescreenProvider>();
-    await provider.loadLocations();
+    await provider.loadLocations(serviceId: 7);
     if (!mounted) return;
     if (provider.errorMessage != null && provider.locations.isEmpty) {
       _showMessage(provider.errorMessage!);
@@ -1218,7 +1218,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         elevation: 0,
         foregroundColor: Colors.black,
         title: const Text(
-          'Receiver Details',
+          'International Export Details',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
@@ -1278,7 +1278,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _label('COUNTRY'),
+                      _label('DROP COUNTRY'),
                       _textField(
                         controller: countryController,
                         hintText: 'Country',
@@ -1291,7 +1291,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _label('CITY'),
+                      _label('DROP CITY'),
                       _textField(controller: cityController, hintText: 'City'),
                     ],
                   ),

@@ -3,6 +3,7 @@ import 'package:yogayog/Invoices/invoices_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/helpsupport/help_support.dart';
 import 'package:yogayog/history/history_screen.dart';
+import 'package:yogayog/history/myshipmentes/my_shipments.dart';
 import 'package:yogayog/mybooking/my_booking.dart';
 import 'package:yogayog/mywallet/mywallet.dart';
 import 'package:yogayog/profile/profile_edit_screen.dart';
@@ -50,13 +51,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.credit_card,
                     iconColor: const Color(0xFFFFB800),
                     title: 'My Wallet',
-                    onTap: () => _open(const Mywallet()),
+                    onTap: () => _open(const MyWallet()),
                   ),
                   _menuItem(
                     icon: Icons.book_online,
                     iconColor: const Color(0xFFFFC400),
                     title: 'Booking History',
-                    onTap: () => _open(const HistoryScreen()),
+                    onTap: () => _open(const MyShipments()),
                   ),
                   _menuItem(
                     icon: Icons.bookmark_border_rounded,

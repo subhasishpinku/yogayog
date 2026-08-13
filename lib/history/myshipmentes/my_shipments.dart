@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/history_service.dart';
 import 'package:yogayog/history/provider/history_provider.dart';
 import 'package:provider/provider.dart';
 
-class HistoryScreen extends StatefulWidget {
-  const HistoryScreen({super.key});
+class MyShipments extends StatefulWidget {
+  const MyShipments({super.key});
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
+  State<MyShipments> createState() => _MyShipmentsState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
+class _MyShipmentsState extends State<MyShipments> {
   int selectedFilter = 0;
 
   static const filters = <_HistoryFilter>[
@@ -253,14 +254,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
         children: [
           Row(
             children: [
-              // IconButton(
-              //   onPressed: () => Navigator.pop(context),
-              //   icon: const Icon(Icons.arrow_back, color: Colors.white),
-              //   style: IconButton.styleFrom(
-              //     backgroundColor: const Color(0xFF4D59A7),
-              //   ),
-              // ),
-              // const SizedBox(width: 10),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF4D59A7),
+                ),
+              ),
+              const SizedBox(width: 10),
               const Text(
                 'My Shipments',
                 style: TextStyle(

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
+import 'dart:typed_data';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/viewledger_service.dart';
 import 'package:yogayog/viewledger/provider/viewledger_provider.dart';
@@ -12,7 +15,7 @@ class Viewledger extends StatefulWidget {
 }
 
 class _ViewledgerState extends State<Viewledger> {
-  static const _blue = AppColors.primaryBlue;
+  static const _blue = AppColors.primaryMain;
   static const _background = Color(0xFFF4F4FA);
 
   @override
@@ -60,22 +63,26 @@ class _ViewledgerState extends State<Viewledger> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFF4D59A7),
-              padding: const EdgeInsets.all(8),
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'My Wallet Ledger',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xFF4D59A7),
+                  padding: const EdgeInsets.all(8),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'My Wallet Ledger',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 3),
           const Text(
@@ -95,13 +102,40 @@ class _ViewledgerState extends State<Viewledger> {
                 icon: Icons.file_download_outlined,
                 label: 'Export CSV',
                 yellow: true,
-                onPressed: () => _showMessage('CSV export started'),
+                onPressed: _exportCsv,
               ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _exportCsv() async {
+    final provider = context.read<ViewledgerProvider>();
+    final csv = provider.exportCsv();
+
+    if (csv.isEmpty) {
+      _showMessage('No ledger transactions to export');
+      return;
+    }
+
+    try {
+      final location = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save wallet ledger CSV',
+        fileName: 'wallet_ledger.csv',
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        bytes: Uint8List.fromList(utf8.encode(csv)),
+      );
+
+      if (!mounted) return;
+      _showMessage(
+        location == null ? 'CSV export cancelled' : 'CSV saved successfully',
+      );
+    } catch (_) {
+      if (mounted) _showMessage('Unable to export CSV');
+    }
   }
 
   Widget _headerButton({
@@ -197,7 +231,7 @@ class _ViewledgerState extends State<Viewledger> {
             amount,
             style: TextStyle(
               color: color,
-              fontSize: 27,
+              fontSize: 24,
               fontWeight: FontWeight.w900,
             ),
           ),

@@ -559,7 +559,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
 
   Future<void> _openSavedLocations() async {
     final provider = context.read<BikescreenProvider>();
-    await provider.loadLocations();
+    await provider.loadLocations(serviceId: 1);
     if (!mounted) return;
     if (provider.errorMessage != null && provider.locations.isEmpty) {
       _showMessage(provider.errorMessage!);
@@ -583,7 +583,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
 
   Future<void> _openSavedDropLocations() async {
     final provider = context.read<BikescreenProvider>();
-    await provider.loadLocations();
+    await provider.loadLocations(serviceId: 1);
     if (!mounted) return;
     if (provider.errorMessage != null && provider.locations.isEmpty) {
       _showMessage(provider.errorMessage!);

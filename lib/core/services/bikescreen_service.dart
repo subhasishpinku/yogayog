@@ -7,9 +7,12 @@ class BikescreenService {
 
   final Dio _dio;
 
-  Future<List<SavedLocation>> getLocations() async {
+  Future<List<SavedLocation>> getLocations({required int serviceId}) async {
     try {
-      final response = await _dio.get(ApiEndpoints.locations);
+      final response = await _dio.get(
+        ApiEndpoints.locations,
+        queryParameters: {'service_id': serviceId},
+      );
       final data = response.data;
       if (data is! Map || data['success'] != true || data['addresses'] is! List) {
         throw BikescreenException(

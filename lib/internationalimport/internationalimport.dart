@@ -577,7 +577,7 @@ class _InternationalImportState extends State<InternationalImport> {
 
   Future<void> _openSavedLocations() async {
     final provider = context.read<BikescreenProvider>();
-    await provider.loadLocations();
+    await provider.loadLocations(serviceId: 7);
     if (!mounted) return;
     if (provider.errorMessage != null && provider.locations.isEmpty) {
       _showMessage(provider.errorMessage!);
@@ -601,7 +601,7 @@ class _InternationalImportState extends State<InternationalImport> {
 
   Future<void> _openSavedDropLocations() async {
     final provider = context.read<BikescreenProvider>();
-    await provider.loadLocations();
+    await provider.loadLocations(serviceId: 7);
     if (!mounted) return;
     if (provider.errorMessage != null && provider.locations.isEmpty) {
       _showMessage(provider.errorMessage!);
@@ -1214,7 +1214,7 @@ class _InternationalImportState extends State<InternationalImport> {
         elevation: 0,
         foregroundColor: Colors.black,
         title: const Text(
-          'Receiver Details',
+          'International Import Details',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
@@ -1274,7 +1274,7 @@ class _InternationalImportState extends State<InternationalImport> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _label('COUNTRY'),
+                      _label('PICK COUNTRY'),
                       _textField(
                         controller: countryController,
                         hintText: 'Country',
@@ -1287,7 +1287,7 @@ class _InternationalImportState extends State<InternationalImport> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _label('CITY'),
+                      _label('PICK CITY'),
                       _textField(controller: cityController, hintText: 'City'),
                     ],
                   ),

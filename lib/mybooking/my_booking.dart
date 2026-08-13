@@ -59,19 +59,30 @@ class _MyBookingState extends State<MyBooking> {
 
   Widget _header() => Container(
     width: double.infinity,
-    color: AppColors.primaryBlue,
-    padding: const EdgeInsets.fromLTRB(20, 27, 20, 22),
-    child: const Text(
-      'My Bookings',
-      style: TextStyle(
-        color: Colors.white,
-        fontSize: 23,
-        fontWeight: FontWeight.w900,
-      ),
+    color: AppColors.primaryMain,
+    padding: const EdgeInsets.fromLTRB(20, 27, 20, 10),
+    child: Row(
+      children: [
+        IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          style: IconButton.styleFrom(backgroundColor: const Color(0xFF4D59A7)),
+        ),
+        const SizedBox(width: 10),
+        const Text(
+          'My Bookings',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 23,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
     ),
   );
 
   Widget _tabs() => Container(
+    height: 60,
     color: AppColors.primaryBlue,
     child: Row(children: [_tab('UPCOMING (6)', 0), _tab('PAST (0)', 1)]),
   );
