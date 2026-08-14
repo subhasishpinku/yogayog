@@ -17,6 +17,7 @@ class ApiClient {
   static Future<void> loadToken() async {
     final preferences = await SharedPreferences.getInstance();
     final token = preferences.getString('auth_token');
+    print('token: $token');
     if (token != null && token.isNotEmpty) {
       setToken(token);
     }

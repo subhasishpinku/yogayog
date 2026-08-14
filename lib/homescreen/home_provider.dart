@@ -44,4 +44,8 @@ class HomeProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<TrackOrderData> trackOrder(String trackingNumber) {
+    return _service.trackOrder(trackingNumber);
+  }
 }

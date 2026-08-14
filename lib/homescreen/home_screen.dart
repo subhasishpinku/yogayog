@@ -5,6 +5,7 @@ import 'package:yogayog/bikescreen/blick_local_screem.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/homescreen/home_provider.dart';
+import 'package:yogayog/core/services/home_service.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/internationalimport/internationalimport.dart';
 import 'package:yogayog/profile/profile_screen.dart';
@@ -591,13 +592,39 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     if (!mounted || awb == null || awb.isEmpty) return;
-    _showTrackingDetails(awb);
+    _loadTrackingDetails(awb);
   }
 
-  void _showTrackingDetails(String awb) {
-    final profile = context.read<HomeProvider>().profile;
-    final date =
-        '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}';
+  Future<void> _loadTrackingDetails(String awb) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          const Center(child: CircularProgressIndicator(color: yellow)),
+    );
+
+    try {
+      final tracking = await context.read<HomeProvider>().trackOrder(awb);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _showTrackingDetails(tracking);
+    } on HomeException catch (error) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to track this order.')),
+      );
+    }
+  }
+
+  void _showTrackingDetails(TrackOrderData tracking) {
+    final date = _trackingDate(tracking.lastUpdated);
 
     showDialog<void>(
       context: context,
@@ -664,10 +691,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Wrap(
                   runSpacing: 16,
                   children: [
-                    _trackingInfo('Order ID', awb),
+                    _trackingInfo('Order ID', tracking.orderId),
                     _trackingInfo('Date', date),
-                    _trackingInfo('Amount', '₹162.75'),
-                    _trackingInfo('Recipient', profile?.name ?? 'Customer'),
+                    _trackingInfo(
+                      'Amount',
+                      '₹${tracking.value.toStringAsFixed(2)}',
+                    ),
+                    _trackingInfo('Recipient', tracking.customerName),
                   ],
                 ),
               ),
@@ -684,25 +714,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              _trackingEvent(
-                'PENDING',
-                'Status was: PENDING',
-                date,
-                '11:28 AM',
-              ),
-              _trackingEvent(
-                'ORDER RECEIVED',
-                'Status was: ORDER RECEIVED',
-                date,
-                '11:45 AM',
-              ),
-              _trackingEvent(
-                'ORDER RECEIVED',
-                'Order is being processed',
-                date,
-                '02:31 PM',
-                isLast: true,
-              ),
+              ...tracking.timeline.reversed.toList().asMap().entries.map((
+                entry,
+              ) {
+                final event = entry.value;
+                final isLast = entry.key == tracking.timeline.length - 1;
+                return _trackingEvent(
+                  _formatTrackingStatus(event.status),
+                  'Status was: ${_formatTrackingStatus(event.status)}',
+                  _trackingDate(event.createdAt),
+                  _trackingTime(event.createdAt),
+                  isLast: isLast,
+                );
+              }),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
                 child: SizedBox(
@@ -713,7 +737,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => TrackAllOrder(trackingNumber: awb),
+                          builder: (_) =>
+                              TrackAllOrder(trackingNumber: tracking.orderId),
                         ),
                       );
                     },
@@ -735,6 +760,36 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  String _trackingDate(String raw) {
+    final parsed = DateTime.tryParse(raw.replaceFirst(' ', 'T'));
+    if (parsed == null) return raw.isEmpty ? '-' : raw;
+    return '${parsed.day}/${parsed.month}/${parsed.year}';
+  }
+
+  String _trackingTime(String raw) {
+    final parsed = DateTime.tryParse(raw.replaceFirst(' ', 'T'));
+    if (parsed == null) return raw.isEmpty ? '-' : raw;
+    final hour = parsed.hour == 0
+        ? 12
+        : (parsed.hour > 12 ? parsed.hour - 12 : parsed.hour);
+    final minute = parsed.minute.toString().padLeft(2, '0');
+    final suffix = parsed.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $suffix';
+  }
+
+  String _formatTrackingStatus(String status) {
+    if (status.trim().isEmpty) return 'UNKNOWN';
+    return status
+        .split('_')
+        .map(
+          (word) => word.isEmpty
+              ? word
+              : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}',
+        )
+        .join(' ')
+        .toUpperCase();
   }
 
   Widget _trackingInfo(String label, String value) {

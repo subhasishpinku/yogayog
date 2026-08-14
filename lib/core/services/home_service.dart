@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yogayog/core/network/api_client.dart';
 import 'package:yogayog/core/network/api_endpoints.dart';
 
@@ -8,6 +9,7 @@ class HomeService {
   final Dio _dio;
 
   Future<ProfileData> getProfile() async {
+
     try {
       final response = await _dio.get(ApiEndpoints.profile);
       final data = response.data;
@@ -56,6 +58,91 @@ class HomeService {
         error.message ?? 'Network error while loading services',
       );
     }
+  }
+
+  Future<TrackOrderData> trackOrder(String trackingNumber) async {
+    try {
+      final response = await _dio.get(
+        ApiEndpoints.trackOrder,
+        queryParameters: {'tracking_number': trackingNumber},
+      );
+      final data = response.data;
+      if (data is! Map || data['success'] != true) {
+        throw HomeException(
+          data is Map
+              ? data['message']?.toString() ?? 'Unable to track this order'
+              : 'Invalid response from the server',
+        );
+      }
+      return TrackOrderData.fromJson(Map<String, dynamic>.from(data));
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      if (data is Map && data['message'] != null) {
+        throw HomeException(data['message'].toString());
+      }
+      throw HomeException(
+        error.message ?? 'Network error while tracking the order',
+      );
+    }
+  }
+}
+
+class TrackOrderData {
+  const TrackOrderData({
+    required this.orderId,
+    required this.customerName,
+    required this.weight,
+    required this.value,
+    required this.status,
+    required this.lastUpdated,
+    required this.timeline,
+  });
+
+  final String orderId;
+  final String customerName;
+  final double weight;
+  final double value;
+  final String status;
+  final String lastUpdated;
+  final List<TrackingTimeline> timeline;
+
+  factory TrackOrderData.fromJson(Map<String, dynamic> json) {
+    return TrackOrderData(
+      orderId: json['order_id']?.toString() ?? '',
+      customerName: json['customer_name']?.toString() ?? 'Customer',
+      weight: double.tryParse(json['weight'].toString()) ?? 0,
+      value: double.tryParse(json['value'].toString()) ?? 0,
+      status: json['status']?.toString() ?? '',
+      lastUpdated: json['last_updated']?.toString() ?? '',
+      timeline: (json['timeline'] as List? ?? [])
+          .whereType<Map>()
+          .map(
+            (item) => TrackingTimeline.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class TrackingTimeline {
+  const TrackingTimeline({
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String status;
+  final String createdAt;
+  final String updatedAt;
+
+  factory TrackingTimeline.fromJson(Map<String, dynamic> json) {
+    return TrackingTimeline(
+      status: json['status']?.toString() ?? '',
+      createdAt: json['created_at']?.toString() ?? '',
+      updatedAt: json['updated_at']?.toString() ?? '',
+    );
   }
 }
 
