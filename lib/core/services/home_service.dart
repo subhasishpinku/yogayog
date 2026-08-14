@@ -31,6 +31,58 @@ class HomeService {
       throw HomeException(error.message ?? 'Network error while loading profile');
     }
   }
+
+  Future<List<StaticService>> getStaticServices() async {
+    try {
+      final response = await _dio.get(ApiEndpoints.staticServices);
+      final data = response.data;
+      if (data is! Map || data['success'] != true || data['data'] is! List) {
+        throw HomeException(
+          data is Map
+              ? data['message']?.toString() ?? 'Unable to load services'
+              : 'Invalid response from the server',
+        );
+      }
+      return (data['data'] as List)
+          .whereType<Map>()
+          .map((item) => StaticService.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      if (data is Map && data['message'] != null) {
+        throw HomeException(data['message'].toString());
+      }
+      throw HomeException(
+        error.message ?? 'Network error while loading services',
+      );
+    }
+  }
+}
+
+class StaticService {
+  const StaticService({
+    required this.serviceId,
+    required this.name,
+    required this.description,
+    required this.icon,
+    required this.price,
+  });
+
+  final int serviceId;
+  final String name;
+  final String description;
+  final String icon;
+  final String price;
+
+  factory StaticService.fromJson(Map<String, dynamic> json) {
+    return StaticService(
+      serviceId: int.tryParse(json['service_id'].toString()) ?? 0,
+      name: json['name']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      icon: json['icon']?.toString() ?? '📦',
+      price: json['price']?.toString() ?? '0.00',
+    );
+  }
 }
 
 class ProfileData {

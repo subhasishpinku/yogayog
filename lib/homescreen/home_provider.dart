@@ -8,10 +8,12 @@ class HomeProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   ProfileData? _profile;
+  List<StaticService> _services = const [];
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   ProfileData? get profile => _profile;
+  List<StaticService> get services => _services;
 
   Future<void> loadProfile() async {
     if (_isLoading) return;
@@ -27,6 +29,18 @@ class HomeProvider extends ChangeNotifier {
       _errorMessage = 'Something went wrong while loading profile.';
     } finally {
       _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadServices() async {
+    try {
+      _services = await _service.getStaticServices();
+    } on HomeException catch (error) {
+      _errorMessage = error.message;
+    } catch (_) {
+      _errorMessage = 'Something went wrong while loading services.';
+    } finally {
       notifyListeners();
     }
   }

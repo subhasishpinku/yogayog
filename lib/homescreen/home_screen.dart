@@ -37,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<HomeProvider>().loadProfile();
+      if (mounted) context.read<HomeProvider>().loadServices();
       if (mounted) context.read<HistoryProvider>().loadBookings();
       _loadCurrentLocation();
     });
@@ -833,6 +834,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildServices() {
+    final services = context.watch<HomeProvider>().services;
+
     return Column(
       children: [
         _sectionTitle('Our Services', 'View all'),
@@ -841,37 +844,48 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ListView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            children: const [
-              _ServiceCard(
-                icon: '🏍️',
-                title: 'Local – Bike',
-                subtitle: 'Within city',
-                price: 'From ₹49',
-              ),
-              _ServiceCard(
-                icon: '🚚',
-                title: 'Local – Truck',
-                subtitle: 'Within city',
-                price: 'From ₹399',
-              ),
-              _ServiceCard(
-                icon: '🚛',
-                title: 'National',
-                subtitle: 'Pan-India',
-                price: 'From ₹89/kg',
-              ),
-              _ServiceCard(
-                icon: '🌍',
-                title: "Int'l Import",
-                subtitle: 'Worldwide',
-                price: 'From ₹499',
-              ),
-              _ServiceCard(
-                icon: '✈️',
-                title: "Int'l Export",
-                subtitle: 'Worldwide',
-                price: 'From ₹599',
-              ),
+            children: [
+              if (services.isNotEmpty)
+                ...services.map(
+                  (service) => _ServiceCard(
+                    icon: service.icon,
+                    title: service.name,
+                    subtitle: service.description,
+                    price: 'From ₹${service.price}',
+                  ),
+                )
+              else ...[
+                _ServiceCard(
+                  icon: '🏍️',
+                  title: 'Local – Bike',
+                  subtitle: 'Within city',
+                  price: 'From ₹49',
+                ),
+                _ServiceCard(
+                  icon: '🚚',
+                  title: 'Local – Truck',
+                  subtitle: 'Within city',
+                  price: 'From ₹399',
+                ),
+                _ServiceCard(
+                  icon: '🚛',
+                  title: 'National',
+                  subtitle: 'Pan-India',
+                  price: 'From ₹89/kg',
+                ),
+                _ServiceCard(
+                  icon: '🌍',
+                  title: "Int'l Import",
+                  subtitle: 'Worldwide',
+                  price: 'From ₹499',
+                ),
+                _ServiceCard(
+                  icon: '✈️',
+                  title: "Int'l Export",
+                  subtitle: 'Worldwide',
+                  price: 'From ₹599',
+                ),
+              ],
             ],
           ),
         ),
@@ -1147,7 +1161,7 @@ class _ServiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 105,
+      width: 120,
       margin: const EdgeInsets.only(right: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -1162,15 +1176,21 @@ class _ServiceCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             title,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
           ),
           Text(
             subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Colors.grey, fontSize: 10),
           ),
           const Spacer(),
           Text(
             price,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Color(0xFF202A8D),
               fontWeight: FontWeight.bold,
