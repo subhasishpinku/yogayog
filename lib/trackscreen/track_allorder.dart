@@ -30,7 +30,9 @@ class _DemoOrder {
 }
 
 class TrackAllOrder extends StatefulWidget {
-  const TrackAllOrder({super.key});
+  const TrackAllOrder({super.key, this.trackingNumber});
+
+  final String? trackingNumber;
 
   @override
   State<TrackAllOrder> createState() => _TrackAllOrderState();
@@ -150,6 +152,10 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
   @override
   void initState() {
     super.initState();
+    final awb = widget.trackingNumber?.trim();
+    if (awb != null && awb.isNotEmpty) {
+      search.text = awb;
+    }
   }
 
   @override
@@ -322,9 +328,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
             ),
             child: TextField(
               controller: search,
-              onChanged: (_) {
-                setState(() {});
-              },
+              onChanged: (_) => setState(() {}),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 13,
@@ -468,11 +472,11 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
 
             // Count
             Container(
-              constraints: const BoxConstraints(minWidth: 21, minHeight: 21),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              width: 21,
+              height: 21,
               decoration: BoxDecoration(
                 color: active ? Colors.white.withValues(alpha: 0.22) : color,
-                borderRadius: BorderRadius.circular(12),
+                shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
               child: Text(
@@ -662,9 +666,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => _screenForOrder(order),
-          ),
+          MaterialPageRoute(builder: (_) => _screenForOrder(order)),
         );
       },
       borderRadius: BorderRadius.circular(18),

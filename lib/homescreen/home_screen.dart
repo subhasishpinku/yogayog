@@ -12,6 +12,7 @@ import 'package:yogayog/profile/provider/profile_provider.dart';
 import 'package:yogayog/mywallet/mywallet.dart';
 import 'package:yogayog/OnboardingScreen/onboarding_screen.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
+import 'package:yogayog/trackscreen/track_allorder.dart';
 import 'package:yogayog/truckscreen/choose_truck_screen.dart';
 import 'package:yogayog/nationaldetails/national_details.dart';
 import 'package:yogayog/internationaldetails/international_details.dart';
@@ -700,6 +701,33 @@ class _HomeScreenState extends State<HomeScreen> {
                 date,
                 '02:31 PM',
                 isLast: true,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TrackAllOrder(trackingNumber: awb),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('More Track'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
