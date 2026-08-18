@@ -9,7 +9,6 @@ class HomeService {
   final Dio _dio;
 
   Future<ProfileData> getProfile() async {
-
     try {
       final response = await _dio.get(ApiEndpoints.profile);
       final data = response.data;
@@ -30,7 +29,9 @@ class HomeService {
       if (data is Map && data['message'] != null) {
         throw HomeException(data['message'].toString());
       }
-      throw HomeException(error.message ?? 'Network error while loading profile');
+      throw HomeException(
+        error.message ?? 'Network error while loading profile',
+      );
     }
   }
 
@@ -47,7 +48,9 @@ class HomeService {
       }
       return (data['data'] as List)
           .whereType<Map>()
-          .map((item) => StaticService.fromJson(Map<String, dynamic>.from(item)))
+          .map(
+            (item) => StaticService.fromJson(Map<String, dynamic>.from(item)),
+          )
           .toList();
     } on DioException catch (error) {
       final data = error.response?.data;
@@ -62,9 +65,9 @@ class HomeService {
 
   Future<TrackOrderData> trackOrder(String trackingNumber) async {
     try {
-      final response = await _dio.get(
+      final response = await _dio.post(
         ApiEndpoints.trackOrder,
-        queryParameters: {'tracking_number': trackingNumber},
+        data: {'tracking_number': trackingNumber},
       );
       final data = response.data;
       if (data is! Map || data['success'] != true) {
@@ -117,9 +120,8 @@ class TrackOrderData {
       timeline: (json['timeline'] as List? ?? [])
           .whereType<Map>()
           .map(
-            (item) => TrackingTimeline.fromJson(
-              Map<String, dynamic>.from(item),
-            ),
+            (item) =>
+                TrackingTimeline.fromJson(Map<String, dynamic>.from(item)),
           )
           .toList(),
     );
