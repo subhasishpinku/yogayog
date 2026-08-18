@@ -210,9 +210,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               child: GestureDetector(
                                 onTap: isLastPage ? null : _skip,
                                 child: Text(
-                                  isLastPage
-                                      ? 'Already have an account? Log in'
-                                      : 'Skip',
+                                  isLastPage ? '' : '',
                                   style: TextStyle(
                                     color: isLastPage
                                         ? const Color(0xFF667085)

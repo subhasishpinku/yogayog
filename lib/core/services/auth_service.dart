@@ -14,7 +14,7 @@ class AuthService {
     try {
       final response = await _dio.post(
         ApiEndpoints.authSendOtp,
-        data: {'login_as': loginAs, 'mobile': mobile},
+        queryParameters: {'login_as': loginAs, 'mobile': mobile},
       );
 
       final data = response.data;

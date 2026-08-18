@@ -15,11 +15,7 @@ class OtpService {
     try {
       final response = await _dio.post(
         ApiEndpoints.authVerifyOtp,
-        data: {
-          'login_as': loginAs,
-          'mobile': mobile,
-          'otp': otp,
-        },
+        data: {'login_as': loginAs, 'mobile': mobile, 'otp': otp},
       );
 
       final data = response.data;
