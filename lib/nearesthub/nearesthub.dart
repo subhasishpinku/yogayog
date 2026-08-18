@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/nearesthub_service.dart';
+import 'package:yogayog/nearesthub/provider/nearesthub_provider.dart';
+import 'package:provider/provider.dart';
 
 class NearestHub extends StatefulWidget {
   const NearestHub({super.key});
@@ -12,6 +17,44 @@ class NearestHub extends StatefulWidget {
 class _NearestHubState extends State<NearestHub> {
   static const _black = AppColors.primaryMain;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCurrentLocation());
+  }
+
+  Future<void> _loadCurrentLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      final places = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      if (!mounted || places.isEmpty) return;
+      final place = places.first;
+      final city = (place.locality ?? place.subAdministrativeArea ?? '').trim();
+      const stateCodes = {'West Bengal': '19'};
+      final stateCode = stateCodes[place.administrativeArea?.trim()];
+      if (city.isNotEmpty && stateCode != null) {
+        await context.read<NearestHubProvider>().loadNearbyHubs(
+          city: city,
+          stateCode: stateCode,
+        );
+      }
+    } catch (_) {}
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
@@ -20,6 +63,8 @@ class _NearestHubState extends State<NearestHub> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<NearestHubProvider>();
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: _black,
@@ -39,15 +84,33 @@ class _NearestHubState extends State<NearestHub> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const _HubMap(),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 20, 10, 0),
-                      child: _PrimaryHubCard(
-                        onCall: () =>
-                            _showMessage('Calling Yogayog Tollounge Hub'),
-                        onDirections: () =>
-                            _showMessage('Directions are ready to open'),
+                    if (provider.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (provider.hubs.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('No nearby hubs found.'),
+                      )
+                    else
+                      ...provider.hubs.asMap().entries.map(
+                        (entry) => Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 20, 10, 0),
+                          child: _PrimaryHubCard(
+                            hub: entry.value,
+                            isPrimary: entry.key == 0,
+                            onCall: () => _showMessage(
+                              entry.value.phoneNumber.isEmpty
+                                  ? 'Contact number unavailable'
+                                  : 'Calling ${entry.value.phoneNumber}',
+                            ),
+                            onDirections: () =>
+                                _showMessage('Directions are ready to open'),
+                          ),
+                        ),
                       ),
-                    ),
                     const _SectionTitle('Hub Contacts'),
                     _ContactCard(
                       initials: 'RK',
@@ -259,10 +322,17 @@ class _MapPointerPainter extends CustomPainter {
 }
 
 class _PrimaryHubCard extends StatelessWidget {
+  final NearbyHub hub;
+  final bool isPrimary;
   final VoidCallback onCall;
   final VoidCallback onDirections;
 
-  const _PrimaryHubCard({required this.onCall, required this.onDirections});
+  const _PrimaryHubCard({
+    required this.hub,
+    required this.isPrimary,
+    required this.onCall,
+    required this.onDirections,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -278,27 +348,38 @@ class _PrimaryHubCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Yogayog Tollounge Hub',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  hub.hubName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
-              _Badge('Primary'),
+              if (isPrimary) const _Badge('Primary'),
             ],
           ),
           const SizedBox(height: 3),
-          const Text(
-            '📍 3.2 km from your outlet',
-            style: TextStyle(
+          Text(
+            hub.phoneNumber.isEmpty
+                ? '📍 City ID: ${hub.cityId} · State: ${hub.stateCode}'
+                : '📞 ${hub.phoneNumber}',
+            style: const TextStyle(
               color: _NearestHubState._black,
               fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 5),
-          const Text(
-            '12, Deshpran Sasmal Rd,\nTollygunge, Kolkata – 700033',
+          Text(
+            hub.address.isEmpty
+                ? 'Yogayog hub available in your nearby service area'
+                : hub.address,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: Color(0xFF667085),
               fontSize: 13,

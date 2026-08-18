@@ -18,6 +18,8 @@ import 'package:yogayog/utils/sound_service.dart';
 import 'package:yogayog/viewledger/provider/viewledger_provider.dart';
 import 'package:yogayog/history/provider/history_provider.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
+import 'package:yogayog/CutOffTime/provider/cut_of_time_provider.dart';
+import 'package:yogayog/nearesthub/provider/nearesthub_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +55,8 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => ViewledgerProvider()),
         ChangeNotifierProvider(create: (_) => HistoryProvider()),
         ChangeNotifierProvider(create: (_) => BikescreenProvider()),
+        ChangeNotifierProvider(create: (_) => CutOffTimeProvider()),
+        ChangeNotifierProvider(create: (_) => NearestHubProvider()),
       ],
       child: const MyApp(),
     ),

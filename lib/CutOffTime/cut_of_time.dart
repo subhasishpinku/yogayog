@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/CutOffTime/provider/cut_of_time_provider.dart';
+import 'package:yogayog/core/services/cut_of_time_service.dart';
+import 'package:provider/provider.dart';
 
 class CutOfTime extends StatefulWidget {
   const CutOfTime({super.key});
@@ -13,7 +16,17 @@ class _CutOfTimeState extends State<CutOfTime> {
   static const _green = AppColors.primaryMain;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<CutOffTimeProvider>().loadCutOffTimes();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final provider = context.watch<CutOffTimeProvider>();
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: _green,
@@ -31,7 +44,12 @@ class _CutOfTimeState extends State<CutOfTime> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _CutOffCard(),
+                    _CutOffCard(
+                      cutOffTime: provider.cutOffTimes.isEmpty
+                          ? null
+                          : provider.cutOffTimes.first,
+                      isLoading: provider.isLoading,
+                    ),
                     const SizedBox(height: 15),
                     const Text(
                       'What happens after cut-off?',
@@ -41,26 +59,25 @@ class _CutOfTimeState extends State<CutOfTime> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    const _ImpactCard(
-                      icon: Icons.two_wheeler,
-                      title: 'Local – Bike & Truck',
-                      description:
-                          'Shipment queued for next morning pickup (by\n10 AM)',
-                    ),
-                    const SizedBox(height: 10),
-                    const _ImpactCard(
-                      icon: Icons.local_shipping,
-                      title: 'National',
-                      description:
-                          "Manifested to next working day's batch\ndispatch",
-                    ),
-                    const SizedBox(height: 10),
-                    const _ImpactCard(
-                      icon: Icons.flight_takeoff,
-                      title: 'International',
-                      description:
-                          'Documents submitted to next available flight\nbooking slot',
-                    ),
+                    if (provider.isLoading)
+                      const Center(child: CircularProgressIndicator())
+                    else if (provider.errorMessage != null)
+                      Text(
+                        provider.errorMessage!,
+                        style: const TextStyle(color: Colors.red),
+                      )
+                    else
+                      ...provider.cutOffTimes.map(
+                        (cutOff) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _ImpactCard(
+                            icon: _serviceIcon(cutOff.service),
+                            title: cutOff.service,
+                            description:
+                                'Same-day acceptance until ${cutOff.cutoffTimeDisplay}',
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 13),
                     Container(
                       width: double.infinity,
@@ -87,6 +104,14 @@ class _CutOfTimeState extends State<CutOfTime> {
         ),
       ),
     );
+  }
+
+  IconData _serviceIcon(String service) {
+    final value = service.toLowerCase();
+    if (value.contains('bike')) return Icons.two_wheeler;
+    if (value.contains('truck')) return Icons.local_shipping;
+    if (value.contains('international')) return Icons.flight_takeoff;
+    return Icons.local_shipping_outlined;
   }
 }
 
@@ -168,7 +193,10 @@ class _CutOffHeader extends StatelessWidget {
 }
 
 class _CutOffCard extends StatelessWidget {
-  const _CutOffCard();
+  const _CutOffCard({this.cutOffTime, required this.isLoading});
+
+  final CutOffTimeData? cutOffTime;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -179,7 +207,7 @@ class _CutOffCard extends StatelessWidget {
         color: const Color(0xFF211000),
         borderRadius: BorderRadius.circular(19),
       ),
-      child: const Column(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
@@ -193,7 +221,7 @@ class _CutOffCard extends StatelessWidget {
           ),
           SizedBox(height: 7),
           Text(
-            '3:00 PM',
+            isLoading ? '...' : (cutOffTime?.cutoffTimeDisplay ?? '--'),
             style: TextStyle(
               color: Color(0xFFFFC400),
               fontSize: 52,
@@ -209,7 +237,7 @@ class _CutOffCard extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(
-                '◷  2h 18m remaining',
+                '◷  Service-wise time below',
                 style: TextStyle(
                   color: Colors.red,
                   fontSize: 13,
@@ -220,7 +248,7 @@ class _CutOffCard extends StatelessWidget {
           ),
           SizedBox(height: 15),
           Text(
-            'Applies to all services — Local, National &\nInternational',
+            'Live service-wise cut-off times are shown below',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Color(0xFFB18B00),

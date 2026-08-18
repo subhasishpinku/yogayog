@@ -12,4 +12,8 @@ class ApiEndpoints {
   static const String customerWalletLedger = "customer-wallet-ledger";
   static const String bookings = "bookings";
   static const String locations = "locations";
+  static const String nearbyBranches = "nearby-branches";
+  static const String cutoffTimes = "cutoff-times";
+
+  static String cutoffTime(int serviceId) => '$cutoffTimes/$serviceId';
 }
