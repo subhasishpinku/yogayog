@@ -365,9 +365,9 @@ class _PrimaryHubCard extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             hub.phoneNumber.isEmpty
-                ? '📍 City ID: ${hub.cityId} · State: ${hub.stateCode}'
+                ? '📍 Nearby processing hub'
                 : '📞 ${hub.phoneNumber}',
-            style: const TextStyle(
+            style: TextStyle(
               color: _NearestHubState._black,
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -375,9 +375,7 @@ class _PrimaryHubCard extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            hub.address.isEmpty
-                ? 'Yogayog hub available in your nearby service area'
-                : hub.address,
+            hub.address.isEmpty ? 'Address unavailable' : hub.address,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(

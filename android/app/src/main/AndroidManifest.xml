@@ -41,6 +41,9 @@
         android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true"
         >
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyC6atqg-XZ8SVzSlLrt5W5mhCgkG-8h6Lo" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
