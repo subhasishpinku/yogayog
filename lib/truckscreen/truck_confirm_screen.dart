@@ -1,9 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/Payment/payment_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/truck_local_service.dart';
 
 class TruckConfirmScreen extends StatefulWidget {
-  const TruckConfirmScreen({super.key});
+  const TruckConfirmScreen({
+    super.key,
+    required this.rate,
+    required this.distance,
+    required this.pickup,
+    required this.drop,
+    this.pickupAddress = '',
+    this.dropAddress = '',
+  });
+
+  final TruckVehicleRate rate;
+  final double distance;
+  final Map<String, dynamic> pickup;
+  final Map<String, dynamic> drop;
+  final String pickupAddress;
+  final String dropAddress;
 
   @override
   State<TruckConfirmScreen> createState() => _TruckConfirmScreenState();
@@ -28,7 +44,23 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
     ).showSnackBar(const SnackBar(content: Text('Proceeding to payment')));
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const PaymentScreen()),
+      MaterialPageRoute(
+        builder: (context) => PaymentScreen(
+          amount: widget.rate.price,
+          orderPayload: {
+            'order_type': 'local',
+            'payment_method': 'ONLINE',
+            'price': widget.rate.price,
+            'pieces': 1,
+            'package_type_id': 1,
+            'service_id': 1,
+            'sub_service_id': 3,
+            'pickup_date': DateTime.now().toIso8601String().substring(0, 10),
+            'pickup': widget.pickup,
+            'drop': widget.drop,
+          },
+        ),
+      ),
     );
   }
 
@@ -246,27 +278,36 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
       ),
       child: Column(
         children: [
-          _summaryRow('From', 'Jodhpur Park, Kolkata'),
-          _summaryRow('To', 'Park Street, Kolkata'),
-          _summaryRow('Vehicle', '🏍 Bike'),
-          _summaryRow('Package', 'Documents · 2 kg'),
+          _summaryRow('From', widget.pickupAddress),
+          _summaryRow('To', widget.dropAddress),
+          _summaryRow('Vehicle', '🚚 ${widget.rate.vehicleType}'),
+          _summaryRow('Distance', '${widget.distance.toStringAsFixed(2)} km'),
           _summaryRow('Pickup', 'Now (~15 min)'),
-          _summaryRow('Base Fare', '₹99'),
-          _summaryRow('Distance Charge', '₹42'),
-          _summaryRow('GST (18%)', '₹8'),
+          _summaryRow(
+            'Base Fare',
+            '₹${widget.rate.breakdown.basePrice.toStringAsFixed(2)}',
+          ),
+          _summaryRow(
+            'Other Charges',
+            '₹${widget.rate.breakdown.otherCharges.toStringAsFixed(2)}',
+          ),
+          _summaryRow(
+            'GST',
+            '₹${widget.rate.breakdown.gstAmount.toStringAsFixed(2)}',
+          ),
 
           const Divider(height: 18),
 
           Row(
-            children: const [
-              Text(
+            children: [
+              const Text(
                 'Total',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
-              Spacer(),
+              const Spacer(),
               Text(
-                '₹149',
-                style: TextStyle(
+                '₹${widget.rate.price.toStringAsFixed(2)}',
+                style: const TextStyle(
                   color: blue,
                   fontSize: 17,
                   fontWeight: FontWeight.bold,

@@ -2,16 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:yogayog/bikescreen/bike_confirm_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/truckscreen/truck_confirm_screen.dart';
+import 'package:yogayog/core/services/truck_local_service.dart';
 
 class ChooseTruckScreen extends StatefulWidget {
   const ChooseTruckScreen({
     super.key,
     this.approximateWeightKg = 0,
     this.volumetricWeightKg = 0,
+    required this.rateResponse,
+    required this.pickup,
+    required this.drop,
+    this.pickupAddress = '',
+    this.dropAddress = '',
   });
 
   final double approximateWeightKg;
   final double volumetricWeightKg;
+  final TruckRateResponse rateResponse;
+  final Map<String, dynamic> pickup;
+  final Map<String, dynamic> drop;
+  final String pickupAddress;
+  final String dropAddress;
 
   @override
   State<ChooseTruckScreen> createState() => _ChooseTruckScreenState();
@@ -24,29 +35,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
   int selectedVehicle = 0;
   bool scheduleLater = false;
 
-  final vehicles = const [
-    {
-      'icon': '🏍️',
-      'title': 'Bike',
-      'details': 'Up to 20 kg · Arrives in ~30 min',
-      'price': '₹149',
-      'tags': ['Documents', 'Small parcels'],
-    },
-    {
-      'icon': '🚚',
-      'title': 'Mini Truck / Tata Ace',
-      'details': 'Up to 750 kg · Arrives in ~45 min',
-      'price': '₹599',
-      'tags': ['Bulk goods', 'Appliances'],
-    },
-    {
-      'icon': '🚛',
-      'title': 'Full Truck',
-      'details': 'Up to 1,500 kg · Arrives in ~60 min',
-      'price': '₹1,499',
-      'tags': ['Furniture', 'Heavy cargo'],
-    },
-  ];
+  List<TruckVehicleRate> get vehicles => widget.rateResponse.rates;
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +73,14 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const TruckConfirmScreen(),
+                            builder: (_) => TruckConfirmScreen(
+                              rate: vehicles[selectedVehicle],
+                              distance: widget.rateResponse.distance,
+                              pickup: widget.pickup,
+                              drop: widget.drop,
+                              pickupAddress: widget.pickupAddress,
+                              dropAddress: widget.dropAddress,
+                            ),
                           ),
                         );
                       },
@@ -256,7 +252,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
               ),
               child: Center(
                 child: Text(
-                  vehicle['icon'] as String,
+                  vehicle.vehicleType.toLowerCase().contains('truck') ? '🚚' : '🚛',
                   style: const TextStyle(fontSize: 27),
                 ),
               ),
@@ -269,7 +265,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    vehicle['title'] as String,
+                    vehicle.vehicleType.toUpperCase(),
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -279,7 +275,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
                   const SizedBox(height: 3),
 
                   Text(
-                    vehicle['details'] as String,
+                    'Distance ${widget.rateResponse.distance.toStringAsFixed(2)} km',
                     style: const TextStyle(
                       color: Color(0xFF8A8F9C),
                       fontSize: 11,
@@ -288,31 +284,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
 
                   const SizedBox(height: 6),
 
-                  Wrap(
-                    spacing: 5,
-                    children: (vehicle['tags'] as List<String>)
-                        .map(
-                          (tag) => Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE9EBFF),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              tag,
-                              style: const TextStyle(
-                                color: blue,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
+                  Text('Base ₹${vehicle.basePrice.toStringAsFixed(2)} + GST', style: const TextStyle(color: blue, fontSize: 10, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -322,7 +294,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
             Column(
               children: [
                 Text(
-                  vehicle['price'] as String,
+                  '₹${vehicle.price.toStringAsFixed(2)}',
                   style: const TextStyle(
                     color: blue,
                     fontSize: 15,

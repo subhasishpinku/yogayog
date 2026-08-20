@@ -13,6 +13,7 @@ import 'package:yogayog/core/services/home_service.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/truckscreen/choose_truck_screen.dart';
+import 'package:yogayog/truckscreen/provider/truck_local_provider.dart';
 
 class PackageBox {
   final lengthController = TextEditingController();
@@ -68,6 +69,7 @@ class _DropLocation {
 
 class _PickupEditDialog extends StatefulWidget {
   const _PickupEditDialog({
+    this.title = 'Edit Pickup Location',
     required this.initialAddress,
     required this.initialCity,
     required this.initialPincode,
@@ -78,6 +80,7 @@ class _PickupEditDialog extends StatefulWidget {
     required this.getPlaceDetails,
   });
 
+  final String title;
   final String initialAddress;
   final String initialCity;
   final String initialPincode;
@@ -203,7 +206,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Edit Pickup Location'),
+      title: Text(widget.title),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -400,7 +403,7 @@ class _PickupLocation {
 
 class _TruckLocalScreenState extends State<TruckLocalScreen> {
   final packageController = TextEditingController();
-  final weightController = TextEditingController(text: '2');
+  final weightController = TextEditingController(text: '20');
   final approximateWeightController = TextEditingController(text: '0.5');
   final pickupPincodeController = TextEditingController();
   final pincodeController = TextEditingController();
@@ -424,6 +427,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
   String _dropState = '';
   double? _dropLatitude;
   double? _dropLongitude;
+  bool _isLoadingRates = false;
 
   static const _googlePlacesApiKey = String.fromEnvironment(
     'GOOGLE_MAPS_API_KEY',
@@ -480,6 +484,9 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         'input': query.trim(),
         'key': _googlePlacesApiKey,
         'components': 'country:in',
+        'location': '22.5726,88.3639',
+        'radius': 300000,
+        'strictbounds': 'true',
       },
     );
     final data = response.data;
@@ -495,6 +502,12 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     return predictions is List
         ? predictions
               .whereType<Map>()
+              .where((item) {
+                final description = item['description']?.toString() ?? '';
+                final normalized = description.toLowerCase();
+                return normalized.contains('west bengal') ||
+                    normalized.contains('kolkata');
+              })
               .map(
                 (item) => _PlaceSuggestion(
                   placeId: item['place_id']?.toString() ?? '',
@@ -553,7 +566,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     );
   }
 
-  Future<void> _editDrop() async {
+  Future<void> _openDropSearchDialog() async {
     if (_googlePlacesApiKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -575,6 +588,84 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       _dropLatitude = selected.latitude;
       _dropLongitude = selected.longitude;
     });
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: _dropLocationPayload(selected),
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Drop address saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save drop address',
+    );
+  }
+
+  Future<void> _editDrop() async {
+    if (_googlePlacesApiKey.isEmpty) {
+      _showMessage('Google Places API key is not configured');
+      return;
+    }
+    final result = await showDialog<_PickupLocation>(
+      context: context,
+      builder: (_) => _PickupEditDialog(
+        title: 'Edit Drop Location',
+        initialAddress: _dropAddress,
+        initialCity: _dropCity,
+        initialPincode: _dropPincode,
+        initialState: _dropState,
+        initialLatitude: _dropLatitude,
+        initialLongitude: _dropLongitude,
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (result == null || !mounted) return;
+    final selected = _DropLocation(
+      address: result.address,
+      city: result.city,
+      pincode: result.pincode,
+      state: result.state,
+      latitude: result.latitude,
+      longitude: result.longitude,
+    );
+    setState(() {
+      _dropAddress = result.address;
+      _dropCity = result.city;
+      _dropPincode = result.pincode;
+      pincodeController.text = result.pincode;
+      _dropState = result.state;
+      _dropLatitude = result.latitude;
+      _dropLongitude = result.longitude;
+    });
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: _dropLocationPayload(selected),
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Drop location saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save drop location',
+    );
+  }
+
+  Map<String, dynamic> _dropLocationPayload(_DropLocation location) {
+    return {
+      'name': dropNameController.text.trim(),
+      'mobile': dropPhoneController.text.trim(),
+      'service_id': 1,
+      'house_numb': '',
+      'street': location.address,
+      'city': location.city,
+      'district': location.city,
+      'state': location.state,
+      'pin': location.pincode,
+      'country': 'India',
+      'country_cde': 'IN',
+      'lat': location.latitude,
+      'lon': location.longitude,
+      'flag': 'drop',
+    };
   }
 
   void _showMessage(String message) {
@@ -746,7 +837,8 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     );
   }
 
-  void _chooseVehicle() {
+  Future<void> _chooseVehicle() async {
+    if (_isLoadingRates) return;
     // if (packageController.text.trim().isEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
     //     const SnackBar(content: Text('Please enter package description')),
@@ -783,13 +875,95 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       );
       return;
     }
+    if (!_isWithinWestBengalServiceArea(_pickupLatitude, _pickupLongitude) ||
+        !_isWithinWestBengalServiceArea(_dropLatitude, _dropLongitude)) {
+      _showMessage(
+        'Pickup and drop locations must be within 300 km of Kolkata',
+      );
+      return;
+    }
+    final weight = double.tryParse(weightController.text.trim());
+    if (weight == null || weight <= 0) {
+      _showMessage('Please enter a valid weight');
+      return;
+    }
+    if (_pickupPincode.trim().isEmpty || _dropPincode.trim().isEmpty) {
+      _showMessage('Please select valid pickup and drop pincodes');
+      return;
+    }
+    setState(() => _isLoadingRates = true);
+    final rates = await context.read<TruckLocalProvider>().loadRates(
+      payload: {
+        'service_id': 1,
+        'sub_service_id': 3,
+        'package_type_id': 1,
+        'weight': weight,
+        'pickup_lat': _pickupLatitude,
+        'pickup_lng': _pickupLongitude,
+        'drop_lat': _dropLatitude,
+        'drop_lng': _dropLongitude,
+        'pickup_pincode': _pickupPincode.trim(),
+        'delivery_pincode': _dropPincode.trim(),
+      },
+    );
+    if (!mounted) return;
+    setState(() => _isLoadingRates = false);
+    if (rates == null || rates.rates.isEmpty) {
+      _showMessage(
+        context.read<TruckLocalProvider>().errorMessage ??
+            'No truck rate found',
+      );
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            ChooseTruckScreen(approximateWeightKg: 0, volumetricWeightKg: 0),
+        builder: (_) => ChooseTruckScreen(
+          rateResponse: rates,
+          approximateWeightKg: weight,
+          volumetricWeightKg: 0,
+          pickupAddress: _pickupAddress,
+          dropAddress: _dropAddress,
+          pickup: {
+            'name': pickupNameController.text.trim(),
+            'mobile': pickupPhoneController.text.trim(),
+            'address': _pickupAddress,
+            'house_no': '',
+            'city': _pickupCity,
+            'state': _pickupState,
+            'pincode': _pickupPincode,
+            'lat': _pickupLatitude,
+            'lng': _pickupLongitude,
+            'country': 'India',
+          },
+          drop: {
+            'name': dropNameController.text.trim(),
+            'mobile': dropPhoneController.text.trim(),
+            'address': _dropAddress,
+            'house_no': '',
+            'city': _dropCity,
+            'state': _dropState,
+            'pincode': _dropPincode,
+            'lat': _dropLatitude,
+            'lng': _dropLongitude,
+            'country': 'India',
+          },
+        ),
       ),
     );
+  }
+
+  bool _isWithinWestBengalServiceArea(double? latitude, double? longitude) {
+    if (latitude == null || longitude == null) return false;
+    const kolkataLatitude = 22.5726;
+    const kolkataLongitude = 88.3639;
+    return Geolocator.distanceBetween(
+          kolkataLatitude,
+          kolkataLongitude,
+          latitude,
+          longitude,
+        ) <=
+        300000;
   }
 
   Widget _textField({
@@ -1294,7 +1468,11 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                         Expanded(
                           child: TextField(
                             controller: weightController,
-                            keyboardType: TextInputType.number,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            enabled: false,
+                            readOnly: false,
                             decoration: _inputDecoration('2 kg'),
                           ),
                         ),
@@ -1325,7 +1503,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: _chooseVehicle,
+                        onPressed: _isLoadingRates ? null : _chooseVehicle,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: yellow,
                           foregroundColor: blue,
@@ -1334,13 +1512,19 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text(
-                          'Choose Vehicle →',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        child: _isLoadingRates
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text(
+                                'Choose Vehicle →',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
                     ),
                   ],
@@ -1565,7 +1749,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
 
               Expanded(
                 child: InkWell(
-                  onTap: _editDrop,
+                  onTap: _openDropSearchDialog,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1616,6 +1800,13 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                       ],
                     ],
                   ),
+                ),
+              ),
+              TextButton(
+                onPressed: _editDrop,
+                child: const Text(
+                  'Edit',
+                  style: TextStyle(color: blue, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
