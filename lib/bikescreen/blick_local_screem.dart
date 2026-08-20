@@ -67,6 +67,7 @@ class _DropLocation {
 
 class _PickupEditDialog extends StatefulWidget {
   const _PickupEditDialog({
+    this.title = 'Edit Pickup Location',
     required this.initialAddress,
     required this.initialCity,
     required this.initialPincode,
@@ -77,6 +78,7 @@ class _PickupEditDialog extends StatefulWidget {
     required this.getPlaceDetails,
   });
 
+  final String title;
   final String initialAddress;
   final String initialCity;
   final String initialPincode;
@@ -202,7 +204,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Edit Pickup Location'),
+      title: Text(widget.title),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -560,7 +562,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     );
   }
 
-  Future<void> _editDrop() async {
+  Future<void> _openDropSearchDialog() async {
     if (_googlePlacesApiKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -597,6 +599,62 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         'country_cde': 'IN',
         'lat': selected.latitude,
         'lon': selected.longitude,
+        'flag': 'drop',
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Drop address saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+              'Unable to save drop address',
+    );
+  }
+
+  Future<void> _editDrop() async {
+    if (_googlePlacesApiKey.isEmpty) {
+      _showMessage('Google Places API key is not configured');
+      return;
+    }
+    final result = await showDialog<_PickupLocation>(
+      context: context,
+      builder: (_) => _PickupEditDialog(
+        title: 'Edit Drop Location',
+        initialAddress: _dropAddress,
+        initialCity: _dropCity,
+        initialPincode: _dropPincode,
+        initialState: _dropState,
+        initialLatitude: _dropLatitude,
+        initialLongitude: _dropLongitude,
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _dropAddress = result.address;
+      _dropCity = result.city;
+      _dropPincode = result.pincode;
+      pincodeController.text = result.pincode;
+      _dropState = result.state;
+      _dropLatitude = result.latitude;
+      _dropLongitude = result.longitude;
+    });
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': dropNameController.text.trim(),
+        'mobile': dropPhoneController.text.trim(),
+        'service_id': 1,
+        'house_numb': '',
+        'street': result.address,
+        'city': result.city,
+        'district': result.city,
+        'state': result.state,
+        'pin': result.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'lat': result.latitude,
+        'lon': result.longitude,
         'flag': 'drop',
       },
     );
@@ -1663,7 +1721,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
 
               Expanded(
                 child: InkWell(
-                  onTap: _editDrop,
+                  onTap: _openDropSearchDialog,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1714,6 +1772,13 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                       ],
                     ],
                   ),
+                ),
+              ),
+              TextButton(
+                onPressed: _editDrop,
+                child: const Text(
+                  'Edit',
+                  style: TextStyle(color: blue, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
