@@ -62,18 +62,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: 'My Wallet',
                     onTap: () => _open(const MyWallet()),
                   ),
-                  _menuItem(
-                    icon: Icons.book_online,
-                    iconColor: const Color(0xFFFFC400),
-                    title: 'Booking History',
-                    onTap: () => _open(const MyShipments()),
-                  ),
-                  _menuItem(
-                    icon: Icons.bookmark_border_rounded,
-                    iconColor: const Color(0xFFFFC400),
-                    title: 'My Bookings',
-                    onTap: () => _open(const MyBooking()),
-                  ),
+                  // _menuItem(
+                  //   icon: Icons.book_online,
+                  //   iconColor: const Color(0xFFFFC400),
+                  //   title: 'Booking History',
+                  //   onTap: () => _open(const MyShipments()),
+                  // ),
+                  // _menuItem(
+                  //   icon: Icons.bookmark_border_rounded,
+                  //   iconColor: const Color(0xFFFFC400),
+                  //   title: 'My Bookings',
+                  //   onTap: () => _open(const MyBooking()),
+                  // ),
                   _menuItem(
                     icon: Icons.description_outlined,
                     iconColor: const Color(0xFFFFC400),

@@ -13,16 +13,18 @@ import 'package:yogayog/profile/provider/profile_provider.dart';
 import 'package:yogayog/mywallet/mywallet.dart';
 import 'package:yogayog/OnboardingScreen/onboarding_screen.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
-import 'package:yogayog/trackscreen/track_allorder.dart';
 import 'package:yogayog/truckscreen/choose_truck_screen.dart';
 import 'package:yogayog/nationaldetails/national_details.dart';
 import 'package:yogayog/internationaldetails/international_details.dart';
 import 'package:yogayog/truckscreen/truck_local_screen.dart';
 import 'package:yogayog/history/provider/history_provider.dart';
 import 'package:yogayog/core/services/history_service.dart';
+import 'package:yogayog/dashboard/dashboard_scren.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.onMoreTrack});
+
+  final ValueChanged<String>? onMoreTrack;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -734,13 +736,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(dialogContext);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              TrackAllOrder(trackingNumber: tracking.orderId),
-                        ),
-                      );
+                      final onMoreTrack = widget.onMoreTrack;
+                      if (onMoreTrack != null) {
+                        onMoreTrack(tracking.orderId);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => Dashboard(
+                              initialPageIndex: 1,
+                              initialTrackingNumber: tracking.orderId,
+                            ),
+                          ),
+                        );
+                      }
                     },
                     icon: const Icon(Icons.open_in_new, size: 18),
                     label: const Text('More Track'),

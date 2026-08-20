@@ -403,6 +403,10 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
   final pickupPincodeController = TextEditingController();
   final pincodeController = TextEditingController();
   final piecesController = TextEditingController(text: '1');
+  final pickupNameController = TextEditingController();
+  final pickupPhoneController = TextEditingController();
+  final dropNameController = TextEditingController();
+  final dropPhoneController = TextEditingController();
   final List<PackageBox> packageBoxes = [];
   String selectedPackageSize = '0 - 500g';
   String selectedPackageType = 'Document';
@@ -440,6 +444,10 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     pickupPincodeController.dispose();
     pincodeController.dispose();
     piecesController.dispose();
+    pickupNameController.dispose();
+    pickupPhoneController.dispose();
+    dropNameController.dispose();
+    dropPhoneController.dispose();
     for (final box in packageBoxes) {
       box.dispose();
     }
@@ -724,6 +732,15 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     //       );
     //   return;
     // }
+    if (pickupNameController.text.trim().isEmpty ||
+        pickupPhoneController.text.trim().length != 10 ||
+        dropNameController.text.trim().isEmpty ||
+        dropPhoneController.text.trim().length != 10) {
+      _showMessage(
+        'Please enter pickup and drop name with valid 10-digit phone number',
+      );
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1475,6 +1492,23 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
             ],
           ),
 
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _contactField(pickupNameController, 'Pickup name'),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _contactField(
+                  pickupPhoneController,
+                  'Pickup phone',
+                  phone: true,
+                ),
+              ),
+            ],
+          ),
+
           const Divider(height: 22),
 
           _savedDropLocationSearchBox(),
@@ -1544,8 +1578,36 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _contactField(dropNameController, 'Drop name')),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _contactField(
+                  dropPhoneController,
+                  'Drop phone',
+                  phone: true,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _contactField(
+    TextEditingController controller,
+    String hint, {
+    bool phone = false,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: phone ? TextInputType.phone : TextInputType.name,
+      maxLength: phone ? 10 : null,
+      inputFormatters: phone ? [FilteringTextInputFormatter.digitsOnly] : null,
+      decoration: _inputDecoration(hint).copyWith(counterText: ''),
     );
   }
 

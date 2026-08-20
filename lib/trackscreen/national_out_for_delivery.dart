@@ -1,8 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:yogayog/constants/app_colors.dart';
 
 class NationalOutForDelivery extends StatefulWidget {
-  const NationalOutForDelivery({super.key});
+  const NationalOutForDelivery({
+    super.key,
+    this.trackingNumber = 'YCG-2025-00872',
+    this.pickupName = '',
+    this.pickupAddress = '',
+    this.pickupCity = '',
+    this.dropName = '',
+    this.dropAddress = '',
+    this.dropCity = '',
+    this.riderName = '',
+    this.riderMobile = '',
+    this.orderDate = '',
+    this.amount = 0,
+    this.status = 'Out for Delivery',
+    this.paymentDone = false,
+  });
+
+  final String trackingNumber;
+  final String pickupName;
+  final String pickupAddress;
+  final String pickupCity;
+  final String dropName;
+  final String dropAddress;
+  final String dropCity;
+  final String riderName;
+  final String riderMobile;
+  final String orderDate;
+  final double amount;
+  final String status;
+  final bool paymentDone;
 
   @override
   State<NationalOutForDelivery> createState() => _NationalOutForDeliveryState();
@@ -13,6 +45,124 @@ class _NationalOutForDeliveryState extends State<NationalOutForDelivery> {
   static const green = Color(0xFF2DBE5B);
   static const yellow = Color(0xFFFFC400);
   static const page = Color(0xFFF4F4FA);
+  static const _googleMapsApiKey = 'AIzaSyC6atqg-XZ8SVzSlLrt5W5mhCgkG-8h6Lo';
+  gmaps.LatLng? _pickupLocation;
+  gmaps.LatLng? _dropLocation;
+  gmaps.GoogleMapController? _mapController;
+  List<gmaps.LatLng> _routePoints = const [];
+  bool _isMapLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMapLocations();
+  }
+
+  Future<void> _loadMapLocations() async {
+    final pickup = await _coordinatesFor(
+      widget.pickupAddress.isNotEmpty
+          ? widget.pickupAddress
+          : widget.pickupCity,
+    );
+    final drop = await _coordinatesFor(
+      widget.dropAddress.isNotEmpty ? widget.dropAddress : widget.dropCity,
+    );
+    final route = pickup != null && drop != null
+        ? await _fetchRoute(pickup, drop)
+        : const <gmaps.LatLng>[];
+    if (!mounted) return;
+    setState(() {
+      _pickupLocation = pickup;
+      _dropLocation = drop;
+      _routePoints = route;
+      _isMapLoading = false;
+    });
+    _fitMapToRoute();
+  }
+
+  Future<gmaps.LatLng?> _coordinatesFor(String address) async {
+    if (address.trim().isEmpty) return null;
+    try {
+      final locations = await locationFromAddress(address);
+      if (locations.isEmpty) return null;
+      return gmaps.LatLng(locations.first.latitude, locations.first.longitude);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<gmaps.LatLng>> _fetchRoute(
+    gmaps.LatLng origin,
+    gmaps.LatLng destination,
+  ) async {
+    try {
+      final response = await Dio().get(
+        'https://maps.googleapis.com/maps/api/directions/json',
+        queryParameters: {
+          'origin': '${origin.latitude},${origin.longitude}',
+          'destination': '${destination.latitude},${destination.longitude}',
+          'mode': 'driving',
+          'key': _googleMapsApiKey,
+        },
+      );
+      final data = response.data;
+      final encoded =
+          data is Map &&
+              data['routes'] is List &&
+              (data['routes'] as List).isNotEmpty
+          ? ((data['routes'] as List).first['overview_polyline']?['points'])
+          : null;
+      return encoded is String ? _decodePolyline(encoded) : const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  List<gmaps.LatLng> _decodePolyline(String encoded) {
+    final points = <gmaps.LatLng>[];
+    var index = 0;
+    var latitude = 0;
+    var longitude = 0;
+    while (index < encoded.length) {
+      var shift = 0;
+      var result = 0;
+      int byte;
+      do {
+        byte = encoded.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < encoded.length);
+      latitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+      shift = 0;
+      result = 0;
+      do {
+        byte = encoded.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < encoded.length);
+      longitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+      points.add(gmaps.LatLng(latitude / 1e5, longitude / 1e5));
+    }
+    return points;
+  }
+
+  void _fitMapToRoute() {
+    final controller = _mapController;
+    final pickup = _pickupLocation;
+    final drop = _dropLocation;
+    if (controller == null || pickup == null || drop == null) return;
+    final bounds = gmaps.LatLngBounds(
+      southwest: gmaps.LatLng(
+        pickup.latitude < drop.latitude ? pickup.latitude : drop.latitude,
+        pickup.longitude < drop.longitude ? pickup.longitude : drop.longitude,
+      ),
+      northeast: gmaps.LatLng(
+        pickup.latitude > drop.latitude ? pickup.latitude : drop.latitude,
+        pickup.longitude > drop.longitude ? pickup.longitude : drop.longitude,
+      ),
+    );
+    controller.animateCamera(gmaps.CameraUpdate.newLatLngBounds(bounds, 55));
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -65,10 +215,10 @@ class _NationalOutForDeliveryState extends State<NationalOutForDelivery> {
             ],
           ),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(left: 8, top: 12),
           child: Text(
-            'YCG-2025-00872 · DTDC',
+            '${widget.trackingNumber} · DTDC',
             style: TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ),
@@ -111,53 +261,65 @@ class _NationalOutForDeliveryState extends State<NationalOutForDelivery> {
     ),
   );
 
-  Widget _map() => SizedBox(
-    height: 180,
-    child: Stack(
-      children: [
-        Positioned.fill(child: CustomPaint(painter: _DeliveryMapPainter())),
-        Positioned(
-          left: 0,
-          top: 12,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(10, 6, 13, 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF555861),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Delivery area',
-                  style: TextStyle(color: Colors.white70, fontSize: 10),
-                ),
-                Text(
-                  'Andheri, Mumbai',
-                  style: TextStyle(
-                    color: green,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
+  Widget _map() {
+    final pickup = _pickupLocation ?? const gmaps.LatLng(22.5726, 88.3639);
+    final markers = <gmaps.Marker>{
+      gmaps.Marker(
+        markerId: const gmaps.MarkerId('pickup'),
+        position: pickup,
+        infoWindow: const gmaps.InfoWindow(title: 'Pickup'),
+      ),
+      if (_dropLocation != null)
+        gmaps.Marker(
+          markerId: const gmaps.MarkerId('drop'),
+          position: _dropLocation!,
+          icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+            gmaps.BitmapDescriptor.hueYellow,
+          ),
+          infoWindow: const gmaps.InfoWindow(title: 'Drop'),
+        ),
+    };
+    final polylines = <gmaps.Polyline>{
+      if (_routePoints.length > 1)
+        gmaps.Polyline(
+          polylineId: const gmaps.PolylineId('pickup_to_drop'),
+          points: _routePoints,
+          color: navy,
+          width: 5,
+        ),
+    };
+    return SizedBox(
+      height: 180,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: gmaps.GoogleMap(
+              initialCameraPosition: gmaps.CameraPosition(
+                target: pickup,
+                zoom: 11,
+              ),
+              markers: markers,
+              polylines: polylines,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+              onMapCreated: (controller) {
+                _mapController = controller;
+                _fitMapToRoute();
+              },
             ),
           ),
-        ),
-        const Positioned(left: 160, top: 75, child: _TruckPin()),
-        const Positioned(
-          left: 78,
-          top: 94,
-          child: Icon(Icons.circle, color: Colors.white, size: 10),
-        ),
-        const Positioned(
-          right: 64,
-          top: 48,
-          child: Icon(Icons.circle, color: yellow, size: 14),
-        ),
-      ],
-    ),
-  );
+          if (_isMapLoading)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0xFFE7EBFA),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _eta() => Container(
     margin: const EdgeInsets.only(top: 12),
@@ -166,7 +328,7 @@ class _NationalOutForDeliveryState extends State<NationalOutForDelivery> {
       color: const Color(0xFFF0F2FF),
       borderRadius: BorderRadius.circular(15),
     ),
-    child: const Row(
+    child: Row(
       children: [
         Expanded(
           child: Column(
@@ -178,7 +340,7 @@ class _NationalOutForDeliveryState extends State<NationalOutForDelivery> {
               ),
               SizedBox(height: 3),
               Text(
-                'Today by 6:00 PM',
+                widget.status,
                 style: TextStyle(
                   color: green,
                   fontSize: 17,
@@ -199,7 +361,13 @@ class _NationalOutForDeliveryState extends State<NationalOutForDelivery> {
       children: [
         _info('📦', '3.5 kg', 'Weight'),
         _info('🚚', 'Standard', 'Service'),
-        _info('💵', 'Prepaid', 'Payment'),
+        _info(
+          '💵',
+          widget.paymentDone
+              ? 'Paid ₹${widget.amount}'
+              : 'Due ₹${widget.amount}',
+          'Payment',
+        ),
       ],
     ),
   );
@@ -231,32 +399,34 @@ class _NationalOutForDeliveryState extends State<NationalOutForDelivery> {
     ),
   );
 
-  Widget _timeline() => const Column(
+  Widget _timeline() => Column(
     children: [
-      _Step('Picked Up', 'Kolkata, WB', 'Jul 26, 11:00 AM', true, false),
-      _Step('In Transit', 'Nagpur Sorting Hub', 'Jul 27, 8:40 PM', true, false),
+      _Step(
+        'Picked Up',
+        '${widget.pickupName}\n${widget.pickupAddress.isEmpty ? widget.pickupCity : widget.pickupAddress}',
+        widget.orderDate,
+        true,
+        false,
+      ),
+      _Step('In Transit', widget.riderName, widget.status, true, false),
       _Step(
         'Arrived Mumbai Hub',
-        'Bhiwandi DTDC Hub',
-        'Jul 30, 4:20 AM',
+        widget.dropCity,
+        widget.orderDate,
         true,
         false,
       ),
+      _Step('Out for Delivery', widget.dropAddress, widget.status, true, false),
       _Step(
-        'Out for Delivery',
-        'DTDC Andheri Delivery Center',
-        'Today 9:00 AM',
-        true,
-        false,
-      ),
-      _Step(
-        'On the Way · Andheri area',
-        'Delivery agent: Rajesh M.',
-        'Now · Delivery by 6 PM',
+        'On the Way',
+        widget.riderName.isEmpty
+            ? 'Delivery agent not assigned'
+            : '${widget.riderName} · ${widget.riderMobile}',
+        'Current status',
         false,
         true,
       ),
-      _Step('Delivered', '', 'Expected by 6:00 PM', false, false, last: true),
+      _Step('Delivered', widget.dropName, 'Pending', false, false, last: true),
     ],
   );
 

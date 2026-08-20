@@ -3,7 +3,16 @@ import 'package:flutter/services.dart';
 import 'package:yogayog/constants/app_colors.dart';
 
 class ProceedOdaBooking extends StatefulWidget {
-  const ProceedOdaBooking({super.key});
+  const ProceedOdaBooking({
+    super.key,
+    required this.pincode,
+    required this.city,
+    required this.state,
+  });
+
+  final String pincode;
+  final String city;
+  final String state;
 
   @override
   State<ProceedOdaBooking> createState() => _ProceedOdaBookingState();
@@ -26,14 +35,18 @@ class _ProceedOdaBookingState extends State<ProceedOdaBooking> {
         backgroundColor: _pageBackground,
         body: Column(
           children: [
-            const _OdaHeader(),
+            _OdaHeader(pincode: widget.pincode, city: widget.city),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(7, 8, 7, 34),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _OdaCard(),
+                    _OdaCard(
+                      pincode: widget.pincode,
+                      city: widget.city,
+                      state: widget.state,
+                    ),
                     const Padding(
                       padding: EdgeInsets.fromLTRB(5, 15, 5, 10),
                       child: Text(
@@ -88,7 +101,10 @@ class _ProceedOdaBookingState extends State<ProceedOdaBooking> {
 }
 
 class _OdaHeader extends StatelessWidget {
-  const _OdaHeader();
+  const _OdaHeader({required this.pincode, required this.city});
+
+  final String pincode;
+  final String city;
 
   @override
   Widget build(BuildContext context) {
@@ -119,31 +135,39 @@ class _OdaHeader extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  InkWell(
-                    onTap: () => Navigator.of(context).maybePop(),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: .15),
+                  Row(
+                    children: [
+                      InkWell(
+                        onTap: () => Navigator.of(context).maybePop(),
                         borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: .15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: Colors.white,
-                        size: 20,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'PIN $pincode - $city',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  const Text(
-                    'PIN 795001 - Imphal',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 21,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    ],
                   ),
                   const Text(
                     'Serviceability result',
@@ -160,7 +184,15 @@ class _OdaHeader extends StatelessWidget {
 }
 
 class _OdaCard extends StatelessWidget {
-  const _OdaCard();
+  const _OdaCard({
+    required this.pincode,
+    required this.city,
+    required this.state,
+  });
+
+  final String pincode;
+  final String city;
+  final String state;
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +205,7 @@ class _OdaCard extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: const Column(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.warning_amber, color: Colors.black, size: 53),
@@ -188,7 +220,7 @@ class _OdaCard extends StatelessWidget {
           ),
           SizedBox(height: 2),
           Text(
-            'PIN 795001 · Imphal, Manipur',
+            'PIN $pincode · $city, $state',
             style: TextStyle(color: Color(0xFFFFD6D0), fontSize: 14),
           ),
         ],

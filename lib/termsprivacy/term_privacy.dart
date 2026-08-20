@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/termsprivacy/provider/term_privacy_provider.dart';
+import 'package:yogayog/core/services/term_privacy_services.dart';
 
 class TermPrivacy extends StatefulWidget {
   const TermPrivacy({super.key});
@@ -12,115 +15,125 @@ class _TermPrivacyState extends State<TermPrivacy> {
   static const blue = AppColors.primaryMain;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<TermPrivacyProvider>().loadTermsAndConditions();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final provider = context.watch<TermPrivacyProvider>();
+    final document = provider.document;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F4FA),
       appBar: AppBar(
         backgroundColor: blue,
         foregroundColor: Colors.white,
         elevation: 0,
-        title: const Text(
-          'Terms & Privacy',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          document?.title ?? 'Terms & Privacy',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
-      body: ListView(
+      body: _body(provider, document),
+    );
+  }
+
+  Widget _body(TermPrivacyProvider provider, TermsPrivacyDocument? document) {
+    if (provider.isLoading && document == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (provider.errorMessage != null && document == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.cloud_off_outlined,
+                size: 42,
+                color: Colors.grey,
+              ),
+              const SizedBox(height: 12),
+              Text(provider.errorMessage!, textAlign: TextAlign.center),
+              const SizedBox(height: 14),
+              ElevatedButton(
+                onPressed: provider.isLoading
+                    ? null
+                    : provider.loadTermsAndConditions,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    if (document == null) return const SizedBox.shrink();
+
+    return RefreshIndicator(
+      onRefresh: provider.loadTermsAndConditions,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          _documentHeader(),
+          _documentHeader(document.title),
           const SizedBox(height: 14),
-          _section('Terms of Use', [
-            _paragraph(
-              'Yogayog Limited is a company incorporated under the provisions of the Companies Act, 1956, having its registered office at 21, Ashutosh Mukherjee Rd, Jadubabur Bazar, Bhowanipore, Kolkata, West Bengal 700020 ("Yogayog"). Yogayog is engaged in the business of e-commerce logistics and provides delivery, reverse pick up and other services ("Services").',
-            ),
-            _paragraph(
-              'The seller ("Seller") is using Services of Yogayog for delivery ("Delivery") and reverse pick-up ("DTO") of his packages across various locations in India. The Seller acknowledges that he is making online payments through Yogayog website.',
-            ),
-            _paragraph(
-              'The Seller shall add his/her Yogayog Miles Account and enter his username and password ("Log in Credentials"). The Seller shall have the sole liability to keep his Log in Credentials secure and Yogayog shall not be liable to the Seller for any misuse of his/her password or username.',
-            ),
-            _paragraph(
-              'The currency of transaction in the Yogayog Miles Account would be Yogayog Miles which can be redeemed for using Yogayog service only.',
-            ),
-          ]),
-          _section('Promotional Credit & Recharge', [
-            _paragraph(
-              'Yogayog reserves the right to issue Promotional Credits to the seller for any reason it may deem fit. This would fall under the header of Promotional Credit in the Seller’s Miles Account.',
-            ),
-            _paragraph(
-              'The Seller can add cash to the Yogayog Miles Account by using Debit/Credit Card or Online Bank Transfer using the provided PG. The seller can also manually hand over a cheque/draft and the miles will be credited within 3 working days of realization. In case of manual deposit, the credit would fall under Manual Recharge Credit in the Seller’s Miles Account.',
-            ),
-          ]),
-          _section('Package Upload & Delivery Charges', [
-            _bullet(
-              'The Seller shall upload complete information, including weight, address, and package content.',
-            ),
-            _bullet(
-              'Delivery Charges are temporarily calculated on default 1 Kg; adjustments will be made from the Seller’s Miles Account after package weight reconciliation.',
-            ),
-            _bullet(
-              'COD charges, RTO charges, service tax, and fuel surcharge will be applied where applicable.',
-            ),
-            _bullet(
-              'Yogayog is responsible for delivery based on Seller information; incorrect information may result in package misdelivery or non-delivery, debiting the Seller’s account accordingly.',
-            ),
-          ]),
-          _section('Refunds and Cancellation', [
-            _bullet(
-              'If a package is marked lost, Delivery/RTO Charges shall be refunded to Seller’s Miles Account.',
-            ),
-            _bullet(
-              'For termination of services, the Seller can request reversal of remaining miles; refund will be sent via Cheque/Demand Draft to the registered address.',
-            ),
-            _bullet(
-              'If any COD Charges were deducted but delivery fails, COD Charges shall be refunded to the Seller’s Miles Account.',
-            ),
-          ]),
-          _section('Invoice & Arbitration', [
-            _paragraph(
-              'The final invoice will be generated by Yogayog at the end of each month. Reconciliation and refunds will follow this invoice.',
-            ),
-            _paragraph(
-              'Disputes shall be referred to arbitration before a sole arbitrator appointed by Yogayog under the Arbitration and Conciliation Act, 1996. The place of arbitration shall be Kolkata.',
-            ),
-          ]),
-          const SizedBox(height: 8),
-          const Center(
-            child: Text(
-              'Last updated: 12 August 2026',
-              style: TextStyle(color: Colors.grey, fontSize: 11),
-            ),
+          ...document.sections.map(
+            (section) =>
+                _section(section.title, section.content.map(_content).toList()),
           ),
+          if (document.lastUpdated.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                'Last updated: ${document.lastUpdated}',
+                style: const TextStyle(color: Colors.grey, fontSize: 11),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _documentHeader() {
+  Widget _content(TermsPrivacyContent content) {
+    return content.type.toLowerCase() == 'bullet'
+        ? _bullet(content.text)
+        : _paragraph(content.text);
+  }
+
+  Widget _documentHeader(String title) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: blue,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.description_outlined, color: Color(0xFFFFC400), size: 30),
-          SizedBox(width: 12),
+          const Icon(
+            Icons.description_outlined,
+            color: Color(0xFFFFC400),
+            size: 30,
+          ),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Terms and Conditions',
-                  style: TextStyle(
+                  title,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 19,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(height: 4),
-                Text(
+                const SizedBox(height: 4),
+                const Text(
                   'Please read these terms carefully before using Yogayog services.',
                   style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
@@ -165,34 +178,30 @@ class _TermPrivacyState extends State<TermPrivacy> {
     );
   }
 
-  Widget _paragraph(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Color(0xFF4B5565),
-          fontSize: 13,
-          height: 1.5,
-        ),
+  Widget _paragraph(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Text(
+      text,
+      style: const TextStyle(
+        color: Color(0xFF4B5565),
+        fontSize: 13,
+        height: 1.5,
       ),
-    );
-  }
+    ),
+  );
 
-  Widget _bullet(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: Icon(Icons.circle, size: 6, color: blue),
-          ),
-          const SizedBox(width: 9),
-          Expanded(child: _paragraph(text)),
-        ],
-      ),
-    );
-  }
+  Widget _bullet(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 9),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Icon(Icons.circle, size: 6, color: blue),
+        ),
+        const SizedBox(width: 9),
+        Expanded(child: _paragraph(text)),
+      ],
+    ),
+  );
 }

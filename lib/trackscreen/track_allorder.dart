@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/history_service.dart';
 import 'package:yogayog/trackscreen/track_screen.dart';
 import 'package:yogayog/trackscreen/international_export.dart';
 import 'package:yogayog/trackscreen/local_bike _out_for_delivery.dart';
 import 'package:yogayog/trackscreen/local_truck _out_for_delivery.dart';
-import 'package:yogayog/trackscreen/national_express _Intansit.dart';
 import 'package:yogayog/trackscreen/national_out_for_delivery.dart';
 
 class _DemoOrder {
   const _DemoOrder({
+    this.trackingNumber = '',
+    this.serviceId = 0,
+    this.subServiceId = 0,
     required this.orderNo,
     required this.orderDate,
     required this.serviceName,
@@ -17,8 +20,20 @@ class _DemoOrder {
     required this.status,
     required this.pickupCity,
     required this.dropCity,
+    this.pickupName = '',
+    this.pickupAddress = '',
+    this.pickupMobile = '',
+    this.dropName = '',
+    this.dropAddress = '',
+    this.dropMobile = '',
+    this.riderName = '',
+    this.riderMobile = '',
+    this.paymentDone = false,
   });
 
+  final String trackingNumber;
+  final int serviceId;
+  final int subServiceId;
   final String orderNo;
   final String orderDate;
   final String serviceName;
@@ -27,21 +42,58 @@ class _DemoOrder {
   final String status;
   final String pickupCity;
   final String dropCity;
+  final String pickupName;
+  final String pickupAddress;
+  final String pickupMobile;
+  final String dropName;
+  final String dropAddress;
+  final String dropMobile;
+  final String riderName;
+  final String riderMobile;
+  final bool paymentDone;
+
+  factory _DemoOrder.fromBooking(Booking booking) {
+    return _DemoOrder(
+      trackingNumber: booking.orderId,
+      serviceId: booking.serviceId,
+      subServiceId: booking.subServiceId,
+      orderNo: booking.orderNo,
+      orderDate: booking.orderDate,
+      serviceName: booking.serviceName,
+      subServiceName: booking.subServiceName,
+      amount: booking.amount,
+      status: booking.status,
+      pickupCity: booking.pickupCity,
+      dropCity: booking.dropCity,
+      pickupName: booking.pickupName,
+      pickupAddress: booking.pickupAddress,
+      pickupMobile: booking.pickupMobile,
+      dropName: booking.dropName,
+      dropAddress: booking.dropAddress,
+      dropMobile: booking.dropMobile,
+      riderName: booking.riderName,
+      riderMobile: booking.riderMobile,
+      paymentDone: booking.paymentDone,
+    );
+  }
 }
 
 class TrackAllOrder extends StatefulWidget {
   const TrackAllOrder({super.key, this.trackingNumber});
 
   final String? trackingNumber;
-
   @override
   State<TrackAllOrder> createState() => _TrackAllOrderState();
 }
 
 class _TrackAllOrderState extends State<TrackAllOrder> {
   final TextEditingController search = TextEditingController();
+  final HistoryService _service = HistoryService();
 
   String filter = 'All';
+  List<_DemoOrder> _apiOrders = const [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
   // ============================================================
   // COLORS
@@ -152,9 +204,52 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
   @override
   void initState() {
     super.initState();
+
     final awb = widget.trackingNumber?.trim();
+    print('Track_number: $awb');
+
     if (awb != null && awb.isNotEmpty) {
       search.text = awb;
+    }
+    _loadBookings();
+  }
+
+  @override
+  void didUpdateWidget(covariant TrackAllOrder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.trackingNumber != widget.trackingNumber) {
+      final trackingNumber = widget.trackingNumber?.trim() ?? '';
+      search.value = TextEditingValue(
+        text: trackingNumber,
+        selection: TextSelection.collapsed(offset: trackingNumber.length),
+      );
+      setState(() {});
+    }
+  }
+
+  Future<void> _loadBookings() async {
+    try {
+      final history = await _service.getBookings();
+      if (!mounted) return;
+      setState(() {
+        _apiOrders = [
+          ...history.upcomingOrders,
+          ...history.pastOrders,
+        ].map(_DemoOrder.fromBooking).toList();
+        _isLoading = false;
+      });
+    } on HistoryException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Unable to load bookings.';
+        _isLoading = false;
+      });
     }
   }
 
@@ -170,7 +265,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
 
   @override
   Widget build(BuildContext context) {
-    final orders = demoOrders;
+    final orders = _apiOrders;
 
     final visible = orders.where(_searchMatches).where(_filterMatches).toList();
 
@@ -197,7 +292,23 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
                 ),
               ),
             Expanded(
-              child: visible.isEmpty
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_errorMessage!, textAlign: TextAlign.center),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: _loadBookings,
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : visible.isEmpty
                   ? const Center(
                       child: Text(
                         'No orders found',
@@ -376,9 +487,25 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
   Widget _filters(List<_DemoOrder> orders) {
     const names = [
       'All',
-      'In Transit',
-      'Out for Delivery',
-      'Pickup Scheduled',
+      'Created',
+      'Accepted By Branch',
+      'Released From Hold',
+      'Assigned',
+      'Ready To Ship',
+      'Ready For Pickup',
+      'Manifest Uploaded',
+      'Shipment Received',
+      'Shipment Picked Up',
+      'Rider Accepted',
+      'On The Way',
+      'Reached',
+      'Picked Up',
+      'Handover To Branch',
+      'Delivery Started',
+      'Handover To Network',
+      'Cancelled',
+      'Out For Delivery',
+      'At Your Door',
       'Delivered',
     ];
 
@@ -524,64 +651,22 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
 
     final result = <Widget>[];
 
-    // ----------------------------------------------------------
-    // LOCAL DELIVERIES
-    // ----------------------------------------------------------
+    const groups = <(String, IconData)>[
+      ('Local Bike', Icons.two_wheeler_rounded),
+      ('Local Truck', Icons.local_shipping_rounded),
+      ('National', Icons.local_shipping_outlined),
+      ('International Import', Icons.flight_land_rounded),
+      ('International Export', Icons.flight_takeoff_rounded),
+    ];
 
-    final localOrders = orders
-        .where((order) => _category(order) == 'Local Deliveries')
-        .toList();
+    for (final group in groups) {
+      final groupOrders = orders
+          .where((order) => _category(order) == group.$1)
+          .toList();
+      if (groupOrders.isEmpty) continue;
 
-    if (localOrders.isNotEmpty) {
-      result.add(
-        _categoryTitle(
-          'Local Deliveries',
-          localOrders.length,
-          Icons.two_wheeler_rounded,
-        ),
-      );
-
-      result.addAll(_sortByStatus(localOrders).map(_orderCard));
-    }
-
-    // ----------------------------------------------------------
-    // NATIONAL DELIVERIES
-    // ----------------------------------------------------------
-
-    final nationalOrders = orders
-        .where((order) => _category(order) == 'National Deliveries')
-        .toList();
-
-    if (nationalOrders.isNotEmpty) {
-      result.add(
-        _categoryTitle(
-          'National Deliveries',
-          nationalOrders.length,
-          Icons.local_shipping_rounded,
-        ),
-      );
-
-      result.addAll(_sortByStatus(nationalOrders).map(_orderCard));
-    }
-
-    // ----------------------------------------------------------
-    // INTERNATIONAL DELIVERIES
-    // ----------------------------------------------------------
-
-    final internationalOrders = orders
-        .where((order) => _category(order) == 'International Deliveries')
-        .toList();
-
-    if (internationalOrders.isNotEmpty) {
-      result.add(
-        _categoryTitle(
-          'International Deliveries',
-          internationalOrders.length,
-          Icons.flight_takeoff_rounded,
-        ),
-      );
-
-      result.addAll(_sortByStatus(internationalOrders).map(_orderCard));
+      result.add(_categoryTitle(group.$1, groupOrders.length, group.$2));
+      result.addAll(_sortByStatus(groupOrders).map(_orderCard));
     }
 
     return result;
@@ -838,29 +923,83 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
   }
 
   Widget _screenForOrder(_DemoOrder order) {
-    final service = order.serviceName.toLowerCase();
-    final status = _normalizedStatus(order.status);
-    final category = _category(order);
-
-    if (category == 'International Deliveries') {
-      return const InternationalExport();
+    final trackingNumber = order.trackingNumber.isNotEmpty
+        ? order.trackingNumber
+        : order.orderNo;
+    if (order.serviceId == 7 &&
+        (order.subServiceId == 8 || order.subServiceId == 9)) {
+      return InternationalExport(
+        trackingNumber: trackingNumber,
+        subServiceId: order.subServiceId,
+        pickupName: order.pickupName,
+        pickupAddress: order.pickupAddress,
+        pickupCity: order.pickupCity,
+        dropName: order.dropName,
+        dropAddress: order.dropAddress,
+        dropCity: order.dropCity,
+        riderName: order.riderName,
+        riderMobile: order.riderMobile,
+        orderDate: order.orderDate,
+        amount: order.amount,
+        status: order.status,
+        paymentDone: order.paymentDone,
+      );
     }
 
-    if (category == 'National Deliveries') {
-      if (status.contains('out for delivery')) {
-        return const NationalOutForDelivery();
-      }
-      if (status.contains('transit') || status.contains('process')) {
-        return const NationalExpressInTransit();
-      }
+    if (order.serviceId == 4) {
+      return NationalOutForDelivery(
+        trackingNumber: trackingNumber,
+        pickupName: order.pickupName,
+        pickupAddress: order.pickupAddress,
+        pickupCity: order.pickupCity,
+        dropName: order.dropName,
+        dropAddress: order.dropAddress,
+        dropCity: order.dropCity,
+        riderName: order.riderName,
+        riderMobile: order.riderMobile,
+        orderDate: order.orderDate,
+        amount: order.amount,
+        status: order.status,
+        paymentDone: order.paymentDone,
+      );
     }
 
-    if (category == 'Local Deliveries') {
-      if (service.contains('bike')) {
-        return const LocalBikeOutForDelivery();
+    if (order.serviceId == 1) {
+      if (order.subServiceId == 2) {
+        return LocalBikeOutForDelivery(
+          trackingNumber: trackingNumber,
+          pickupName: order.pickupName,
+          pickupCity: order.pickupCity,
+          pickupAddress: order.pickupAddress,
+          pickupMobile: order.pickupMobile,
+          dropName: order.dropName,
+          dropCity: order.dropCity,
+          dropAddress: order.dropAddress,
+          dropMobile: order.dropMobile,
+          riderName: order.riderName,
+          riderMobile: order.riderMobile,
+          orderDate: order.orderDate,
+          amount: order.amount,
+          status: order.status,
+          paymentDone: order.paymentDone,
+        );
       }
-      if (service.contains('truck')) {
-        return const LocalTruckOutForDelivery();
+      if (order.subServiceId == 3) {
+        return LocalTruckOutForDelivery(
+          trackingNumber: trackingNumber,
+          pickupName: order.pickupName,
+          pickupAddress: order.pickupAddress,
+          pickupCity: order.pickupCity,
+          dropName: order.dropName,
+          dropAddress: order.dropAddress,
+          dropCity: order.dropCity,
+          riderName: order.riderName,
+          riderMobile: order.riderMobile,
+          orderDate: order.orderDate,
+          amount: order.amount,
+          status: order.status,
+          paymentDone: order.paymentDone,
+        );
       }
     }
 
@@ -1017,19 +1156,24 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
   // ============================================================
 
   bool _searchMatches(_DemoOrder order) {
-    final query = search.text.trim().toLowerCase();
+    final query = _normalizeSearch(search.text);
 
     if (query.isEmpty) {
       return true;
     }
 
     return [
+      order.trackingNumber,
       order.orderNo,
       order.pickupCity,
       order.dropCity,
       order.serviceName,
       order.subServiceName,
-    ].join(' ').toLowerCase().contains(query);
+    ].map(_normalizeSearch).join(' ').contains(query);
+  }
+
+  String _normalizeSearch(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
   }
 
   // ============================================================
@@ -1043,14 +1187,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
   bool _statusMatches(_DemoOrder order, String value) {
     final requested = _normalizedStatus(value);
 
-    if (requested == 'in transit' ||
-        requested == 'out for delivery' ||
-        requested == 'pickup scheduled' ||
-        requested == 'delivered') {
-      return _statusGroup(order) == value;
-    }
-
-    return true;
+    return requested == 'all' || _normalizedStatus(order.status) == requested;
   }
 
   // ============================================================
@@ -1092,25 +1229,23 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
   // ============================================================
 
   String _category(_DemoOrder order) {
-    final service = order.serviceName.toLowerCase();
-    final value = '$service ${order.subServiceName}'.toLowerCase();
-
-    // Bike and truck shipments are always treated as local deliveries.
-    if (service.contains('bike') || service.contains('truck')) {
-      return 'Local Deliveries';
+    if (order.serviceId == 1 && order.subServiceId == 2) {
+      return 'Local Bike';
+    }
+    if (order.serviceId == 1 && order.subServiceId == 3) {
+      return 'Local Truck';
+    }
+    if (order.serviceId == 7 && order.subServiceId == 8) {
+      return 'International Import';
+    }
+    if (order.serviceId == 7 && order.subServiceId == 9) {
+      return 'International Export';
+    }
+    if (order.serviceId == 4) {
+      return 'National';
     }
 
-    if (value.contains('international') ||
-        value.contains('import') ||
-        value.contains('export')) {
-      return 'International Deliveries';
-    }
-
-    if (value.contains('national')) {
-      return 'National Deliveries';
-    }
-
-    return 'Local Deliveries';
+    return 'National';
   }
 
   // ============================================================

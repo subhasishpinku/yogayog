@@ -1,9 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/Payment/payment_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/bikescreen_service.dart';
+import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
+import 'package:provider/provider.dart';
 
 class BikeConfirmScreem extends StatefulWidget {
-  const BikeConfirmScreem({super.key});
+  const BikeConfirmScreem({
+    super.key,
+    required this.rate,
+    this.distance = 0,
+    this.pickupAddress = '',
+    this.dropAddress = '',
+    required this.pickup,
+    required this.drop,
+  });
+  final VehicleRate rate;
+  final double distance;
+  final String pickupAddress;
+  final String dropAddress;
+  final Map<String, dynamic> pickup;
+  final Map<String, dynamic> drop;
 
   @override
   State<BikeConfirmScreem> createState() => _BikeConfirmScreemState();
@@ -21,11 +38,39 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
     super.dispose();
   }
 
-  void _proceedToPayment() {
-    // এখানে PaymentScreen-এ navigation করুন
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Proceeding to payment')));
+  bool _isCreatingOrder = false;
+
+  Future<void> _proceedToPayment() async {
+    if (_isCreatingOrder) return;
+    setState(() => _isCreatingOrder = true);
+    final order = await context.read<BikescreenProvider>().createOrder(
+      payload: {
+        'order_type': 'local',
+        'payment_method': 'ONLINE',
+        'price': widget.rate.price,
+        'pieces': 1,
+        'package_type_id': 1,
+        'service_id': 1,
+        'sub_service_id': 2,
+        'pickup_date': DateTime.now().toIso8601String().substring(0, 10),
+        'pickup': widget.pickup,
+        'drop': widget.drop,
+      },
+    );
+    if (!mounted) return;
+    setState(() => _isCreatingOrder = false);
+    if (order == null) {
+      final message =
+          context.read<BikescreenProvider>().errorMessage ??
+          'Unable to create order';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Order ${order.orderId} created successfully')),
+    );
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const PaymentScreen()),
@@ -246,27 +291,36 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
       ),
       child: Column(
         children: [
-          _summaryRow('From', 'Jodhpur Park, Kolkata'),
-          _summaryRow('To', 'Park Street, Kolkata'),
-          _summaryRow('Vehicle', '🏍 Bike'),
-          _summaryRow('Package', 'Documents · 2 kg'),
+          _summaryRow('From', widget.pickupAddress),
+          _summaryRow('To', widget.dropAddress),
+          _summaryRow('Vehicle', '🏍 ${widget.rate.vehicleType}'),
+          _summaryRow('Distance', '${widget.distance.toStringAsFixed(2)} km'),
           _summaryRow('Pickup', 'Now (~15 min)'),
-          _summaryRow('Base Fare', '₹99'),
-          _summaryRow('Distance Charge', '₹42'),
-          _summaryRow('GST (18%)', '₹8'),
+          _summaryRow(
+            'Base Fare',
+            '₹${widget.rate.breakdown.basePrice.toStringAsFixed(2)}',
+          ),
+          _summaryRow(
+            'Other Charges',
+            '₹${widget.rate.breakdown.otherCharges.toStringAsFixed(2)}',
+          ),
+          _summaryRow(
+            'GST',
+            '₹${widget.rate.breakdown.gstAmount.toStringAsFixed(2)}',
+          ),
 
           const Divider(height: 18),
 
           Row(
-            children: const [
-              Text(
+            children: [
+              const Text(
                 'Total',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
-              Spacer(),
+              const Spacer(),
               Text(
-                '₹149',
-                style: TextStyle(
+                '₹${widget.rate.price.toStringAsFixed(2)}',
+                style: const TextStyle(
                   color: blue,
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
@@ -389,7 +443,7 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
           child: SizedBox(
             height: 80,
             child: ElevatedButton(
-              onPressed: _proceedToPayment,
+              onPressed: _isCreatingOrder ? null : _proceedToPayment,
               style: ElevatedButton.styleFrom(
                 backgroundColor: yellow,
                 foregroundColor: Colors.black,
@@ -398,11 +452,20 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
                   borderRadius: BorderRadius.circular(15),
                 ),
               ),
-              child: const Text(
-                'Confirm\nBooking',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-              ),
+              child: _isCreatingOrder
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Confirm\nBooking',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
             ),
           ),
         ),

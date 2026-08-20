@@ -11,23 +11,45 @@ import 'package:yogayog/profile/provider/profile_provider.dart';
 import 'package:yogayog/OnboardingScreen/onboarding_screen.dart';
 
 class Dashboard extends StatefulWidget {
-  const Dashboard({super.key});
+  const Dashboard({
+    super.key,
+    this.initialPageIndex = 0,
+    this.initialTrackingNumber,
+  });
+
+  final int initialPageIndex;
+  final String? initialTrackingNumber;
 
   @override
   State<Dashboard> createState() => _DashboardState();
 }
 
 class _DashboardState extends State<Dashboard> {
-  int pageIndex = 0;
+  late int pageIndex;
 
-  final List<Widget> pages = const [
-    HomeScreen(),
-    // BookScreen(),
-    // TrackScreen(),
-    TrackAllOrder(),
-    HistoryScreen(),
-    ToolInformation(),
-  ];
+  late final List<Widget> pages;
+
+  @override
+  void initState() {
+    super.initState();
+    pageIndex = widget.initialPageIndex.clamp(0, 3).toInt();
+    pages = [
+      HomeScreen(onMoreTrack: _openTrackTab),
+      TrackAllOrder(trackingNumber: widget.initialTrackingNumber),
+      const HistoryScreen(),
+      const ToolInformation(),
+    ];
+  }
+
+  void _openTrackTab(String trackingNumber) {
+    if (!mounted) return;
+    setState(() {
+      print('Opening Track Tab with tracking number: $trackingNumber');
+
+      pages[1] = TrackAllOrder(trackingNumber: trackingNumber);
+      pageIndex = 1;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

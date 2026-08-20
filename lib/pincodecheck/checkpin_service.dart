@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/cut_of_time_service.dart';
+import 'package:yogayog/core/services/pincodecheck_service.dart';
 import 'package:yogayog/pincodecheck/proceed_oda_booking.dart';
 
 class CheCkPinService extends StatefulWidget {
-  final String pinCode;
+  final PincodeServiceability result;
 
-  const CheCkPinService({super.key, this.pinCode = '110001'});
+  const CheCkPinService({super.key, required this.result});
 
   @override
   State<CheCkPinService> createState() => _CheCkPinServiceState();
@@ -15,11 +17,34 @@ class CheCkPinService extends StatefulWidget {
 class _CheCkPinServiceState extends State<CheCkPinService> {
   static const black = AppColors.primaryMain;
   static const _lightGreen = Color(0xFFE4F6EA);
+  String _cutoffTime = '...';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNationalCutoff();
+  }
+
+  Future<void> _loadNationalCutoff() async {
+    try {
+      // National service ID is 4.
+      final cutoff = await CutOffTimeService().getCutOffTime(4);
+      if (mounted) {
+        setState(() {
+          _cutoffTime = cutoff.cutoffTimeDisplay;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _cutoffTime = '--');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final location = widget.pinCode == '110001' ? 'Delhi' : 'New destination';
-    final address = widget.pinCode == '110001' ? 'New Delhi, NCT' : 'India';
+    final location = widget.result.city.isEmpty ? 'India' : widget.result.city;
+    final address = widget.result.state.isEmpty
+        ? 'India'
+        : '${widget.result.city}, ${widget.result.state}';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -31,14 +56,17 @@ class _CheCkPinServiceState extends State<CheCkPinService> {
         backgroundColor: Colors.white,
         body: Column(
           children: [
-            _ResultHeader(pinCode: widget.pinCode, location: location),
+            _ResultHeader(pinCode: widget.result.pincode, location: location),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(6, 8, 6, 22),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _ResultCard(pinCode: widget.pinCode, address: address),
+                    _ResultCard(
+                      pinCode: widget.result.pincode,
+                      address: address,
+                    ),
                     const SizedBox(height: 17),
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 7),
@@ -51,9 +79,9 @@ class _CheCkPinServiceState extends State<CheCkPinService> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    const _ServiceList(),
+                    _ServiceList(nationalAvailable: widget.result.serviceable),
                     const SizedBox(height: 12),
-                    const _CutoffNote(),
+                    _CutoffNote(cutoffTime: _cutoffTime),
                     const SizedBox(height: 26),
                     SizedBox(
                       width: double.infinity,
@@ -67,7 +95,11 @@ class _CheCkPinServiceState extends State<CheCkPinService> {
                           );
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => ProceedOdaBooking(),
+                              builder: (_) => ProceedOdaBooking(
+                                pincode: widget.result.pincode,
+                                city: widget.result.city,
+                                state: widget.result.state,
+                              ),
                             ),
                           );
                         },
@@ -83,7 +115,9 @@ class _CheCkPinServiceState extends State<CheCkPinService> {
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        child: Text('Book Shipment to ${widget.pinCode} →'),
+                        child: Text(
+                          'Book Shipment to ${widget.result.pincode} →',
+                        ),
                       ),
                     ),
                   ],
@@ -133,31 +167,39 @@ class _ResultHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    InkWell(
-                      onTap: () => Navigator.of(context).maybePop(),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
+                    Row(
+                      children: [
+                        InkWell(
+                          onTap: () => Navigator.of(context).maybePop(),
                           borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_back,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: Colors.white,
-                          size: 20,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'PIN $pinCode – $location',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      'PIN $pinCode – $location',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
-                      ),
+                      ],
                     ),
                     const Text(
                       'Serviceability result',
@@ -224,18 +266,20 @@ class _ResultCard extends StatelessWidget {
 }
 
 class _ServiceList extends StatelessWidget {
-  const _ServiceList();
+  final bool nationalAvailable;
+
+  const _ServiceList({required this.nationalAvailable});
 
   @override
   Widget build(BuildContext context) {
-    const services = [
-      _ServiceData(
+    final services = [
+      const _ServiceData(
         title: 'Local – Bike',
         subtitle: 'Same city only',
         icon: Icons.two_wheeler,
         available: false,
       ),
-      _ServiceData(
+      const _ServiceData(
         title: 'Local – Truck',
         subtitle: 'Same city only',
         icon: Icons.local_shipping,
@@ -245,20 +289,20 @@ class _ServiceList extends StatelessWidget {
         title: 'National',
         subtitle: '3–4 days · Delhivery',
         icon: Icons.local_shipping,
-        iconColor: Color(0xFF32B632),
-        available: true,
+        iconColor: const Color(0xFF32B632),
+        available: nationalAvailable,
       ),
-      _ServiceData(
+      const _ServiceData(
         title: "Int'l Export",
         subtitle: 'Via IGI Airport',
         icon: Icons.flight_takeoff,
-        available: true,
+        available: false,
       ),
-      _ServiceData(
+      const _ServiceData(
         title: "Int'l Import",
         subtitle: 'Customs at Delhi',
         icon: Icons.flight_land,
-        available: true,
+        available: false,
       ),
     ];
 
@@ -351,7 +395,9 @@ class _ServiceRow extends StatelessWidget {
 }
 
 class _CutoffNote extends StatelessWidget {
-  const _CutoffNote();
+  final String cutoffTime;
+
+  const _CutoffNote({required this.cutoffTime});
 
   @override
   Widget build(BuildContext context) {
@@ -362,7 +408,7 @@ class _CutoffNote extends StatelessWidget {
         border: Border.all(color: const Color(0xFFB5DCC7)),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
@@ -378,8 +424,8 @@ class _CutoffNote extends StatelessWidget {
           Expanded(
             flex: 2,
             child: Text(
-              '3:00 PM',
-              style: TextStyle(
+              cutoffTime,
+              style: const TextStyle(
                 color: _CheCkPinServiceState.black,
                 fontSize: 12,
                 fontWeight: FontWeight.w800,

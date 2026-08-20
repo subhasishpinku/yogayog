@@ -1,16 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/bikescreen/bike_confirm_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/bikescreen_service.dart';
 
 class ChooseBikeScreen extends StatefulWidget {
   const ChooseBikeScreen({
     super.key,
     this.approximateWeightKg = 0,
     this.volumetricWeightKg = 0,
+    required this.rateResponse,
+    this.pickupAddress = '',
+    this.dropAddress = '',
+    required this.pickup,
+    required this.drop,
   });
 
   final double approximateWeightKg;
   final double volumetricWeightKg;
+  final RateResponse rateResponse;
+  final String pickupAddress;
+  final String dropAddress;
+  final Map<String, dynamic> pickup;
+  final Map<String, dynamic> drop;
 
   @override
   State<ChooseBikeScreen> createState() => _ChooseBikeScreenState();
@@ -28,29 +39,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
       ? widget.approximateWeightKg
       : widget.volumetricWeightKg;
 
-  final vehicles = const [
-    {
-      'icon': '🏍️',
-      'title': 'Bike',
-      'details': 'Up to 20 kg · Arrives in ~30 min',
-      'price': '₹149',
-      'tags': ['Documents', 'Small parcels'],
-    },
-    {
-      'icon': '🚚',
-      'title': 'Mini Truck / Tata Ace',
-      'details': 'Up to 750 kg · Arrives in ~45 min',
-      'price': '₹599',
-      'tags': ['Bulk goods', 'Appliances'],
-    },
-    {
-      'icon': '🚛',
-      'title': 'Full Truck',
-      'details': 'Up to 1,500 kg · Arrives in ~60 min',
-      'price': '₹1,499',
-      'tags': ['Furniture', 'Heavy cargo'],
-    },
-  ];
+  List<VehicleRate> get vehicles => widget.rateResponse.rates;
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +77,14 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const BikeConfirmScreem(),
+                            builder: (_) => BikeConfirmScreem(
+                              rate: vehicles[selectedVehicle],
+                              distance: widget.rateResponse.distance,
+                              pickupAddress: widget.pickupAddress,
+                              dropAddress: widget.dropAddress,
+                              pickup: widget.pickup,
+                              drop: widget.drop,
+                            ),
                           ),
                         );
                       },
@@ -260,7 +256,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
               ),
               child: Center(
                 child: Text(
-                  vehicle['icon'] as String,
+                    vehicle.vehicleType == 'bike' ? '🏍️' : '🚚',
                   style: const TextStyle(fontSize: 27),
                 ),
               ),
@@ -273,7 +269,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    vehicle['title'] as String,
+                    vehicle.vehicleType.toUpperCase(),
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -283,7 +279,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
                   const SizedBox(height: 3),
 
                   Text(
-                    vehicle['details'] as String,
+                    'Distance ${widget.rateResponse.distance.toStringAsFixed(2)} km',
                     style: const TextStyle(
                       color: Color(0xFF8A8F9C),
                       fontSize: 11,
@@ -292,31 +288,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
 
                   const SizedBox(height: 6),
 
-                  Wrap(
-                    spacing: 5,
-                    children: (vehicle['tags'] as List<String>)
-                        .map(
-                          (tag) => Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE9EBFF),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              tag,
-                              style: const TextStyle(
-                                color: blue,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
+                  Text('Base ₹${vehicle.basePrice.toStringAsFixed(2)} + GST', style: const TextStyle(color: blue, fontSize: 10, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -326,7 +298,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
             Column(
               children: [
                 Text(
-                  vehicle['price'] as String,
+                  '₹${vehicle.price.toStringAsFixed(2)}',
                   style: const TextStyle(
                     color: blue,
                     fontSize: 15,

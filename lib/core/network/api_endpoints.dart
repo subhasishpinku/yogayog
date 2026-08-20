@@ -12,8 +12,14 @@ class ApiEndpoints {
   static const String customerWalletLedger = "customer-wallet-ledger";
   static const String bookings = "bookings";
   static const String locations = "locations";
+  static const String rates = "rates";
+  static const String createOrder = "order/create";
+  static const String pickupLocation = "locations/pickup";
   static const String nearbyBranches = "nearby-branches";
   static const String cutoffTimes = "cutoff-times";
+  static const String contacts = "contacts";
+  static const String pincodeServiceability = "check/pincode-serviceability";
+  static const String termsAndConditions = "terms-and-conditions";
 
   static String cutoffTime(int serviceId) => '$cutoffTimes/$serviceId';
 }

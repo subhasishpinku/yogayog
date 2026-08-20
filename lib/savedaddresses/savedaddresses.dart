@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:yogayog/adddropadress/add_drop_address.dart';
 import 'package:yogayog/bookscreen/book_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
@@ -7,6 +8,8 @@ import 'package:yogayog/homescreen/home_screen.dart';
 import 'package:yogayog/more/tools_information.dart';
 import 'package:yogayog/profile/profile_screen.dart';
 import 'package:yogayog/trackscreen/track_screen.dart';
+import 'package:yogayog/savedaddresses/provider/savedaddresses_provider.dart';
+import 'package:yogayog/savedaddresses/savedaddresses_service.dart';
 
 class Savedaddresses extends StatefulWidget {
   const Savedaddresses({super.key});
@@ -18,26 +21,18 @@ class Savedaddresses extends StatefulWidget {
 class _SavedaddressesState extends State<Savedaddresses> {
   String selectedTab = 'Local';
 
-  final addresses = const [
-    (
-      'Pritam Sankhari',
-      '8013285834',
-      '20, Hazra, Kalighat, Kolkata,\nWest Bengal 700026, India',
-    ),
-    (
-      'Saheli Das',
-      '8975989677',
-      'Kalighat Kali Mandir, Anami Sangha,\nKalighat, Kolkata, West Bengal 700026',
-    ),
-    (
-      'Vikram Singh',
-      '9812345678',
-      'B-12, Sector 62, Noida,\nUttar Pradesh 201309',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<SavedAddressesProvider>().loadAddresses(1);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<SavedAddressesProvider>();
+    final addresses = provider.addresses;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F4FA),
       body: SafeArea(
@@ -58,9 +53,17 @@ class _SavedaddressesState extends State<Savedaddresses> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const AddDropAddress(),
+                            builder: (_) => AddDropAddress(
+                              serviceId: _serviceIdForTab(selectedTab),
+                            ),
                           ),
-                        );
+                        ).then((_) {
+                          if (mounted) {
+                            context.read<SavedAddressesProvider>().refresh(
+                              _serviceIdForTab(selectedTab),
+                            );
+                          }
+                        });
                       },
                       icon: const Icon(Icons.add),
                       label: const Text('Add Drop Address'),
@@ -75,8 +78,7 @@ class _SavedaddressesState extends State<Savedaddresses> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  for (var i = 0; i < addresses.length; i++)
-                    _addressCard(addresses[i], i),
+                  _addressContent(provider, addresses),
                 ],
               ),
             ),
@@ -138,7 +140,12 @@ class _SavedaddressesState extends State<Savedaddresses> {
   Widget _tab(String label) {
     final active = selectedTab == label;
     return OutlinedButton(
-      onPressed: () => setState(() => selectedTab = label),
+      onPressed: () {
+        setState(() => selectedTab = label);
+        context.read<SavedAddressesProvider>().loadAddresses(
+          _serviceIdForTab(label),
+        );
+      },
       style: OutlinedButton.styleFrom(
         backgroundColor: active ? AppColors.yellow : Colors.white,
         foregroundColor: active ? Colors.white : Colors.grey,
@@ -155,7 +162,58 @@ class _SavedaddressesState extends State<Savedaddresses> {
     );
   }
 
-  Widget _addressCard((String, String, String) address, int index) {
+  int _serviceIdForTab(String tab) {
+    switch (tab) {
+      case 'National':
+        return 4;
+      case 'International':
+        return 7;
+      default:
+        return 1;
+    }
+  }
+
+  Widget _errorState(SavedAddressesProvider provider) => Padding(
+    padding: const EdgeInsets.all(24),
+    child: Column(
+      children: [
+        Text(provider.errorMessage!, textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        ElevatedButton(
+          onPressed: () =>
+              provider.loadAddresses(_serviceIdForTab(selectedTab)),
+          child: const Text('Retry'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _addressContent(
+    SavedAddressesProvider provider,
+    List<SavedAddress> addresses,
+  ) {
+    if (provider.isLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(32),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (provider.errorMessage != null) return _errorState(provider);
+    if (addresses.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(32),
+        child: Center(child: Text('No saved addresses found')),
+      );
+    }
+    return Column(
+      children: [
+        for (var i = 0; i < addresses.length; i++)
+          _addressCard(addresses[i], i),
+      ],
+    );
+  }
+
+  Widget _addressCard(SavedAddress address, int index) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.fromLTRB(16, 15, 16, 15),
@@ -178,7 +236,7 @@ class _SavedaddressesState extends State<Savedaddresses> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  address.$1,
+                  address.name,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -186,7 +244,7 @@ class _SavedaddressesState extends State<Savedaddresses> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '📞 ${address.$2}',
+                  '📞 ${address.mobile}',
                   style: const TextStyle(
                     color: AppColors.primaryBlue,
                     fontWeight: FontWeight.bold,
@@ -195,7 +253,7 @@ class _SavedaddressesState extends State<Savedaddresses> {
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  address.$3,
+                  '${address.address}, ${address.city}, ${address.state} ${address.pin}',
                   style: const TextStyle(
                     color: Colors.grey,
                     fontSize: 12,

@@ -20,6 +20,12 @@ import 'package:yogayog/history/provider/history_provider.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:yogayog/CutOffTime/provider/cut_of_time_provider.dart';
 import 'package:yogayog/nearesthub/provider/nearesthub_provider.dart';
+import 'package:yogayog/branchaddresses/provider/branchaddresses_provider.dart';
+import 'package:yogayog/contactpersons/provider/contactpersons_provider.dart';
+import 'package:yogayog/pincodecheck/provider/pincodecheck_provider.dart';
+import 'package:yogayog/termsprivacy/provider/term_privacy_provider.dart';
+import 'package:yogayog/savedaddresses/provider/savedaddresses_provider.dart';
+import 'package:yogayog/adddropadress/provider/add_drop_address_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +63,12 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => BikescreenProvider()),
         ChangeNotifierProvider(create: (_) => CutOffTimeProvider()),
         ChangeNotifierProvider(create: (_) => NearestHubProvider()),
+        ChangeNotifierProvider(create: (_) => BranchAddressesProvider()),
+        ChangeNotifierProvider(create: (_) => ContactPersonsProvider()),
+        ChangeNotifierProvider(create: (_) => PincodeCheckProvider()),
+        ChangeNotifierProvider(create: (_) => TermPrivacyProvider()),
+        ChangeNotifierProvider(create: (_) => SavedAddressesProvider()),
+        ChangeNotifierProvider(create: (_) => AddDropAddressProvider()),
       ],
       child: const MyApp(),
     ),

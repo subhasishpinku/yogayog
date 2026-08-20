@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/contactpersons_service.dart';
+import 'package:yogayog/contactpersons/provider/contactpersons_provider.dart';
+import 'package:provider/provider.dart';
 
 class ContactPersons extends StatefulWidget {
   const ContactPersons({super.key});
@@ -12,6 +16,41 @@ class ContactPersons extends StatefulWidget {
 class _ContactPersonsState extends State<ContactPersons> {
   static const _green = AppColors.primaryMain;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => context.read<ContactPersonsProvider>().loadContacts(),
+    );
+  }
+
+  List<_ContactGroup> _groupsFrom(ContactPersonsData? data) {
+    if (data == null) return const [];
+    _Contact convert(ContactPerson person) => _Contact(
+      person.initials,
+      person.name,
+      person.designation,
+      person.email,
+      phone: person.phone,
+    );
+    return [
+      _ContactGroup('OPERATIONS', data.operations.map(convert).toList()),
+      _ContactGroup(
+        'PARTNER SUPPORT',
+        data.partnerSupport.map(convert).toList(),
+      ),
+      _ContactGroup(
+        'FINANCE & COMMISSION',
+        data.financeCommission.map(convert).toList(),
+      ),
+      _ContactGroup(
+        'INTERNATIONAL DESK',
+        data.internationalDesk.map(convert).toList(),
+      ),
+    ].where((group) => group.contacts.isNotEmpty).toList();
+  }
+
+  /*
   final _groups = const [
     _ContactGroup('OPERATIONS', [
       _Contact(
@@ -57,7 +96,36 @@ class _ContactPersonsState extends State<ContactPersons> {
         'international@yogayog.in',
       ),
     ]),
-  ];
+  ]; */
+
+  Future<void> _callContact(_Contact contact) async {
+    final phone = contact.phone.trim();
+    if (phone.isEmpty) {
+      _showMessage('Contact number unavailable');
+      return;
+    }
+    final launched = await launchUrl(Uri(scheme: 'tel', path: phone));
+    if (!launched && mounted) {
+      _showMessage('Unable to open phone dialer');
+    }
+  }
+
+  Future<void> _emailContact(_Contact contact) async {
+    final email = contact.email.trim();
+    if (email.isEmpty) {
+      _showMessage('Email address unavailable');
+      return;
+    }
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+      queryParameters: {'subject': 'Yogayog Support'},
+    );
+    final launched = await launchUrl(uri);
+    if (!launched && mounted) {
+      _showMessage('Unable to open email app');
+    }
+  }
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(
@@ -67,6 +135,9 @@ class _ContactPersonsState extends State<ContactPersons> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<ContactPersonsProvider>();
+    final groups = _groupsFrom(provider.contacts);
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: _green,
@@ -79,20 +150,24 @@ class _ContactPersonsState extends State<ContactPersons> {
           children: [
             const _ContactHeader(),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.only(top: 5, bottom: 24),
-                itemCount: _groups.length,
-                itemBuilder: (context, index) {
-                  final group = _groups[index];
-                  return _ContactGroupSection(
-                    group: group,
-                    onCall: (contact) =>
-                        _showMessage('Calling ${contact.name}'),
-                    onEmail: (contact) =>
-                        _showMessage('Emailing ${contact.name}'),
-                  );
-                },
-              ),
+              child: provider.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : provider.errorMessage != null
+                  ? Center(child: Text(provider.errorMessage!))
+                  : groups.isEmpty
+                  ? const Center(child: Text('No contact persons found.'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(top: 5, bottom: 24),
+                      itemCount: groups.length,
+                      itemBuilder: (context, index) {
+                        final group = groups[index];
+                        return _ContactGroupSection(
+                          group: group,
+                          onCall: _callContact,
+                          onEmail: _emailContact,
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -353,5 +428,13 @@ class _Contact {
   final String name;
   final String role;
   final String email;
-  const _Contact(this.initials, this.name, this.role, this.email);
+  final String phone;
+
+  const _Contact(
+    this.initials,
+    this.name,
+    this.role,
+    this.email, {
+    this.phone = '',
+  });
 }

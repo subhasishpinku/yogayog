@@ -4,6 +4,16 @@ import 'package:yogayog/core/network/api_client.dart';
 import 'package:yogayog/core/network/api_endpoints.dart';
 
 class HomeService {
+  static const String profileNameKey = 'profile_name';
+  static const String profileEmailKey = 'profile_email';
+  static const String profileMobileKey = 'profile_mobile';
+  static const String profilePaymentModeKey = 'profile_payment_mode';
+  static const String profileAccountTypeKey = 'profile_account_type';
+  static const String profileAddressKey = 'profile_address';
+  static const String profileCityKey = 'profile_city';
+  static const String profilePinKey = 'profile_pin';
+  static const String profileStateKey = 'profile_state';
+
   HomeService({Dio? dio}) : _dio = dio ?? ApiClient.dio;
 
   final Dio _dio;
@@ -210,6 +220,18 @@ class ProfileData {
       state: json['state']?.toString() ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'email': email,
+    'mobile': mobile,
+    'payment_mode': paymentMode,
+    'acc_type': accountType,
+    'address': address,
+    'city': city,
+    'pin': pin,
+    'state': state,
+  };
 
   String get initials {
     final parts = name.trim().split(RegExp(r'\s+'));

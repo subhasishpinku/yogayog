@@ -13,6 +13,10 @@ class BikescreenProvider extends ChangeNotifier {
   List<SavedLocation> get locations => _locations;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  bool get isRateLoading => _isRateLoading;
+  RateResponse? get rateResponse => _rateResponse;
+  bool _isRateLoading = false;
+  RateResponse? _rateResponse;
 
   Future<void> loadLocations({required int serviceId}) async {
     if (_isLoading) return;
@@ -31,6 +35,44 @@ class BikescreenProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<RateResponse?> loadRates({required Map<String, dynamic> payload}) async {
+    _isRateLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      _rateResponse = await _service.getRates(
+        serviceId: payload['service_id'] as int,
+        subServiceId: payload['sub_service_id'] as int,
+        packageTypeId: payload['package_type_id'] as int,
+        weight: (payload['weight'] as num).toDouble(),
+        pickupLat: (payload['pickup_lat'] as num).toDouble(),
+        pickupLng: (payload['pickup_lng'] as num).toDouble(),
+        dropLat: (payload['drop_lat'] as num).toDouble(),
+        dropLng: (payload['drop_lng'] as num).toDouble(),
+        pickupPincode: payload['pickup_pincode'] as String,
+        deliveryPincode: payload['delivery_pincode'] as String,
+      );
+      return _rateResponse;
+    } on BikescreenException catch (error) {
+      _errorMessage = error.message;
+      return null;
+    } finally {
+      _isRateLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<OrderCreated?> createOrder({required Map<String, dynamic> payload}) async {
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      return await _service.createOrder(payload: payload);
+    } on BikescreenException catch (error) {
+      _errorMessage = error.message;
+      return null;
     }
   }
 }

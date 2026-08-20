@@ -1,8 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:yogayog/constants/app_colors.dart';
 
 class LocalTruckOutForDelivery extends StatefulWidget {
-  const LocalTruckOutForDelivery({super.key});
+  const LocalTruckOutForDelivery({
+    super.key,
+    this.trackingNumber = 'YCG-2025-00904',
+    this.pickupName = '',
+    this.pickupAddress = '',
+    this.pickupCity = '',
+    this.dropName = '',
+    this.dropAddress = '',
+    this.dropCity = '',
+    this.riderName = '',
+    this.riderMobile = '',
+    this.orderDate = '',
+    this.amount = 0,
+    this.status = 'Pickup Scheduled',
+    this.paymentDone = false,
+  });
+
+  final String trackingNumber;
+  final String pickupName;
+  final String pickupAddress;
+  final String pickupCity;
+  final String dropName;
+  final String dropAddress;
+  final String dropCity;
+  final String riderName;
+  final String riderMobile;
+  final String orderDate;
+  final double amount;
+  final String status;
+  final bool paymentDone;
 
   @override
   State<LocalTruckOutForDelivery> createState() =>
@@ -13,6 +45,125 @@ class _LocalTruckOutForDeliveryState extends State<LocalTruckOutForDelivery> {
   static const navy = AppColors.primaryMain;
   static const yellow = Color(0xFFFFC400);
   static const page = Color(0xFFF4F4FA);
+  static const _googleMapsApiKey = 'AIzaSyC6atqg-XZ8SVzSlLrt5W5mhCgkG-8h6Lo';
+
+  gmaps.LatLng? _pickupLocation;
+  gmaps.LatLng? _dropLocation;
+  gmaps.GoogleMapController? _mapController;
+  List<gmaps.LatLng> _routePoints = const [];
+  bool _isMapLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMapLocations();
+  }
+
+  Future<void> _loadMapLocations() async {
+    final pickup = await _coordinatesFor(
+      widget.pickupAddress.isNotEmpty
+          ? widget.pickupAddress
+          : widget.pickupCity,
+    );
+    final drop = await _coordinatesFor(
+      widget.dropAddress.isNotEmpty ? widget.dropAddress : widget.dropCity,
+    );
+    final route = pickup != null && drop != null
+        ? await _fetchRoute(pickup, drop)
+        : const <gmaps.LatLng>[];
+    if (!mounted) return;
+    setState(() {
+      _pickupLocation = pickup;
+      _dropLocation = drop;
+      _routePoints = route;
+      _isMapLoading = false;
+    });
+    _fitMapToRoute();
+  }
+
+  Future<gmaps.LatLng?> _coordinatesFor(String address) async {
+    if (address.trim().isEmpty) return null;
+    try {
+      final locations = await locationFromAddress(address);
+      if (locations.isEmpty) return null;
+      return gmaps.LatLng(locations.first.latitude, locations.first.longitude);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<gmaps.LatLng>> _fetchRoute(
+    gmaps.LatLng origin,
+    gmaps.LatLng destination,
+  ) async {
+    try {
+      final response = await Dio().get(
+        'https://maps.googleapis.com/maps/api/directions/json',
+        queryParameters: {
+          'origin': '${origin.latitude},${origin.longitude}',
+          'destination': '${destination.latitude},${destination.longitude}',
+          'mode': 'driving',
+          'key': _googleMapsApiKey,
+        },
+      );
+      final data = response.data;
+      final encoded =
+          data is Map &&
+              data['routes'] is List &&
+              (data['routes'] as List).isNotEmpty
+          ? ((data['routes'] as List).first['overview_polyline']?['points'])
+          : null;
+      return encoded is String ? _decodePolyline(encoded) : const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  List<gmaps.LatLng> _decodePolyline(String encoded) {
+    final points = <gmaps.LatLng>[];
+    var index = 0;
+    var latitude = 0;
+    var longitude = 0;
+    while (index < encoded.length) {
+      var shift = 0;
+      var result = 0;
+      int byte;
+      do {
+        byte = encoded.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < encoded.length);
+      latitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+      shift = 0;
+      result = 0;
+      do {
+        byte = encoded.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < encoded.length);
+      longitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+      points.add(gmaps.LatLng(latitude / 1e5, longitude / 1e5));
+    }
+    return points;
+  }
+
+  void _fitMapToRoute() {
+    final controller = _mapController;
+    final pickup = _pickupLocation;
+    final drop = _dropLocation;
+    if (controller == null || pickup == null || drop == null) return;
+    final bounds = gmaps.LatLngBounds(
+      southwest: gmaps.LatLng(
+        pickup.latitude < drop.latitude ? pickup.latitude : drop.latitude,
+        pickup.longitude < drop.longitude ? pickup.longitude : drop.longitude,
+      ),
+      northeast: gmaps.LatLng(
+        pickup.latitude > drop.latitude ? pickup.latitude : drop.latitude,
+        pickup.longitude > drop.longitude ? pickup.longitude : drop.longitude,
+      ),
+    );
+    controller.animateCamera(gmaps.CameraUpdate.newLatLngBounds(bounds, 55));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,10 +221,10 @@ class _LocalTruckOutForDeliveryState extends State<LocalTruckOutForDelivery> {
             ],
           ),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(left: 6, top: 12),
           child: Text(
-            'YCG-2025-00904',
+            widget.trackingNumber,
             style: TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ),
@@ -89,36 +240,66 @@ class _LocalTruckOutForDeliveryState extends State<LocalTruckOutForDelivery> {
     ),
   );
 
-  Widget _mapPanel() => SizedBox(
-    height: 180,
-    child: Stack(
-      children: [
-        Positioned.fill(child: CustomPaint(painter: _TruckMapPainter())),
-        Positioned(
-          left: 81,
-          top: 72,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-            decoration: BoxDecoration(
-              color: navy,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: const [
-                BoxShadow(color: Color(0x28000000), blurRadius: 8),
-              ],
-            ),
-            child: const Text(
-              '🚚  Rider en route to you',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 13,
+  Widget _mapPanel() {
+    final pickup = _pickupLocation ?? const gmaps.LatLng(22.5726, 88.3639);
+    final markers = <gmaps.Marker>{
+      gmaps.Marker(
+        markerId: const gmaps.MarkerId('pickup'),
+        position: pickup,
+        infoWindow: const gmaps.InfoWindow(title: 'Pickup'),
+      ),
+      if (_dropLocation != null)
+        gmaps.Marker(
+          markerId: const gmaps.MarkerId('drop'),
+          position: _dropLocation!,
+          icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+            gmaps.BitmapDescriptor.hueYellow,
+          ),
+          infoWindow: const gmaps.InfoWindow(title: 'Drop'),
+        ),
+    };
+    final polylines = <gmaps.Polyline>{
+      if (_routePoints.length > 1)
+        gmaps.Polyline(
+          polylineId: const gmaps.PolylineId('pickup_to_drop'),
+          points: _routePoints,
+          color: navy,
+          width: 5,
+        ),
+    };
+
+    return SizedBox(
+      height: 180,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: gmaps.GoogleMap(
+              initialCameraPosition: gmaps.CameraPosition(
+                target: pickup,
+                zoom: 11,
               ),
+              markers: markers,
+              polylines: polylines,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+              onMapCreated: (controller) {
+                _mapController = controller;
+                _fitMapToRoute();
+              },
             ),
           ),
-        ),
-      ],
-    ),
-  );
+          if (_isMapLoading)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0xFFE7EBFA),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _pickupCard() => Container(
     margin: const EdgeInsets.only(top: 12),
@@ -127,7 +308,7 @@ class _LocalTruckOutForDeliveryState extends State<LocalTruckOutForDelivery> {
       color: const Color(0xFFF0F2FF),
       borderRadius: BorderRadius.circular(15),
     ),
-    child: const Row(
+    child: Row(
       children: [
         Expanded(
           child: Column(
@@ -139,7 +320,7 @@ class _LocalTruckOutForDeliveryState extends State<LocalTruckOutForDelivery> {
               ),
               SizedBox(height: 3),
               Text(
-                'Today · 4:00 – 4:30 PM',
+                widget.orderDate.isEmpty ? widget.status : widget.orderDate,
                 style: TextStyle(
                   color: navy,
                   fontSize: 17,
@@ -161,8 +342,8 @@ class _LocalTruckOutForDeliveryState extends State<LocalTruckOutForDelivery> {
       color: const Color(0xFFFFF6D5),
       borderRadius: BorderRadius.circular(13),
     ),
-    child: const Text(
-      '⏰ Keep your package ready at the pickup address by\n4 PM. Rider will call before arriving.',
+    child: Text(
+      '⏰ Pickup: ${widget.pickupAddress.isEmpty ? widget.pickupCity : widget.pickupAddress}\nRider: ${widget.riderName.isEmpty ? 'Not assigned' : widget.riderName}',
       style: TextStyle(color: Color(0xFF765A00), fontSize: 12, height: 1.35),
     ),
   );
@@ -173,7 +354,13 @@ class _LocalTruckOutForDeliveryState extends State<LocalTruckOutForDelivery> {
       children: [
         _info('📦', '480 kg', 'Weight'),
         _info('🚚', 'Truck', 'Vehicle'),
-        _info('💵', 'Prepaid', 'Payment'),
+        _info(
+          '💵',
+          widget.paymentDone
+              ? 'Paid ₹${widget.amount}'
+              : 'Due ₹${widget.amount}',
+          'Payment',
+        ),
       ],
     ),
   );
@@ -210,26 +397,47 @@ class _LocalTruckOutForDeliveryState extends State<LocalTruckOutForDelivery> {
     decoration: _card(),
     child: Column(
       children: [
-        _row('From', 'Santanu Roy · Salt Lake'),
-        _row('To', 'Sharma Traders · Howrah'),
+        _row(
+          'From',
+          '${widget.pickupName.isEmpty ? 'Pickup' : widget.pickupName}\n${widget.pickupAddress.isEmpty ? widget.pickupCity : widget.pickupAddress}',
+        ),
+        _row(
+          'To',
+          '${widget.dropName.isEmpty ? 'Drop' : widget.dropName}\n${widget.dropAddress.isEmpty ? widget.dropCity : widget.dropAddress}',
+        ),
         _row('Service', 'Local – Truck'),
-        _row('Booked On', '31 Jul 2026, 7:20 AM'),
+        _row('Booked On', widget.orderDate.isEmpty ? '—' : widget.orderDate),
       ],
     ),
   );
 
-  Widget _timeline() => const Column(
+  Widget _timeline() => Column(
     children: [
-      _Step('Booking Confirmed', '', '7:20 AM', true, false),
+      _Step(
+        'Booking Confirmed',
+        widget.trackingNumber,
+        widget.orderDate,
+        true,
+        false,
+      ),
       _Step(
         'Rider Assigned · En route',
-        'Ramesh Yadav · WB 06 CD 5678',
-        'Pickup by 4:30 PM',
+        widget.riderName.isEmpty
+            ? 'Rider not assigned'
+            : '${widget.riderName} · ${widget.riderMobile}',
+        widget.status,
         true,
         true,
       ),
-      _Step('Picked Up', '', 'Expected 4:30 PM', false, false),
-      _Step('Delivered', '', 'Expected 6:00 PM', false, false, last: true),
+      _Step('Picked Up', widget.pickupAddress, widget.status, false, false),
+      _Step(
+        'Delivered',
+        widget.dropName.isEmpty ? widget.dropCity : widget.dropName,
+        'Pending',
+        false,
+        false,
+        last: true,
+      ),
     ],
   );
 

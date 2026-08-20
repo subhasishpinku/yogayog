@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
 
 class NationalExpressInTransit extends StatefulWidget {
-  const NationalExpressInTransit({super.key});
+  const NationalExpressInTransit({super.key, this.trackingNumber = 'YCG-2025-00891'});
+
+  final String trackingNumber;
 
   @override
   State<NationalExpressInTransit> createState() =>
@@ -67,10 +69,10 @@ class _NationalExpressInTransitState extends State<NationalExpressInTransit> {
             ],
           ),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(left: 6, top: 12),
           child: Text(
-            'YCG-2025-00891 · Delhivery',
+            '${widget.trackingNumber} · Delhivery',
             style: TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ),

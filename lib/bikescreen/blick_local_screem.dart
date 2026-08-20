@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/home_service.dart';
 import 'package:yogayog/core/services/bikescreen_service.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:provider/provider.dart';
@@ -397,11 +399,15 @@ class _PickupLocation {
 
 class _BikeLocalScreenState extends State<BikeLocalScreen> {
   final packageController = TextEditingController();
-  final weightController = TextEditingController(text: '2');
+  final weightController = TextEditingController(text: '20');
   final approximateWeightController = TextEditingController(text: '0.5');
   final pickupPincodeController = TextEditingController();
   final pincodeController = TextEditingController();
   final piecesController = TextEditingController(text: '1');
+  final pickupNameController = TextEditingController();
+  final pickupPhoneController = TextEditingController();
+  final dropNameController = TextEditingController();
+  final dropPhoneController = TextEditingController();
   final List<PackageBox> packageBoxes = [];
   String selectedPackageSize = '0 - 500g';
   String selectedPackageType = 'Document';
@@ -417,6 +423,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   String _dropState = '';
   double? _dropLatitude;
   double? _dropLongitude;
+  bool _isLoadingRates = false;
 
   static const _googlePlacesApiKey = String.fromEnvironment(
     'GOOGLE_MAPS_API_KEY',
@@ -428,7 +435,23 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSavedProfileContact();
     _loadCurrentPickupLocation();
+  }
+
+  Future<void> _loadSavedProfileContact() async {
+    final preferences = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      if (pickupNameController.text.trim().isEmpty) {
+        pickupNameController.text =
+            preferences.getString(HomeService.profileNameKey) ?? '';
+      }
+      if (pickupPhoneController.text.trim().isEmpty) {
+        pickupPhoneController.text =
+            preferences.getString(HomeService.profileMobileKey) ?? '';
+      }
+    });
   }
 
   @override
@@ -439,6 +462,10 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     pickupPincodeController.dispose();
     pincodeController.dispose();
     piecesController.dispose();
+    pickupNameController.dispose();
+    pickupPhoneController.dispose();
+    dropNameController.dispose();
+    dropPhoneController.dispose();
     for (final box in packageBoxes) {
       box.dispose();
     }
@@ -695,7 +722,8 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     );
   }
 
-  void _chooseVehicle() {
+  Future<void> _chooseVehicle() async {
+    if (_isLoadingRates) return;
     // if (packageController.text.trim().isEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
     //     const SnackBar(content: Text('Please enter package description')),
@@ -704,30 +732,94 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter Approx weight')),
       );
-
-      final approximateWeight =
-          double.tryParse(approximateWeightController.text) ?? 0;
-
-      final volumetricWeight = packageBoxes.fold<double>(
-        0,
-        (total, box) => total + box.volumetricWeight,
-      );
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ChooseBikeScreen(
-            approximateWeightKg: approximateWeight,
-            volumetricWeightKg: volumetricWeight,
-          ),
-        ),
+      return;
+    }
+    if (pickupNameController.text.trim().isEmpty ||
+        pickupPhoneController.text.trim().length != 10 ||
+        dropNameController.text.trim().isEmpty ||
+        dropPhoneController.text.trim().length != 10) {
+      _showMessage(
+        'Please enter pickup and drop name with valid 10-digit phone number',
       );
       return;
     }
+    if (_pickupLatitude == null ||
+        _pickupLongitude == null ||
+        _dropLatitude == null ||
+        _dropLongitude == null ||
+        _pickupPincode.trim().isEmpty ||
+        _dropPincode.trim().isEmpty) {
+      _showMessage('Please select valid pickup and drop locations first');
+      return;
+    }
 
+    final weight = double.tryParse(weightController.text.trim());
+    if (weight == null || weight <= 0) {
+      _showMessage('Please enter a valid weight');
+      return;
+    }
+    final provider = context.read<BikescreenProvider>();
+    setState(() => _isLoadingRates = true);
+    final payload = <String, dynamic>{
+      'service_id': 1,
+      'sub_service_id': 2,
+      'package_type_id': 1,
+      'weight': weight,
+      'pickup_lat': _pickupLatitude,
+      'pickup_lng': _pickupLongitude,
+      'drop_lat': _dropLatitude,
+      'drop_lng': _dropLongitude,
+      'pickup_pincode': _pickupPincode.trim(),
+      'delivery_pincode': _dropPincode.trim(),
+    };
+    final rates = await provider.loadRates(payload: payload);
+    if (!mounted) return;
+    setState(() => _isLoadingRates = false);
+    if (rates == null || rates.rates.isEmpty) {
+      _showMessage(provider.errorMessage ?? 'No vehicle rate found');
+      return;
+    }
+    final approximateWeight =
+        double.tryParse(approximateWeightController.text) ?? weight;
+    final volumetricWeight = packageBoxes.fold<double>(
+      0,
+      (total, box) => total + box.volumetricWeight,
+    );
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const ChooseBikeScreen()),
+      MaterialPageRoute(
+        builder: (_) => ChooseBikeScreen(
+          rateResponse: rates,
+          approximateWeightKg: approximateWeight,
+          volumetricWeightKg: volumetricWeight,
+          pickupAddress: _pickupAddress,
+          dropAddress: _dropAddress,
+          pickup: {
+            'name': pickupNameController.text.trim(),
+            'mobile': pickupPhoneController.text.trim(),
+            'address': _pickupAddress,
+            'house_no': '',
+            'city': _pickupCity,
+            'state': _pickupState,
+            'pincode': _pickupPincode,
+            'lat': _pickupLatitude,
+            'lng': _pickupLongitude,
+            'country': 'India',
+          },
+          drop: {
+            'name': dropNameController.text.trim(),
+            'mobile': dropPhoneController.text.trim(),
+            'address': _dropAddress,
+            'house_no': '',
+            'city': _dropCity,
+            'state': _dropState,
+            'pincode': _dropPincode,
+            'lat': _dropLatitude,
+            'lng': _dropLongitude,
+            'country': 'India',
+          },
+        ),
+      ),
     );
   }
 
@@ -1229,13 +1321,16 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                     ),
 
                     const SizedBox(height: 6),
-
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
                             controller: weightController,
-                            keyboardType: TextInputType.number,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            enabled: false,
+                            readOnly: false,
                             decoration: _inputDecoration('2 kg'),
                           ),
                         ),
@@ -1266,7 +1361,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
-                        onPressed: _chooseVehicle,
+                        onPressed: _isLoadingRates ? null : _chooseVehicle,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: yellow,
                           foregroundColor: blue,
@@ -1275,13 +1370,21 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text(
-                          'Choose Vehicle →',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                        child: _isLoadingRates
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Choose Vehicle →',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
                     ),
                   ],
@@ -1473,6 +1576,23 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
             ],
           ),
 
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _contactField(pickupNameController, 'Pickup name'),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _contactField(
+                  pickupPhoneController,
+                  'Pickup phone',
+                  phone: true,
+                ),
+              ),
+            ],
+          ),
+
           const Divider(height: 22),
 
           _savedDropLocationSearchBox(),
@@ -1542,8 +1662,36 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _contactField(dropNameController, 'Drop name')),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _contactField(
+                  dropPhoneController,
+                  'Drop phone',
+                  phone: true,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _contactField(
+    TextEditingController controller,
+    String hint, {
+    bool phone = false,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: phone ? TextInputType.phone : TextInputType.name,
+      maxLength: phone ? 10 : null,
+      inputFormatters: phone ? [FilteringTextInputFormatter.digitsOnly] : null,
+      decoration: _inputDecoration(hint).copyWith(counterText: ''),
     );
   }
 

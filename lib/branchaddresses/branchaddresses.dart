@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/branchaddresses_service.dart';
+import 'package:yogayog/branchaddresses/provider/branchaddresses_provider.dart';
+import 'package:yogayog/branchaddresses/directions.dart';
+import 'package:provider/provider.dart';
 
 class BranchAddresses extends StatefulWidget {
   const BranchAddresses({super.key});
@@ -11,6 +18,68 @@ class BranchAddresses extends StatefulWidget {
 
 class _BranchAddressesState extends State<BranchAddresses> {
   static const _green = AppColors.primaryMain;
+  double? _currentLatitude;
+  double? _currentLongitude;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCurrentBranches());
+  }
+
+  Future<void> _loadCurrentBranches() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) return;
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      _currentLatitude = position.latitude;
+      _currentLongitude = position.longitude;
+      final places = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+      if (!mounted || places.isEmpty) return;
+      final place = places.first;
+      final city = (place.locality ?? place.subAdministrativeArea ?? '').trim();
+      const stateCodes = {'West Bengal': '19'};
+      final stateCode = stateCodes[place.administrativeArea?.trim()];
+      if (city.isNotEmpty && stateCode != null) {
+        await context.read<BranchAddressesProvider>().loadBranches(
+          city: city,
+          stateCode: stateCode,
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _callBranch(String phone) async {
+    if (phone.trim().isEmpty) {
+      _showMessage('Contact number unavailable');
+      return;
+    }
+    final launched = await launchUrl(Uri(scheme: 'tel', path: phone.trim()));
+    if (!launched && mounted) _showMessage('Unable to open phone dialer');
+  }
+
+  void _openDirections(BranchAddress branch) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Directions(
+          destination: branch.displayAddress,
+          destinationName: branch.name,
+          originLatitude: _currentLatitude,
+          originLongitude: _currentLongitude,
+        ),
+      ),
+    );
+  }
 
   final _branches = const [
     _Branch(
@@ -52,6 +121,8 @@ class _BranchAddressesState extends State<BranchAddresses> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<BranchAddressesProvider>();
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: _green,
@@ -66,14 +137,33 @@ class _BranchAddressesState extends State<BranchAddresses> {
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.fromLTRB(7, 8, 7, 24),
-                itemCount: _branches.length,
+                itemCount: provider.isLoading || provider.branches.isEmpty
+                    ? 1
+                    : provider.branches.length,
                 itemBuilder: (context, index) {
-                  final branch = _branches[index];
+                  if (provider.isLoading) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (provider.errorMessage != null) {
+                    return Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(provider.errorMessage!),
+                    );
+                  }
+                  if (provider.branches.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text('No nearby branches found.'),
+                    );
+                  }
+                  final branch = provider.branches[index];
                   return _BranchCard(
                     branch: branch,
-                    onCall: () => _showMessage('Calling ${branch.name}'),
-                    onDirections: () =>
-                        _showMessage('Directions are ready to open'),
+                    onCall: () => _callBranch(branch.phone),
+                    onDirections: () => _openDirections(branch),
                   );
                 },
               ),
@@ -160,7 +250,7 @@ class _BranchHeader extends StatelessWidget {
 }
 
 class _BranchCard extends StatelessWidget {
-  final _Branch branch;
+  final BranchAddress branch;
   final VoidCallback onCall;
   final VoidCallback onDirections;
 
@@ -200,12 +290,12 @@ class _BranchCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (branch.badge != null) _SmallBadge(branch.badge!),
+              const _SmallBadge('Branch'),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            '${branch.icon} ${branch.type}',
+            '🏢 ${branch.branchType}',
             style: const TextStyle(
               color: _BranchAddressesState._green,
               fontSize: 13,
@@ -214,7 +304,7 @@ class _BranchCard extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            '📍 ${branch.address}',
+            '📍 ${branch.displayAddress}',
             style: const TextStyle(
               color: Color(0xFF667085),
               fontSize: 13,
@@ -223,7 +313,7 @@ class _BranchCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '◷ ${branch.hours}',
+            branch.phone.isEmpty ? '◷ Contact number unavailable' : '☎ ${branch.phone}',
             style: const TextStyle(color: Color(0xFF667085), fontSize: 13),
           ),
           const SizedBox(height: 10),

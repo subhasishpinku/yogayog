@@ -1,7 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/pincodecheck/checkpin_service.dart';
+import 'package:yogayog/pincodecheck/provider/pincodecheck_provider.dart';
+import 'package:provider/provider.dart';
 
 class CheCkPin extends StatefulWidget {
   const CheCkPin({super.key});
@@ -15,14 +20,52 @@ class _CheCkPinState extends State<CheCkPin> {
   static const _yellow = Color(0xFFFFC400);
   static const _pageBackground = Color(0xFFF4F4F8);
 
-  final _pinController = TextEditingController(text: '110002');
+  final _pinController = TextEditingController(text: '');
   final _pinFocusNode = FocusNode();
   String _selectedService = 'All';
-  final List<_RecentCheck> _recentChecks = const [
-    _RecentCheck('110001', 'New Delhi', 'National · Serviceable', true),
-    _RecentCheck('400001', 'Mumbai', 'National · Serviceable', true),
-    _RecentCheck('795001', 'Imphal', 'ODA – Surcharge applicable', false),
-  ];
+  List<_RecentCheck> _recentChecks = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecentChecks();
+  }
+
+  Future<void> _loadRecentChecks() async {
+    final preferences = await SharedPreferences.getInstance();
+    final saved = preferences.getStringList('recent_pincode_checks') ?? [];
+    final checks = saved
+        .map((item) {
+          try {
+            return _RecentCheck.fromJson(
+              Map<String, dynamic>.from(jsonDecode(item) as Map),
+            );
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<_RecentCheck>()
+        .toList();
+    if (mounted) setState(() => _recentChecks = checks);
+  }
+
+  Future<void> _saveRecentCheck({
+    required String pin,
+    required String city,
+    required String status,
+    required bool serviceable,
+  }) async {
+    final preferences = await SharedPreferences.getInstance();
+    final updated = [
+      _RecentCheck(pin, city, status, serviceable),
+      ..._recentChecks.where((item) => item.pin != pin),
+    ].take(10).toList();
+    await preferences.setStringList(
+      'recent_pincode_checks',
+      updated.map((item) => jsonEncode(item.toJson())).toList(),
+    );
+    if (mounted) setState(() => _recentChecks = updated);
+  }
 
   @override
   void dispose() {
@@ -41,9 +84,36 @@ class _CheCkPinState extends State<CheCkPin> {
       return;
     }
 
+    _checkPincodeFromApi(pin);
+  }
+
+  Future<void> _checkPincodeFromApi(String pin) async {
+    final provider = context.read<PincodeCheckProvider>();
+    final success = await provider.checkPincode(pin);
+    if (!mounted) return;
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(provider.errorMessage ?? 'Unable to check PIN')),
+      );
+      return;
+    }
+    final result = provider.result;
+    if (result == null) return;
+    await _saveRecentCheck(
+      pin: result.pincode,
+      city: result.city,
+      status: result.serviceable ? 'National · Serviceable' : result.message,
+      serviceable: result.serviceable,
+    );
+    if (!result.serviceable) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.message)));
+      return;
+    }
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => CheCkPinService(pinCode: pin)));
+    ).push(MaterialPageRoute(builder: (_) => CheCkPinService(result: result)));
   }
 
   @override
@@ -280,7 +350,7 @@ class _Form extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Row(
-            children: ['All', 'Local', 'National', "Int'l"]
+            children: ['All', 'National']
                 .map(
                   (type) => Padding(
                     padding: const EdgeInsets.only(right: 8),
@@ -404,4 +474,20 @@ class _RecentCheck {
   final String status;
   final bool serviceable;
   const _RecentCheck(this.pin, this.city, this.status, this.serviceable);
+
+  factory _RecentCheck.fromJson(Map<String, dynamic> json) {
+    return _RecentCheck(
+      json['pin']?.toString() ?? '',
+      json['city']?.toString() ?? '',
+      json['status']?.toString() ?? '',
+      json['serviceable'] == true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'pin': pin,
+    'city': city,
+    'status': status,
+    'serviceable': serviceable,
+  };
 }

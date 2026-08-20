@@ -1,8 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:yogayog/constants/app_colors.dart';
 
 class InternationalExport extends StatefulWidget {
-  const InternationalExport({super.key});
+  const InternationalExport({
+    super.key,
+    this.trackingNumber = 'IEQ-2025-0047',
+    this.subServiceId = 9,
+    this.pickupName = '',
+    this.pickupAddress = '',
+    this.pickupCity = '',
+    this.dropName = '',
+    this.dropAddress = '',
+    this.dropCity = '',
+    this.riderName = '',
+    this.riderMobile = '',
+    this.orderDate = '',
+    this.amount = 0,
+    this.status = 'In Transit',
+    this.paymentDone = false,
+  });
+
+  final String trackingNumber;
+  final int subServiceId;
+  final String pickupName, pickupAddress, pickupCity;
+  final String dropName, dropAddress, dropCity;
+  final String riderName, riderMobile, orderDate, status;
+  final double amount;
+  final bool paymentDone;
 
   @override
   State<InternationalExport> createState() => _InternationalExportState();
@@ -12,6 +39,121 @@ class _InternationalExportState extends State<InternationalExport> {
   static const navy = AppColors.primaryMain;
   static const yellow = Color(0xFFFFC400);
   static const page = Color(0xFFF4F4FA);
+  static const _googleMapsApiKey = 'AIzaSyC6atqg-XZ8SVzSlLrt5W5mhCgkG-8h6Lo';
+  gmaps.LatLng? _pickupLocation;
+  gmaps.LatLng? _dropLocation;
+  gmaps.GoogleMapController? _mapController;
+  List<gmaps.LatLng> _routePoints = const [];
+  bool _isMapLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMapLocations();
+  }
+
+  Future<void> _loadMapLocations() async {
+    final pickup = await _coordinatesFor(
+      widget.pickupAddress.isNotEmpty
+          ? widget.pickupAddress
+          : widget.pickupCity,
+    );
+    final drop = await _coordinatesFor(
+      widget.dropAddress.isNotEmpty ? widget.dropAddress : widget.dropCity,
+    );
+    final route = pickup != null && drop != null
+        ? await _fetchRoute(pickup, drop)
+        : const <gmaps.LatLng>[];
+    if (!mounted) return;
+    setState(() {
+      _pickupLocation = pickup;
+      _dropLocation = drop;
+      _routePoints = route;
+      _isMapLoading = false;
+    });
+    _fitMapToRoute();
+  }
+
+  Future<gmaps.LatLng?> _coordinatesFor(String address) async {
+    if (address.trim().isEmpty) return null;
+    try {
+      final locations = await locationFromAddress(address);
+      if (locations.isEmpty) return null;
+      return gmaps.LatLng(locations.first.latitude, locations.first.longitude);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<gmaps.LatLng>> _fetchRoute(
+    gmaps.LatLng origin,
+    gmaps.LatLng destination,
+  ) async {
+    try {
+      final response = await Dio().get(
+        'https://maps.googleapis.com/maps/api/directions/json',
+        queryParameters: {
+          'origin': '${origin.latitude},${origin.longitude}',
+          'destination': '${destination.latitude},${destination.longitude}',
+          'mode': 'driving',
+          'key': _googleMapsApiKey,
+        },
+      );
+      final data = response.data;
+      final encoded =
+          data is Map &&
+              data['routes'] is List &&
+              (data['routes'] as List).isNotEmpty
+          ? ((data['routes'] as List).first['overview_polyline']?['points'])
+          : null;
+      return encoded is String ? _decodePolyline(encoded) : const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  List<gmaps.LatLng> _decodePolyline(String encoded) {
+    final points = <gmaps.LatLng>[];
+    var index = 0, latitude = 0, longitude = 0;
+    while (index < encoded.length) {
+      var shift = 0, result = 0;
+      int byte;
+      do {
+        byte = encoded.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < encoded.length);
+      latitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+      shift = 0;
+      result = 0;
+      do {
+        byte = encoded.codeUnitAt(index++) - 63;
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20 && index < encoded.length);
+      longitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+      points.add(gmaps.LatLng(latitude / 1e5, longitude / 1e5));
+    }
+    return points;
+  }
+
+  void _fitMapToRoute() {
+    final controller = _mapController;
+    final pickup = _pickupLocation;
+    final drop = _dropLocation;
+    if (controller == null || pickup == null || drop == null) return;
+    final bounds = gmaps.LatLngBounds(
+      southwest: gmaps.LatLng(
+        pickup.latitude < drop.latitude ? pickup.latitude : drop.latitude,
+        pickup.longitude < drop.longitude ? pickup.longitude : drop.longitude,
+      ),
+      northeast: gmaps.LatLng(
+        pickup.latitude > drop.latitude ? pickup.latitude : drop.latitude,
+        pickup.longitude > drop.longitude ? pickup.longitude : drop.longitude,
+      ),
+    );
+    controller.animateCamera(gmaps.CameraUpdate.newLatLngBounds(bounds, 55));
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -64,17 +206,19 @@ class _InternationalExportState extends State<InternationalExport> {
             ],
           ),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(left: 12, top: 12),
           child: Text(
-            'IEQ-2025-0047',
+            widget.trackingNumber,
             style: TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(left: 12),
           child: Text(
-            'International Export · UAE',
+            widget.subServiceId == 8
+                ? 'International Import · India'
+                : 'International Export · UAE',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -86,49 +230,65 @@ class _InternationalExportState extends State<InternationalExport> {
     ),
   );
 
-  Widget _map() => SizedBox(
-    height: 180,
-    child: Stack(
-      children: [
-        Positioned.fill(child: CustomPaint(painter: _WorldMapPainter())),
-        Positioned(
-          left: 5,
-          top: 12,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(10, 6, 13, 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF555861),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Status',
-                  style: TextStyle(color: Colors.white70, fontSize: 10),
-                ),
-                Text(
-                  'UAE Customs',
-                  style: TextStyle(
-                    color: Color(0xFF32A5FF),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
+  Widget _map() {
+    final pickup = _pickupLocation ?? const gmaps.LatLng(22.5726, 88.3639);
+    final markers = <gmaps.Marker>{
+      gmaps.Marker(
+        markerId: const gmaps.MarkerId('pickup'),
+        position: pickup,
+        infoWindow: const gmaps.InfoWindow(title: 'Pickup'),
+      ),
+      if (_dropLocation != null)
+        gmaps.Marker(
+          markerId: const gmaps.MarkerId('drop'),
+          position: _dropLocation!,
+          icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+            gmaps.BitmapDescriptor.hueYellow,
+          ),
+          infoWindow: const gmaps.InfoWindow(title: 'Drop'),
+        ),
+    };
+    final polylines = <gmaps.Polyline>{
+      if (_routePoints.length > 1)
+        gmaps.Polyline(
+          polylineId: const gmaps.PolylineId('pickup_to_drop'),
+          points: _routePoints,
+          color: navy,
+          width: 5,
+        ),
+    };
+    return SizedBox(
+      height: 180,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: gmaps.GoogleMap(
+              initialCameraPosition: gmaps.CameraPosition(
+                target: pickup,
+                zoom: 4,
+              ),
+              markers: markers,
+              polylines: polylines,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              mapToolbarEnabled: false,
+              onMapCreated: (controller) {
+                _mapController = controller;
+                _fitMapToRoute();
+              },
             ),
           ),
-        ),
-        const Positioned(left: 103, top: 97, child: _MapDot(label: 'KOL')),
-        const Positioned(right: 113, top: 62, child: _MapDot(label: 'DXB')),
-        const Positioned(
-          left: 157,
-          top: 55,
-          child: Icon(Icons.flight_takeoff, color: Colors.black, size: 25),
-        ),
-      ],
-    ),
-  );
+          if (_isMapLoading)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0xFFE7EBFA),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _delivery() => Container(
     margin: const EdgeInsets.only(top: 12),
@@ -137,7 +297,7 @@ class _InternationalExportState extends State<InternationalExport> {
       color: const Color(0xFFF0F2FF),
       borderRadius: BorderRadius.circular(15),
     ),
-    child: const Row(
+    child: Row(
       children: [
         Expanded(
           child: Column(
@@ -149,7 +309,7 @@ class _InternationalExportState extends State<InternationalExport> {
               ),
               SizedBox(height: 3),
               Text(
-                'Aug 5–7, 2026',
+                widget.status,
                 style: TextStyle(
                   color: navy,
                   fontSize: 17,
@@ -169,8 +329,8 @@ class _InternationalExportState extends State<InternationalExport> {
     child: Row(
       children: [
         _info('📦', '18 kg', 'Weight'),
-        _info('✈️', 'Export', 'Type'),
-        _info('🏛️', 'Garments', 'Contents'),
+        _info('✈️', widget.subServiceId == 8 ? 'Import' : 'Export', 'Type'),
+        _info('🏛️', '₹${widget.amount}', 'Amount'),
       ],
     ),
   );
@@ -202,45 +362,39 @@ class _InternationalExportState extends State<InternationalExport> {
     ),
   );
 
-  Widget _timeline() => const Column(
+  Widget _timeline() => Column(
     children: [
       _Step(
         'Shipment Booked',
-        'YCG-OUT-0047 · Jodhpur Park',
-        'Jul 25, 2:00 PM',
+        '${widget.trackingNumber} · ${widget.pickupCity}',
+        widget.orderDate,
         true,
         false,
       ),
       _Step(
         'Customs Export Cleared',
-        'Shipping Bill filed · CCU Airport',
-        'Jul 26, 11:30 AM',
+        widget.pickupAddress,
+        widget.status,
         true,
         false,
       ),
       _Step(
         'Departed India',
-        'CCU → DXB · EK 572',
-        'Jul 28, 9:20 PM',
+        '${widget.pickupCity} → ${widget.dropCity}',
+        widget.status,
         true,
         false,
       ),
-      _Step(
-        'Arrived Dubai',
-        'DXB · Cargo terminal',
-        'Jul 29, 12:40 AM',
-        true,
-        false,
-      ),
+      _Step('Arrived Dubai', widget.dropAddress, widget.status, true, false),
       _Step(
         'UAE Customs Clearance',
-        'Dubai Customs Authority · In progress',
-        'Now',
+        widget.riderName.isEmpty ? 'Customs processing' : widget.riderName,
+        widget.riderMobile,
         false,
         true,
       ),
-      _Step('Out for Delivery · Dubai', '', 'Expected Aug 5', false, false),
-      _Step('Delivered', '', 'Expected Aug 5–7', false, false, last: true),
+      _Step('Out for Delivery', widget.dropName, widget.status, false, false),
+      _Step('Delivered', widget.dropName, 'Pending', false, false, last: true),
     ],
   );
 

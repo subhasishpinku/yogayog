@@ -76,7 +76,10 @@ class BookingHistory {
 
 class Booking {
   const Booking({
+    required this.orderId,
     required this.orderNo,
+    required this.serviceId,
+    required this.subServiceId,
     required this.orderDate,
     required this.serviceName,
     required this.subServiceName,
@@ -84,9 +87,21 @@ class Booking {
     required this.status,
     required this.pickupCity,
     required this.dropCity,
+    required this.pickupName,
+    required this.pickupAddress,
+    required this.pickupMobile,
+    required this.dropName,
+    required this.dropAddress,
+    required this.dropMobile,
+    required this.riderName,
+    required this.riderMobile,
+    required this.paymentDone,
   });
 
+  final String orderId;
   final String orderNo;
+  final int serviceId;
+  final int subServiceId;
   final String orderDate;
   final String serviceName;
   final String subServiceName;
@@ -94,6 +109,15 @@ class Booking {
   final String status;
   final String pickupCity;
   final String dropCity;
+  final String pickupName;
+  final String pickupAddress;
+  final String pickupMobile;
+  final String dropName;
+  final String dropAddress;
+  final String dropMobile;
+  final String riderName;
+  final String riderMobile;
+  final bool paymentDone;
 
   factory Booking.fromJson(Map<String, dynamic> json) {
     String nestedString(String key, String field) {
@@ -105,9 +129,14 @@ class Booking {
     final rawStatus = json['status_text']?.toString().isNotEmpty == true
         ? json['status_text'].toString()
         : json['raw_status']?.toString() ?? '';
+    String nestedValue(String key, String field) => nestedString(key, field);
+    final rider = json['rider'];
     return Booking(
+      orderId: json['order_id']?.toString() ?? '',
       orderNo:
           json['order_no']?.toString() ?? json['order_id']?.toString() ?? '',
+      serviceId: int.tryParse(json['service_id']?.toString() ?? '') ?? 0,
+      subServiceId: int.tryParse(json['sub_service_id']?.toString() ?? '') ?? 0,
       orderDate: json['order_date']?.toString() ?? '',
       serviceName: json['service_name']?.toString() ?? '',
       subServiceName: json['sub_service_name']?.toString() ?? '',
@@ -117,6 +146,15 @@ class Booking {
       status: _formatStatus(rawStatus),
       pickupCity: nestedString('pickup', 'city'),
       dropCity: nestedString('drop', 'city'),
+      pickupName: nestedValue('pickup', 'name'),
+      pickupAddress: nestedValue('pickup', 'area'),
+      pickupMobile: nestedValue('pickup', 'mobile'),
+      dropName: nestedValue('drop', 'name'),
+      dropAddress: nestedValue('drop', 'area'),
+      dropMobile: nestedValue('drop', 'mobile'),
+      riderName: rider is Map ? rider['name']?.toString() ?? '' : '',
+      riderMobile: rider is Map ? rider['mobile']?.toString() ?? '' : '',
+      paymentDone: json['payment_done'] == true,
     );
   }
 

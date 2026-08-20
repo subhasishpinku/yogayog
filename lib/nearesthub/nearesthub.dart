@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/nearesthub_service.dart';
 import 'package:yogayog/nearesthub/provider/nearesthub_provider.dart';
@@ -61,6 +63,19 @@ class _NearestHubState extends State<NearestHub> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _callHub(String phoneNumber) async {
+    final phone = phoneNumber.trim();
+    if (phone.isEmpty) {
+      _showMessage('Contact number unavailable');
+      return;
+    }
+
+    final launched = await launchUrl(Uri(scheme: 'tel', path: phone));
+    if (!launched && mounted) {
+      _showMessage('Unable to open phone dialer');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NearestHubProvider>();
@@ -73,7 +88,7 @@ class _NearestHubState extends State<NearestHub> {
       ),
       child: Scaffold(
         // backgroundColor: AppColors.lightGray,
-        backgroundColor: AppColors.hintGray,
+        backgroundColor: const Color(0xFFE3F4EE),
         body: Column(
           children: [
             const _HubHeader(),
@@ -83,7 +98,7 @@ class _NearestHubState extends State<NearestHub> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const _HubMap(),
+                    const _GoogleHubMap(),
                     if (provider.isLoading)
                       const Padding(
                         padding: EdgeInsets.all(20),
@@ -101,11 +116,7 @@ class _NearestHubState extends State<NearestHub> {
                           child: _PrimaryHubCard(
                             hub: entry.value,
                             isPrimary: entry.key == 0,
-                            onCall: () => _showMessage(
-                              entry.value.phoneNumber.isEmpty
-                                  ? 'Contact number unavailable'
-                                  : 'Calling ${entry.value.phoneNumber}',
-                            ),
+                            onCall: () => _callHub(entry.value.phoneNumber),
                             onDirections: () =>
                                 _showMessage('Directions are ready to open'),
                           ),
@@ -207,6 +218,28 @@ class _HubHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GoogleHubMap extends StatelessWidget {
+  const _GoogleHubMap();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 200,
+      child: gmaps.GoogleMap(
+        initialCameraPosition: const gmaps.CameraPosition(
+          target: gmaps.LatLng(22.5726, 88.3639),
+          zoom: 12.5,
+        ),
+        myLocationEnabled: true,
+        myLocationButtonEnabled: true,
+        zoomControlsEnabled: false,
+        mapToolbarEnabled: false,
+        compassEnabled: false,
       ),
     );
   }
