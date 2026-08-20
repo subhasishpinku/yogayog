@@ -480,6 +480,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         'input': query.trim(),
         'key': _googlePlacesApiKey,
         'components': 'country:in',
+        'location': '22.5726,88.3639',
+        'radius': 50000,
+        'strictbounds': 'true',
       },
     );
     final data = response.data;
@@ -495,6 +498,10 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     return predictions is List
         ? predictions
               .whereType<Map>()
+              .where((item) {
+                final description = item['description']?.toString() ?? '';
+                return description.toLowerCase().contains('kolkata');
+              })
               .map(
                 (item) => _PlaceSuggestion(
                   placeId: item['place_id']?.toString() ?? '',
@@ -575,6 +582,31 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       _dropLatitude = selected.latitude;
       _dropLongitude = selected.longitude;
     });
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': dropNameController.text.trim(),
+        'mobile': dropPhoneController.text.trim(),
+        'service_id': 1,
+        'house_numb': '',
+        'street': selected.address,
+        'city': selected.city,
+        'district': selected.city,
+        'state': selected.state,
+        'pin': selected.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'lat': selected.latitude,
+        'lon': selected.longitude,
+        'flag': 'drop',
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Drop location saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save drop location',
+    );
   }
 
   void _showMessage(String message) {
@@ -700,6 +732,30 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       _pickupLatitude = result.latitude;
       _pickupLongitude = result.longitude;
     });
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': pickupNameController.text.trim(),
+        'mobile': pickupPhoneController.text.trim(),
+        'service_id': 1,
+        'house_numb': '',
+        'street': result.address,
+        'city': result.city,
+        'district': result.city,
+        'state': result.state,
+        'pin': result.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'lat': result.latitude,
+        'lon': result.longitude,
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Pickup location saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save pickup location',
+    );
   }
 
   Widget _dialogField(

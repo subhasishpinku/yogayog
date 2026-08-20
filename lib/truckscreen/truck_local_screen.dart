@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/bikescreen_service.dart';
+import 'package:yogayog/core/services/home_service.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/truckscreen/choose_truck_screen.dart';
@@ -433,7 +435,23 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSavedProfileContact();
     _loadCurrentPickupLocation();
+  }
+
+  Future<void> _loadSavedProfileContact() async {
+    final preferences = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      if (pickupNameController.text.trim().isEmpty) {
+        pickupNameController.text =
+            preferences.getString(HomeService.profileNameKey) ?? '';
+      }
+      if (pickupPhoneController.text.trim().isEmpty) {
+        pickupPhoneController.text =
+            preferences.getString(HomeService.profileMobileKey) ?? '';
+      }
+    });
   }
 
   @override
@@ -682,6 +700,30 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       _pickupLatitude = result.latitude;
       _pickupLongitude = result.longitude;
     });
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': pickupNameController.text.trim(),
+        'mobile': pickupPhoneController.text.trim(),
+        'service_id': 1,
+        'house_numb': '',
+        'street': result.address,
+        'city': result.city,
+        'district': result.city,
+        'state': result.state,
+        'pin': result.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'lat': result.latitude,
+        'lon': result.longitude,
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Pickup location saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save pickup location',
+    );
   }
 
   Widget _dialogField(

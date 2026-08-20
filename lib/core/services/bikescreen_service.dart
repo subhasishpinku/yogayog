@@ -32,6 +32,33 @@ class BikescreenService {
     }
   }
 
+  Future<void> savePickupLocation({
+    required Map<String, dynamic> payload,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.pickupLocation,
+        data: payload,
+      );
+      final data = response.data;
+      if (data is! Map || data['success'] == false) {
+        throw BikescreenException(
+          data is Map
+              ? data['message']?.toString() ?? 'Unable to save pickup location'
+              : 'Invalid response from the server',
+        );
+      }
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      if (data is Map && data['message'] != null) {
+        throw BikescreenException(data['message'].toString());
+      }
+      throw BikescreenException(
+        error.message ?? 'Network error while saving pickup location',
+      );
+    }
+  }
+
   Future<RateResponse> getRates({
     required int serviceId,
     required int subServiceId,

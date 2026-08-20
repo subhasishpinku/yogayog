@@ -38,6 +38,23 @@ class BikescreenProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> savePickupLocation({
+    required Map<String, dynamic> payload,
+  }) async {
+    _errorMessage = null;
+    try {
+      await _service.savePickupLocation(payload: payload);
+      _locations = [];
+      _loadedServiceId = null;
+      notifyListeners();
+      return true;
+    } on BikescreenException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<RateResponse?> loadRates({required Map<String, dynamic> payload}) async {
     _isRateLoading = true;
     _errorMessage = null;
