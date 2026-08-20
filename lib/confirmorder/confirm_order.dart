@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:yogayog/Payment/payment_national_screen.dart';
 import 'package:yogayog/Payment/payment_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 
@@ -17,6 +18,7 @@ class ConfirmOrder extends StatefulWidget {
     this.gst = 65,
     this.total = 298,
     this.deliveryDate = 'Delivery in 3-4 days',
+    this.orderPayload = const {},
   });
 
   final String courierName;
@@ -31,6 +33,7 @@ class ConfirmOrder extends StatefulWidget {
   final double gst;
   final double total;
   final String deliveryDate;
+  final Map<String, dynamic> orderPayload;
 
   @override
   State<ConfirmOrder> createState() => _ConfirmOrderState();
@@ -351,7 +354,13 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => PaymentScreen(amount: widget.total),
+                            builder: (_) => PaymentNationalScreen(
+                              amount: widget.total,
+                              orderPayload: {
+                                ...widget.orderPayload,
+                                'price': widget.total,
+                              },
+                            ),
                           ),
                         );
                       },

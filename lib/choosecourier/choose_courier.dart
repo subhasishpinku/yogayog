@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/confirmorder/confirm_order.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/national_service.dart';
 
 class ChooseCourier extends StatefulWidget {
   const ChooseCourier({
     super.key,
     required this.approximateWeightKg,
     required this.volumetricWeightKg,
+    this.rates,
+    this.orderPayload = const {},
     this.origin = 'Kolkata',
     this.destination = 'New Delhi',
   });
@@ -15,6 +18,8 @@ class ChooseCourier extends StatefulWidget {
   final double volumetricWeightKg;
   final String origin;
   final String destination;
+  final NationalRateResponse? rates;
+  final Map<String, dynamic> orderPayload;
 
   @override
   State<ChooseCourier> createState() => _ChooseCourierState();
@@ -46,7 +51,7 @@ class _ChooseCourierState extends State<ChooseCourier> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '3 options available',
+                        '${widget.rates?.rates.length ?? 3} options available',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 13,
@@ -63,58 +68,43 @@ class _ChooseCourierState extends State<ChooseCourier> {
                   ),
                   const SizedBox(height: 12),
 
-                  _courierCard(
-                    name: 'Delhivery',
-                    code: 'DLVRY',
-                    totalPrice: 298,
-                    color: const Color(0xFFFF424A),
-                    price: 'Rs 298',
-                    delivery: 'Delivery in 3-4 days (Est. Aug 4)',
-                    note: 'Real-time tracking included',
-                    tags: const [
-                      'Door Pickup',
-                      'Door Delivery',
-                      'Live Tracking',
-                      'COD Available',
-                    ],
-                    cheapest: true,
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _courierCard(
-                    name: 'DTDC',
-                    code: 'DTDC',
-                    totalPrice: 345,
-                    color: const Color(0xFFFF6D12),
-                    price: 'Rs 345',
-                    delivery: 'Delivery in 3-5 days (Est. Aug 5)',
-                    note: 'Tracking via DTDC portal',
-                    tags: const [
-                      'Door Pickup',
-                      'Door Delivery',
-                      'Live Tracking',
-                      'COD + Rs 35',
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  _courierCard(
-                    name: 'Blue Dart',
-                    code: 'BLUE DART',
-                    totalPrice: 589,
-                    color: const Color(0xFF2345B7),
-                    price: 'Rs 589',
-                    delivery: 'Delivery in 1-2 days (Est. Aug 2)',
-                    note: 'Blue Dart live tracking',
-                    tags: const [
-                      'Door Pickup',
-                      'Door Delivery',
-                      'Fastest',
-                      'Priority Handling',
-                    ],
-                  ),
+                  if (widget.rates != null)
+                    ...widget.rates!.rates.asMap().entries.map(
+                      (entry) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _courierCard(
+                          name: entry.value.carrierName,
+                          code: entry.value.serviceMode,
+                          totalPrice: entry.value.price,
+                          color: _courierColor(entry.key),
+                          price: 'Rs ${entry.value.price.toStringAsFixed(2)}',
+                          delivery: entry.value.deliveryTime.isEmpty
+                              ? 'Delivery time unavailable'
+                              : entry.value.deliveryTime,
+                          note:
+                              'Zone ${widget.rates!.zone} • ${widget.rates!.distance.toStringAsFixed(2)} km',
+                          tags: [
+                            entry.value.serviceMode,
+                            'Prepaid',
+                            'Door Pickup',
+                          ],
+                          cheapest: entry.key == 0,
+                        ),
+                      ),
+                    )
+                  else ...[
+                    _courierCard(
+                      name: 'Delhivery',
+                      code: 'DLVRY',
+                      totalPrice: 298,
+                      color: const Color(0xFFFF424A),
+                      price: 'Rs 298',
+                      delivery: 'Delivery in 3-4 days',
+                      note: 'Real-time tracking included',
+                      tags: const ['Door Pickup', 'Door Delivery'],
+                      cheapest: true,
+                    ),
+                  ],
 
                   const SizedBox(height: 12),
                   _infoBanner(),
@@ -240,6 +230,12 @@ class _ChooseCourierState extends State<ChooseCourier> {
               weightKg: totalWeight,
               total: totalPrice,
               deliveryDate: delivery,
+              orderPayload: {
+                ...widget.orderPayload,
+                'price': totalPrice,
+                'service_id': 4,
+                'sub_service_id': 5,
+              },
             ),
           ),
         );
@@ -383,6 +379,16 @@ class _ChooseCourierState extends State<ChooseCourier> {
         style: const TextStyle(color: Color(0xFF23752E), fontSize: 11),
       ),
     );
+  }
+
+  Color _courierColor(int index) {
+    const colors = [
+      Color(0xFFFF424A),
+      Color(0xFFFF6D12),
+      Color(0xFF2345B7),
+      Color(0xFF168A5B),
+    ];
+    return colors[index % colors.length];
   }
 
   Widget _infoBanner() {

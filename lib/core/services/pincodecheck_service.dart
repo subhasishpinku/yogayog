@@ -55,9 +55,10 @@ class PincodeServiceability {
     final data = json['data'] is Map
         ? Map<String, dynamic>.from(json['data'] as Map)
         : <String, dynamic>{};
+    final serviceable = json['serviceable'] ?? data['serviceable'];
     return PincodeServiceability(
       pincode: data['pincode']?.toString() ?? '',
-      serviceable: json['serviceable'] == true,
+      serviceable: serviceable == true,
       message: json['message']?.toString() ?? '',
       city: data['city']?.toString() ?? '',
       state: data['state']?.toString() ?? '',

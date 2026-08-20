@@ -28,6 +28,8 @@ import 'package:yogayog/savedaddresses/provider/savedaddresses_provider.dart';
 import 'package:yogayog/adddropadress/provider/add_drop_address_provider.dart';
 import 'package:yogayog/Payment/provider/payment_provider.dart';
 import 'package:yogayog/truckscreen/provider/truck_local_provider.dart';
+import 'package:yogayog/nationaldetails/provider/national_provider.dart';
+import 'package:yogayog/Payment/provider/payment_national_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +75,8 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => AddDropAddressProvider()),
         ChangeNotifierProvider(create: (_) => PaymentProvider()),
         ChangeNotifierProvider(create: (_) => TruckLocalProvider()),
+        ChangeNotifierProvider(create: (_) => NationalProvider()),
+        ChangeNotifierProvider(create: (_) => PaymentNationalProvider()),
       ],
       child: const MyApp(),
     ),

@@ -1,12 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:yogayog/choosecourier/choose_courier.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:yogayog/core/services/bikescreen_service.dart';
+import 'package:yogayog/core/services/home_service.dart';
+import 'package:yogayog/nationaldetails/provider/national_provider.dart';
+import 'package:yogayog/core/services/national_service.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/constants/app_colors.dart';
 
@@ -161,6 +167,7 @@ class _PlaceSearchDialogState extends State<_PlaceSearchDialog> {
 
 class _PickupEditDialog extends StatefulWidget {
   const _PickupEditDialog({
+    this.title = 'Edit Pickup Location',
     required this.initialAddress,
     required this.initialCity,
     required this.initialPincode,
@@ -171,6 +178,7 @@ class _PickupEditDialog extends StatefulWidget {
     required this.getPlaceDetails,
   });
 
+  final String title;
   final String initialAddress;
   final String initialCity;
   final String initialPincode;
@@ -296,7 +304,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Edit Pickup Location'),
+      title: Text(widget.title),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -389,6 +397,8 @@ class _NationalDetailsState extends State<NationalDetails> {
 
   final receiverNameController = TextEditingController();
   final mobileController = TextEditingController();
+  final pickupNameController = TextEditingController();
+  final pickupPhoneController = TextEditingController();
   final pickupPinController = TextEditingController();
   final addressController = TextEditingController();
   final cityController = TextEditingController();
@@ -415,13 +425,31 @@ class _NationalDetailsState extends State<NationalDetails> {
   @override
   void initState() {
     super.initState();
+    _loadSavedProfileContact();
     _loadCurrentPickupLocation();
+  }
+
+  Future<void> _loadSavedProfileContact() async {
+    final preferences = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      if (pickupNameController.text.trim().isEmpty) {
+        pickupNameController.text =
+            preferences.getString(HomeService.profileNameKey) ?? '';
+      }
+      if (pickupPhoneController.text.trim().isEmpty) {
+        pickupPhoneController.text =
+            preferences.getString(HomeService.profileMobileKey) ?? '';
+      }
+    });
   }
 
   @override
   void dispose() {
     receiverNameController.dispose();
     mobileController.dispose();
+    pickupNameController.dispose();
+    pickupPhoneController.dispose();
     pickupPinController.dispose();
     addressController.dispose();
     cityController.dispose();
@@ -580,6 +608,31 @@ class _NationalDetailsState extends State<NationalDetails> {
       pickupLatitude = result.latitude;
       pickupLongitude = result.longitude;
     });
+    if (!await _checkNationalPincode(result.pincode)) return;
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': pickupNameController.text.trim(),
+        'mobile': pickupPhoneController.text.trim(),
+        'service_id': 1,
+        'house_numb': '',
+        'street': result.address,
+        'city': result.city,
+        'district': result.city,
+        'state': result.state,
+        'pin': result.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'lat': result.latitude,
+        'lon': result.longitude,
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Pickup location saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save pickup location',
+    );
   }
 
   Future<void> _openSavedLocations() async {
@@ -604,6 +657,7 @@ class _NationalDetailsState extends State<NationalDetails> {
       pickupLatitude = selected.latitude;
       pickupLongitude = selected.longitude;
     });
+    if (!await _checkNationalPincode(selected.pincode)) return;
   }
 
   Future<void> _openSavedDropLocations() async {
@@ -630,11 +684,38 @@ class _NationalDetailsState extends State<NationalDetails> {
       addressController.text = dropAddress;
       cityController.text = dropCity;
     });
+    if (!await _checkNationalPincode(selected.pincode)) return;
+    if (await _rejectUnserviceableKolkataRoute()) return;
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': receiverNameController.text.trim(),
+        'mobile': mobileController.text.trim(),
+        'service_id': 4,
+        'house_numb': '',
+        'street': selected.address,
+        'city': selected.city,
+        'district': selected.city,
+        'state': selected.state,
+        'pin': selected.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'lat': selected.latitude,
+        'lon': selected.longitude,
+        'flag': 'drop',
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Drop address saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save drop address',
+    );
   }
 
   // ==================== Drop Location ====================
 
-  Future<void> _editDrop() async {
+  Future<void> _openDropSearchDialog() async {
     if (placesKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -659,6 +740,101 @@ class _NationalDetailsState extends State<NationalDetails> {
       cityController.text = dropCity;
       pinController.text = dropPincode;
     });
+    if (!await _checkNationalPincode(selected.pincode)) return;
+    if (await _rejectUnserviceableKolkataRoute()) return;
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': receiverNameController.text.trim(),
+        'mobile': mobileController.text.trim(),
+        'service_id': 4,
+        'house_numb': '',
+        'street': selected.address,
+        'city': selected.city,
+        'district': selected.city,
+        'state': selected.state,
+        'pin': selected.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'lat': selected.latitude,
+        'lon': selected.longitude,
+        'flag': 'drop',
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Drop address saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save drop address',
+    );
+  }
+
+  void _dropLocationAction() {
+    if (dropAddress == 'Tap to add destination') {
+      _openDropSearchDialog();
+    } else {
+      _editDrop();
+    }
+  }
+
+  Future<void> _editDrop() async {
+    if (placesKey.isEmpty) {
+      _showMessage('Google Places API key is not configured');
+      return;
+    }
+    final selected = await showDialog<_GeoLocation>(
+      context: context,
+      builder: (_) => _PickupEditDialog(
+        title: 'Edit Drop Location',
+        initialAddress: dropAddress,
+        initialCity: dropCity,
+        initialPincode: dropPincode,
+        initialState: dropState,
+        initialLatitude: dropLatitude,
+        initialLongitude: dropLongitude,
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      dropAddress = selected.address;
+      dropCity = selected.city;
+      dropPincode = selected.pincode;
+      dropState = selected.state;
+      dropLatitude = selected.latitude;
+      dropLongitude = selected.longitude;
+      addressController.text = dropAddress;
+      cityController.text = dropCity;
+      pinController.text = dropPincode;
+    });
+    if (!await _checkNationalPincode(selected.pincode)) return;
+    if (await _rejectUnserviceableKolkataRoute()) return;
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': receiverNameController.text.trim(),
+        'mobile': mobileController.text.trim(),
+        'service_id': 4,
+        'house_numb': '',
+        'street': selected.address,
+        'city': selected.city,
+        'district': selected.city,
+        'state': selected.state,
+        'pin': selected.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'lat': selected.latitude,
+        'lon': selected.longitude,
+        'flag': 'drop',
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Drop location saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save drop location',
+    );
   }
 
   // ==================== Helper Methods ====================
@@ -711,12 +887,16 @@ class _NationalDetailsState extends State<NationalDetails> {
     TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
     bool readOnly = false,
+    List<TextInputFormatter>? inputFormatters,
+    int? maxLength,
   }) {
     return TextField(
       controller: controller,
       readOnly: readOnly,
       keyboardType: keyboardType,
       onChanged: onChanged,
+      inputFormatters: inputFormatters,
+      maxLength: maxLength,
       style: const TextStyle(color: Color(0xFF536078), fontSize: 16),
       decoration: InputDecoration(
         hintText: hintText,
@@ -790,6 +970,14 @@ class _NationalDetailsState extends State<NationalDetails> {
             true,
             _editPickup,
           ),
+          _contactRow(
+            nameController: pickupNameController,
+            phoneController: pickupPhoneController,
+            nameLabel: 'PICKUP NAME',
+            phoneLabel: 'PICKUP PHONE',
+            nameHint: 'Pickup name',
+            phoneHint: 'Pickup phone',
+          ),
           const Padding(
             padding: EdgeInsets.only(left: 6),
             child: Divider(height: 20),
@@ -827,7 +1015,58 @@ class _NationalDetailsState extends State<NationalDetails> {
             dropCity,
             dropPincode,
             false,
-            _editDrop,
+            _dropLocationAction,
+          ),
+          _contactRow(
+            nameController: receiverNameController,
+            phoneController: mobileController,
+            nameLabel: 'DROP NAME',
+            phoneLabel: 'DROP PHONE',
+            nameHint: 'Drop name',
+            phoneHint: 'Drop phone',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _contactRow({
+    required TextEditingController nameController,
+    required TextEditingController phoneController,
+    required String nameLabel,
+    required String phoneLabel,
+    required String nameHint,
+    required String phoneHint,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _label(nameLabel),
+                _textField(controller: nameController, hintText: nameHint),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _label(phoneLabel),
+                _textField(
+                  controller: phoneController,
+                  hintText: phoneHint,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  maxLength: 10,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -916,18 +1155,17 @@ class _NationalDetailsState extends State<NationalDetails> {
               ],
             ),
           ),
-          if (pickup)
-            TextButton(
-              onPressed: onTap,
-              child: const Text(
-                'Edit',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
+          TextButton(
+            onPressed: onTap,
+            child: const Text(
+              'Edit',
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
               ),
             ),
+          ),
         ],
       ),
     );
@@ -1173,23 +1411,218 @@ class _NationalDetailsState extends State<NationalDetails> {
     );
   }
 
-  void _reviewAndConfirm() {
+  bool _isKolkataLocation(String city, String address) {
+    final value = '$city $address'.toLowerCase();
+    return value.contains('kolkata') || value.contains('calcutta');
+  }
+
+  Future<void> _showUnserviceableRouteAlert() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Service unavailable'),
+        content: const Text('This area is not serviceable for this time'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    setState(() {
+      pickupAddress = 'Tap to add pickup location';
+      pickupCity = '';
+      pickupPincode = '';
+      pickupState = '';
+      pickupLatitude = null;
+      pickupLongitude = null;
+      pickupPinController.clear();
+      dropAddress = 'Tap to add destination';
+      dropCity = '';
+      dropPincode = '';
+      dropState = '';
+      dropLatitude = null;
+      dropLongitude = null;
+      pinController.clear();
+      addressController.clear();
+      cityController.clear();
+    });
+  }
+
+  Future<bool> _rejectUnserviceableKolkataRoute() async {
+    if (!_isKolkataLocation(pickupCity, pickupAddress) ||
+        !_isKolkataLocation(dropCity, dropAddress)) {
+      return false;
+    }
+    await _showUnserviceableRouteAlert();
+    return true;
+  }
+
+  Future<bool> _checkNationalPincode(String pincode) async {
+    final value = pincode.trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(value)) {
+      _showMessage('Please enter a valid 6-digit pincode');
+      return false;
+    }
+    final provider = context.read<NationalProvider>();
+    final serviceable = await provider.checkPincode(value);
+    if (!mounted) return false;
+    if (!serviceable) {
+      _showMessage(
+        provider.errorMessage ??
+            provider.result?.message ??
+            'This pincode is not serviceable',
+      );
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _reviewAndConfirm() async {
     FocusScope.of(context).unfocus();
+    if (!await _checkNationalPincode(pickupPincode) ||
+        !await _checkNationalPincode(dropPincode)) {
+      return;
+    }
+    if (await _rejectUnserviceableKolkataRoute()) return;
+    if (pickupNameController.text.trim().isEmpty ||
+        pickupPhoneController.text.trim().length != 10 ||
+        receiverNameController.text.trim().isEmpty ||
+        mobileController.text.trim().length != 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please enter pickup and drop name with valid 10-digit phone number',
+          ),
+        ),
+      );
+      return;
+    }
     final approximateWeight =
         double.tryParse(approximateWeightController.text) ?? 0;
     final volumetricWeight = packageBoxes.fold<double>(
       0,
       (total, box) => total + box.volumetricWeight,
     );
-    showDialog<void>(
+    final weight = approximateWeight > 0 ? approximateWeight : 1.0;
+    final boxes = packageBoxes.isEmpty
+        ? [
+            {
+              'pieces': int.tryParse(piecesController.text) ?? 1,
+              'length': 0,
+              'breadth': 0,
+              'height': 0,
+              'weight': weight,
+            },
+          ]
+        : packageBoxes
+              .map(
+                (box) => {
+                  'pieces': 1,
+                  'length': double.tryParse(box.lengthController.text) ?? 0,
+                  'breadth': double.tryParse(box.breadthController.text) ?? 0,
+                  'height': double.tryParse(box.heightController.text) ?? 0,
+                  'weight': weight,
+                },
+              )
+              .toList();
+    final ratesPayload = <String, dynamic>{
+      'service_id': 4,
+      'package_type_id': 1,
+      'weight': weight,
+      'pickup_pincode': pickupPincode.trim(),
+      'delivery_pincode': dropPincode.trim(),
+      'payment_type': 'prepaid',
+      'drop_lat': dropLatitude ?? 0,
+      'pickup_lat': pickupLatitude ?? 0,
+      'pickup_lng': pickupLongitude ?? 0,
+      'drop_lng': dropLongitude ?? 0,
+      'rate_type': 'forward',
+    };
+    final orderPayload = <String, dynamic>{
+      'order_type': 'domestic',
+      'service_id': 4,
+      'sub_service_id': 5,
+      'pickup_date': DateTime.now().toIso8601String().split('T').first,
+      'payment_method': 'ONLINE',
+      'price': 0,
+      'package_type_id': 1,
+      'pieces': int.tryParse(piecesController.text) ?? 1,
+      'dead_weight': weight,
+      'volumetric_weight': volumetricWeight,
+      'chargeable_weight': weight > volumetricWeight ? weight : volumetricWeight,
+      'hsn_code': '8517',
+      'boxes': boxes,
+      'pickup': {
+        'name': pickupNameController.text.trim(),
+        'mobile': pickupPhoneController.text.trim(),
+        'address': pickupAddress,
+        'house_no': '',
+        'city': pickupCity,
+        'state': pickupState,
+        'pincode': pickupPincode,
+        'lat': pickupLatitude ?? 0,
+        'lng': pickupLongitude ?? 0,
+        'country': 'India',
+      },
+      'drop': {
+        'name': receiverNameController.text.trim(),
+        'mobile': mobileController.text.trim(),
+        'address': dropAddress,
+        'house_no': '',
+        'city': dropCity,
+        'state': dropState,
+        'pincode': dropPincode,
+        'lat': dropLatitude ?? 0,
+        'lng': dropLongitude ?? 0,
+        'country': 'India',
+      },
+    };
+    final provider = context.read<NationalProvider>();
+    final rates = await provider.loadRates(payload: ratesPayload);
+    if (!mounted) return;
+    if (rates == null || rates.rates.isEmpty) {
+      _showMessage(provider.errorMessage ?? 'No courier rates available');
+      return;
+    }
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('national_rates_response', jsonEncode(rates.raw));
+    await preferences.setString(
+      'national_rates_payload',
+      jsonEncode(ratesPayload),
+    );
+    await preferences.setString(
+      'national_order_payload',
+      jsonEncode(orderPayload),
+    );
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirm Shipment'),
-        content: Text(
-          'Package: $selectedPackageType\n'
-          'Size: $selectedPackageSize\n'
-          'Pieces: ${piecesController.text}\n'
-          'Service: $selectedService',
+        content: SingleChildScrollView(
+          child: Text(
+            'Package type: $selectedPackageType\n'
+            'Package size: $selectedPackageSize\n'
+            'Pieces: ${piecesController.text}\n'
+            'Weight: ${weight.toStringAsFixed(2)} kg\n'
+            'Service: $selectedService\n\n'
+            'Pickup details\n'
+            'Name: ${pickupNameController.text.trim()}\n'
+            'Phone: ${pickupPhoneController.text.trim()}\n'
+            'Address: $pickupAddress\n'
+            'City: $pickupCity\n'
+            'State: $pickupState\n'
+            'Pincode: $pickupPincode\n\n'
+            'Drop details\n'
+            'Name: ${receiverNameController.text.trim()}\n'
+            'Phone: ${mobileController.text.trim()}\n'
+            'Address: $dropAddress\n'
+            'City: $dropCity\n'
+            'State: $dropState\n'
+            'Pincode: $dropPincode',
+          ),
         ),
         actions: [
           TextButton(
@@ -1197,21 +1630,24 @@ class _NationalDetailsState extends State<NationalDetails> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChooseCourier(
-                    approximateWeightKg: approximateWeight,
-                    volumetricWeightKg: volumetricWeight,
-                  ),
-                ),
-              );
-            },
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Confirm'),
           ),
         ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChooseCourier(
+          approximateWeightKg: approximateWeight,
+          volumetricWeightKg: volumetricWeight,
+          origin: pickupCity.isEmpty ? 'Pickup' : pickupCity,
+          destination: dropCity.isEmpty ? 'Drop' : dropCity,
+          rates: rates,
+          orderPayload: orderPayload,
+        ),
       ),
     );
   }
@@ -1236,38 +1672,6 @@ class _NationalDetailsState extends State<NationalDetails> {
           children: [
             _locationCard(),
             const SizedBox(height: 14),
-
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _label('FULL NAME'),
-                      _textField(
-                        controller: receiverNameController,
-                        hintText: 'Full name',
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _label('MOBILE'),
-                      _textField(
-                        controller: mobileController,
-                        hintText: 'Mobile no.',
-                        keyboardType: TextInputType.phone,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
 
             _label('DELIVERY ADDRESS'),
             _textField(controller: addressController, hintText: 'Full address'),
