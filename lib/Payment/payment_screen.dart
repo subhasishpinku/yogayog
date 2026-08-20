@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/bookingsuccess/bookingsuccess.dart';
+import 'package:yogayog/Payment/provider/payment_provider.dart';
+import 'package:provider/provider.dart';
 
 class PaymentScreen extends StatefulWidget {
-  const PaymentScreen({super.key, this.amount = 149});
+  const PaymentScreen({
+    super.key,
+    this.amount = 149,
+    this.orderPayload = const {},
+  });
 
   final double amount;
+  final Map<String, dynamic> orderPayload;
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -13,6 +20,35 @@ class PaymentScreen extends StatefulWidget {
 
 class _PaymentScreenState extends State<PaymentScreen> {
   String? selectedMethod;
+
+  Future<void> _processPayment() async {
+    if (selectedMethod == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a payment method')),
+      );
+      return;
+    }
+    if (widget.orderPayload.isEmpty) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const BookingSuccess()),
+        (route) => false,
+      );
+      return;
+    }
+    final payload = Map<String, dynamic>.from(widget.orderPayload)
+      ..['payment_method'] = selectedMethod == 'Cash on Delivery' ? 'COD' : 'ONLINE';
+    final order = await context.read<PaymentProvider>().createOrder(payload: payload);
+    if (!mounted) return;
+    if (order == null) {
+      final message = context.read<PaymentProvider>().errorMessage ?? 'Unable to create order';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => BookingSuccess(order: order)),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,20 +83,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: () {
-                if (selectedMethod == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please select a payment method'),
-                    ),
-                  );
-                  return;
-                }
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const BookingSuccess()),
-                  (route) => false,
-                );
-              },
+              onPressed: context.watch<PaymentProvider>().isLoading ? null : _processPayment,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryButton,
                 foregroundColor: Colors.black,
@@ -73,7 +96,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              child: const Text('Process Payment →'),
+              child: context.watch<PaymentProvider>().isLoading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Process Payment →'),
             ),
           ),
         ),

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:yogayog/Payment/payment_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/bikescreen_service.dart';
-import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
-import 'package:provider/provider.dart';
 
 class BikeConfirmScreem extends StatefulWidget {
   const BikeConfirmScreem({
@@ -38,13 +36,13 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
     super.dispose();
   }
 
-  bool _isCreatingOrder = false;
-
-  Future<void> _proceedToPayment() async {
-    if (_isCreatingOrder) return;
-    setState(() => _isCreatingOrder = true);
-    final order = await context.read<BikescreenProvider>().createOrder(
-      payload: {
+  void _proceedToPayment() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PaymentScreen(
+          amount: widget.rate.price,
+          orderPayload: {
         'order_type': 'local',
         'payment_method': 'ONLINE',
         'price': widget.rate.price,
@@ -54,26 +52,10 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
         'sub_service_id': 2,
         'pickup_date': DateTime.now().toIso8601String().substring(0, 10),
         'pickup': widget.pickup,
-        'drop': widget.drop,
-      },
-    );
-    if (!mounted) return;
-    setState(() => _isCreatingOrder = false);
-    if (order == null) {
-      final message =
-          context.read<BikescreenProvider>().errorMessage ??
-          'Unable to create order';
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Order ${order.orderId} created successfully')),
-    );
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const PaymentScreen()),
+            'drop': widget.drop,
+          },
+        ),
+      ),
     );
   }
 
@@ -443,7 +425,7 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
           child: SizedBox(
             height: 80,
             child: ElevatedButton(
-              onPressed: _isCreatingOrder ? null : _proceedToPayment,
+              onPressed: _proceedToPayment,
               style: ElevatedButton.styleFrom(
                 backgroundColor: yellow,
                 foregroundColor: Colors.black,
@@ -452,20 +434,11 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
                   borderRadius: BorderRadius.circular(15),
                 ),
               ),
-              child: _isCreatingOrder
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text(
-                      'Confirm\nBooking',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
+              child: const Text(
+                'Confirm\nBooking',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
             ),
           ),
         ),

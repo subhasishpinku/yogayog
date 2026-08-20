@@ -26,6 +26,7 @@ import 'package:yogayog/pincodecheck/provider/pincodecheck_provider.dart';
 import 'package:yogayog/termsprivacy/provider/term_privacy_provider.dart';
 import 'package:yogayog/savedaddresses/provider/savedaddresses_provider.dart';
 import 'package:yogayog/adddropadress/provider/add_drop_address_provider.dart';
+import 'package:yogayog/Payment/provider/payment_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,6 +70,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => TermPrivacyProvider()),
         ChangeNotifierProvider(create: (_) => SavedAddressesProvider()),
         ChangeNotifierProvider(create: (_) => AddDropAddressProvider()),
+        ChangeNotifierProvider(create: (_) => PaymentProvider()),
       ],
       child: const MyApp(),
     ),

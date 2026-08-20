@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/dashboard/dashboard_scren.dart';
 import 'package:yogayog/homescreen/home_screen.dart';
+import 'package:yogayog/core/services/payment_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class BookingSuccess extends StatefulWidget {
-  const BookingSuccess({super.key});
+  const BookingSuccess({super.key, this.order});
+
+  final PaymentOrderResponse? order;
 
   @override
   State<BookingSuccess> createState() => _BookingSuccessState();
@@ -48,8 +52,12 @@ class _BookingSuccessState extends State<BookingSuccess> {
                 ),
               ),
               const SizedBox(height: 21),
-              const _TrackingCard(),
+              _TrackingCard(orderId: widget.order?.orderId ?? ''),
               const SizedBox(height: 20),
+              if (widget.order != null) ...[
+                _InvoiceCard(order: widget.order!),
+                const SizedBox(height: 20),
+              ],
               // const _CommissionCard(),
               // const SizedBox(height: 21),
               SizedBox(
@@ -105,7 +113,9 @@ class _SuccessIcon extends StatelessWidget {
 }
 
 class _TrackingCard extends StatelessWidget {
-  const _TrackingCard();
+  const _TrackingCard({required this.orderId});
+
+  final String orderId;
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +126,7 @@ class _TrackingCard extends StatelessWidget {
         color: const Color(0xFFE8F5EF),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: const Column(
+      child: Column(
         children: [
           Text(
             'TRACKING ID',
@@ -128,11 +138,82 @@ class _TrackingCard extends StatelessWidget {
           ),
           SizedBox(height: 4),
           Text(
-            'YCG-2025-00921',
+            orderId.isEmpty ? 'Order created' : orderId,
             style: TextStyle(
               color: _BookingSuccessState._green,
               fontSize: 21,
               fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvoiceCard extends StatelessWidget {
+  const _InvoiceCard({required this.order});
+
+  final PaymentOrderResponse order;
+
+  Future<void> _downloadInvoice(BuildContext context) async {
+    final uri = Uri.tryParse(order.invoiceUrl);
+    if (uri == null || !await canLaunchUrl(uri)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to open invoice download link')),
+        );
+      }
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE0E2E8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'INVOICE DETAILS',
+            style: TextStyle(
+              color: Color(0xFF667085),
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              letterSpacing: .6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Invoice: ${order.invoiceId.isEmpty ? '-' : order.invoiceId}',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: order.invoiceUrl.isEmpty
+                  ? null
+                  : () => _downloadInvoice(context),
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('Download Invoice'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryButton,
+                foregroundColor: Colors.black,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
             ),
           ),
         ],
