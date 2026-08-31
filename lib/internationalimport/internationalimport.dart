@@ -1242,6 +1242,105 @@ class _InternationalImportState extends State<InternationalImport> {
   }
 
   Widget _locationCard() {
+    return Column(
+      children: [
+        _internationalImportLocationCard(pickup: true),
+        const SizedBox(height: 8),
+        _internationalImportLocationCard(pickup: false),
+      ],
+    );
+  }
+
+  Widget _internationalImportLocationCard({required bool pickup}) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
+        ],
+      ),
+      child: Column(
+        children: [
+          _internationalImportLocationHeader(pickup: pickup),
+          const SizedBox(height: 5),
+          _locationContactFields(pickup: pickup),
+          const SizedBox(height: 6),
+          _locationRow(
+            pickup ? 'PICKUP' : 'DROP',
+            pickup ? pickupAddress : dropAddress,
+            pickup ? pickupCity : dropCity,
+            pickup ? pickupPincode : dropPincode,
+            pickup,
+            pickup ? _openPickupSearch : _editDrop,
+            editOnTap: pickup ? _editPickup : _editDrop,
+            showContactFields: false,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _internationalImportLocationHeader({required bool pickup}) {
+    final accent = pickup ? const Color(0xFFFFB800) : const Color(0xFF5EA8FF);
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: pickup ? const Color(0xFF121214) : const Color(0xFF1E2B43),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 10,
+            backgroundColor: accent,
+            child: Text(
+              pickup ? 'P' : 'D',
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            pickup ? 'PICKUP' : 'DROP',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: pickup ? _openSavedLocations : _openSavedDropLocations,
+            icon: const Icon(Icons.folder, size: 13),
+            label: const Text('SAVED ADDRESS'),
+            style: TextButton.styleFrom(
+              foregroundColor: accent,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              textStyle: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+              side: BorderSide(color: accent.withOpacity(.5)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /*
+  Widget _locationCard() {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: BoxDecoration(
@@ -1349,6 +1448,8 @@ class _InternationalImportState extends State<InternationalImport> {
     );
   }
 
+  */
+
   Widget _locationRow(
     String label,
     String address,
@@ -1438,19 +1539,6 @@ class _InternationalImportState extends State<InternationalImport> {
                 onPressed: editOnTap ?? onTap,
                 child: Text(
                   'Edit',
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: pickup
-                    ? _openSavedLocations
-                    : _openSavedDropLocations,
-                child: const Text(
-                  'Save',
                   style: const TextStyle(
                     color: Colors.black,
                     fontWeight: FontWeight.bold,

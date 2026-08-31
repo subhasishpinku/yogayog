@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:yogayog/Payment/payment_national_Import_wallet_screen.dart';
 import 'package:yogayog/Payment/payment_national_import_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/viewledger_service.dart';
 
 class ConfirmOrderImport extends StatefulWidget {
   const ConfirmOrderImport({
@@ -40,6 +42,7 @@ class ConfirmOrderImport extends StatefulWidget {
 
 class _ConfirmOrderState extends State<ConfirmOrderImport> {
   final instructionController = TextEditingController();
+  bool _checkingWallet = false;
 
   Map<String, dynamic> get _pickup {
     final value = widget.orderPayload['pickup'];
@@ -398,25 +401,7 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
                   child: SizedBox(
                     height: 60,
                     child: ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Order confirmed successfully'),
-                          ),
-                        );
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PaymentNationalScreenImport(
-                              amount: widget.total,
-                              orderPayload: {
-                                ...widget.orderPayload,
-                                'price': widget.total,
-                              },
-                            ),
-                          ),
-                        );
-                      },
+                      onPressed: _checkingWallet ? null : _proceedToPayment,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFFC400),
                         foregroundColor: Colors.black,
@@ -425,14 +410,20 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
                           borderRadius: BorderRadius.circular(15),
                         ),
                       ),
-                      child: const Text(
-                        'Confirm Booking',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                      child: _checkingWallet
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'Confirm Booking',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -442,6 +433,34 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
         ),
       ),
     );
+  }
+
+  Future<void> _proceedToPayment() async {
+    setState(() => _checkingWallet = true);
+    final payload = {...widget.orderPayload, 'price': widget.total};
+
+    try {
+      final ledger = await ViewledgerService().getLedger();
+      if (!mounted) return;
+      final destination = ledger.currentBalance >= widget.total
+          ? PaymentWalletNationalImportWalletScreen(
+              amount: widget.total,
+              currentBalance: ledger.currentBalance,
+              orderPayload: payload,
+            )
+          : PaymentNationalScreenImport(
+              amount: widget.total,
+              orderPayload: payload,
+            );
+      Navigator.push(context, MaterialPageRoute(builder: (_) => destination));
+    } on ViewledgerException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _checkingWallet = false);
+    }
   }
 
   Widget _commissionCard() {
