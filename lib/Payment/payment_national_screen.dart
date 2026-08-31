@@ -36,7 +36,9 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
       return;
     }
     final payload = Map<String, dynamic>.from(widget.orderPayload)
-      ..['payment_method'] = selectedMethod == 'Cash on Delivery' ? 'COD' : 'ONLINE';
+      ..['payment_method'] = selectedMethod == 'Cash on Delivery'
+          ? 'COD'
+          : 'ONLINE';
     final order = await context.read<PaymentNationalProvider>().createOrder(
       payload: payload,
     );
@@ -45,7 +47,9 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
       final message =
           context.read<PaymentNationalProvider>().errorMessage ??
           'Unable to create order';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
       return;
     }
     Navigator.of(context).pushAndRemoveUntil(

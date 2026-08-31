@@ -34,6 +34,12 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
 
   int selectedVehicle = 0;
   bool scheduleLater = false;
+  bool _showAllVehicles = false;
+
+  double get totalWeight =>
+      widget.approximateWeightKg > widget.volumetricWeightKg
+      ? widget.approximateWeightKg
+      : widget.volumetricWeightKg;
 
   List<TruckVehicleRate> get vehicles => widget.rateResponse.rates;
 
@@ -50,61 +56,85 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(12, 14, 12, 24),
                 children: [
-                  _steps(),
-
                   const SizedBox(height: 14),
 
                   ...List.generate(
-                    vehicles.length,
+                    _showAllVehicles
+                        ? vehicles.length
+                        : vehicles.take(1).length,
                     (index) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _vehicleCard(index),
                     ),
                   ),
 
-                  _scheduleCard(),
-
-                  const SizedBox(height: 28),
-
-                  SizedBox(
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => TruckConfirmScreen(
-                              rate: vehicles[selectedVehicle],
-                              distance: widget.rateResponse.distance,
-                              pickup: widget.pickup,
-                              drop: widget.drop,
-                              pickupAddress: widget.pickupAddress,
-                              dropAddress: widget.dropAddress,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: yellow,
-                        foregroundColor: blue,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                  if (vehicles.length > 1)
+                    Align(
+                      alignment: Alignment.center,
+                      child: TextButton.icon(
+                        onPressed: () => setState(
+                          () => _showAllVehicles = !_showAllVehicles,
                         ),
-                      ),
-                      child: const Text(
-                        'Continue →',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                        icon: Icon(
+                          _showAllVehicles
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
+                          color: blue,
+                        ),
+                        label: Text(
+                          _showAllVehicles
+                              ? 'Show fewer trucks'
+                              : 'View all trucks (${vehicles.length})',
+                          style: const TextStyle(
+                            color: blue,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+        child: SizedBox(
+          height: 52,
+          child: ElevatedButton(
+            onPressed: _continueToConfirm,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: yellow,
+              foregroundColor: blue,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: const Text(
+              'Continue →',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _continueToConfirm() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TruckConfirmScreen(
+          rate: vehicles[selectedVehicle],
+          distance: widget.rateResponse.distance,
+          pickup: widget.pickup,
+          drop: widget.drop,
+          pickupAddress: widget.pickupAddress,
+          dropAddress: widget.dropAddress,
+          approximateWeightKg: widget.approximateWeightKg,
+          volumetricWeightKg: widget.volumetricWeightKg,
         ),
       ),
     );
@@ -112,7 +142,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
 
   Widget _header(BuildContext context) {
     return Container(
-      height: 100,
+      height: 150,
       width: double.infinity,
       color: blue,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
@@ -153,10 +183,12 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
 
           const SizedBox(height: 3),
 
-          const Text(
-            'Prices include pickup & drop',
-            style: TextStyle(color: Colors.white60, fontSize: 12),
+          Text(
+            'Prices include pickup & drop · ${totalWeight.toStringAsFixed(2)} kg',
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
           ),
+          const SizedBox(height: 6),
+          _steps(),
         ],
       ),
     );
@@ -187,8 +219,8 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
                 ? blue
                 : active
                 ? yellow
-                : Colors.white,
-            border: Border.all(color: active ? blue : const Color(0xFFD9DCE5)),
+                : Colors.white24,
+            border: Border.all(color: active ? blue : Colors.white54),
           ),
           child: Text(
             number,
@@ -197,7 +229,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
                   ? Colors.white
                   : active
                   ? blue
-                  : const Color(0xFF8A8F9C),
+                  : Colors.white70,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -206,7 +238,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
         Text(
           label,
           style: TextStyle(
-            color: active ? blue : const Color(0xFF8A8F9C),
+            color: active ? yellow : Colors.white70,
             fontSize: 10,
             fontWeight: active ? FontWeight.bold : FontWeight.normal,
           ),
@@ -220,7 +252,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
       child: Container(
         height: 2,
         margin: const EdgeInsets.only(bottom: 20),
-        color: const Color(0xFFD9DCE5),
+        color: Colors.white54,
       ),
     );
   }
@@ -252,7 +284,9 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
               ),
               child: Center(
                 child: Text(
-                  vehicle.vehicleType.toLowerCase().contains('truck') ? '🚚' : '🚛',
+                  vehicle.vehicleType.toLowerCase().contains('truck')
+                      ? '🚚'
+                      : '🚛',
                   style: const TextStyle(fontSize: 27),
                 ),
               ),
@@ -282,9 +316,26 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 3),
+
+                  Text(
+                    'Weight ${totalWeight.toStringAsFixed(2)} kg',
+                    style: const TextStyle(
+                      color: Color(0xFF8A8F9C),
+                      fontSize: 11,
+                    ),
+                  ),
+
                   const SizedBox(height: 6),
 
-                  Text('Base ₹${vehicle.basePrice.toStringAsFixed(2)} + GST', style: const TextStyle(color: blue, fontSize: 10, fontWeight: FontWeight.bold)),
+                  Text(
+                    'Base ₹${vehicle.basePrice.toStringAsFixed(2)} + GST',
+                    style: const TextStyle(
+                      color: blue,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),

@@ -1,18 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:yogayog/bikescreen/blick_local_screem.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/disputes/disputes.dart';
 import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/homescreen/home_provider.dart';
 import 'package:yogayog/core/services/home_service.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/internationalimport/internationalimport.dart';
+import 'package:yogayog/paperworkrequired/paperwork_required.dart';
 import 'package:yogayog/profile/profile_screen.dart';
 import 'package:yogayog/profile/provider/profile_provider.dart';
 import 'package:yogayog/mywallet/mywallet.dart';
 import 'package:yogayog/OnboardingScreen/onboarding_screen.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
+import 'package:yogayog/reschedule/reschedule.dart';
 import 'package:yogayog/truckscreen/choose_truck_screen.dart';
 import 'package:yogayog/nationaldetails/national_details.dart';
 import 'package:yogayog/internationaldetails/international_details.dart';
@@ -30,7 +35,11 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _logoController;
+  late final PageController _activeShipmentController;
+  Timer? _activeShipmentTimer;
   String _currentAddress = 'Fetching current location...';
   double? _currentLatitude;
   double? _currentLongitude;
@@ -38,12 +47,44 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _logoController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _activeShipmentController = PageController(viewportFraction: .95);
+    _activeShipmentTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || !_activeShipmentController.hasClients) return;
+
+      final count = context
+          .read<HistoryProvider>()
+          .history
+          ?.ordersToDisplay
+          .take(5)
+          .length;
+      if (count == null || count < 2) return;
+
+      final currentPage = _activeShipmentController.page?.round() ?? 0;
+      final nextPage = (currentPage + 1) % count;
+      _activeShipmentController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+      );
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<HomeProvider>().loadProfile();
       if (mounted) context.read<HomeProvider>().loadServices();
       if (mounted) context.read<HistoryProvider>().loadBookings();
       _loadCurrentLocation();
     });
+  }
+
+  @override
+  void dispose() {
+    _activeShipmentTimer?.cancel();
+    _logoController.dispose();
+    _activeShipmentController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCurrentLocation() async {
@@ -160,34 +201,60 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  _timeGreeting(),
-                  style: TextStyle(color: Colors.white60, fontSize: 12),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: AnimatedBuilder(
+                    animation: _logoController,
+                    builder: (context, child) {
+                      final animationValue = _logoController.value;
+                      return Opacity(
+                        opacity: 0.92 + (animationValue * 0.08),
+                        child: Transform.scale(
+                          scale: 0.97 + (animationValue * 0.03),
+                          alignment: Alignment.topLeft,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: SizedBox(
+                      width: 100,
+                      height: 50,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
               Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      InkWell(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const MyWallet()),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(18),
-                        child: const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: yellow,
-                          child: Icon(
-                            Icons.account_balance_wallet,
-                            color: blue,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
+                      // InkWell(
+                      //   onTap: () {
+                      //     Navigator.push(
+                      //       context,
+                      //       MaterialPageRoute(builder: (_) => const MyWallet()),
+                      //     );
+                      //   },
+                      //   borderRadius: BorderRadius.circular(18),
+                      //   child: const CircleAvatar(
+                      //     radius: 18,
+                      //     backgroundColor: yellow,
+                      //     child: Icon(
+                      //       Icons.account_balance_wallet,
+                      //       color: blue,
+                      //     ),
+                      //   ),
+                      // ),
+                      // const SizedBox(width: 10),
                       InkWell(
                         onTap: () {
                           Navigator.push(
@@ -198,46 +265,65 @@ class _HomeScreenState extends State<HomeScreen> {
                           );
                         },
                         borderRadius: BorderRadius.circular(18),
-                        child: CircleAvatar(
-                          radius: 18,
-                          backgroundColor: yellow,
-                          child: Text(
-                            profile?.initials ?? 'U',
-                            style: const TextStyle(
-                              color: blue,
-                              fontWeight: FontWeight.bold,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: yellow,
+                              child: Text(
+                                profile?.initials ?? 'U',
+                                style: const TextStyle(
+                                  color: blue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 3),
+                            Text(
+                              profile?.name.isNotEmpty == true
+                                  ? profile!.name
+                                  : 'Loading...',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      SizedBox(
-                        width: 50,
-                        child: ElevatedButton.icon(
-                          onPressed: _logout,
-                          // icon: const Icon(Icons.logout, size: 12),
-                          label: const Text(
-                            'Logout',
-                            style: TextStyle(fontSize: 10),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: yellow,
-                            foregroundColor: blue,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                      ),
+                      // const SizedBox(width: 10),
+                      // SizedBox(
+                      //   width: 50,
+                      //   child: ElevatedButton.icon(
+                      //     onPressed: _logout,
+                      //     // icon: const Icon(Icons.logout, size: 12),
+                      //     label: const Text(
+                      //       'Logout',
+                      //       style: TextStyle(fontSize: 10),
+                      //     ),
+                      //     style: ElevatedButton.styleFrom(
+                      //       backgroundColor: yellow,
+                      //       foregroundColor: blue,
+                      //       elevation: 0,
+                      //       padding: const EdgeInsets.symmetric(vertical: 2),
+                      //       shape: RoundedRectangleBorder(
+                      //         borderRadius: BorderRadius.circular(10),
+                      //       ),
+                      //     ),
+                      //   ),
+                      // ),
                     ],
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 10),
 
           Transform.translate(
             offset: const Offset(0, -10),
@@ -247,23 +333,23 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            profile?.name.isNotEmpty == true
-                                ? profile!.name
-                                : 'Loading...',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 5),
+                      // Row(
+                      //   children: [
+                      //     Text(
+                      //       profile?.name.isNotEmpty == true
+                      //           ? profile!.name
+                      //           : 'Loading...',
+                      //       maxLines: 1,
+                      //       overflow: TextOverflow.ellipsis,
+                      //       style: const TextStyle(
+                      //         color: Colors.white,
+                      //         fontSize: 18,
+                      //         fontWeight: FontWeight.bold,
+                      //       ),
+                      //     ),
+                      //   ],
+                      // ),
+                      // const SizedBox(width: 5),
                       if (profile?.email.isNotEmpty == true) ...[
                         const SizedBox(height: 3),
                         Text(
@@ -374,7 +460,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _Category(
             icon: '🏍️',
-            title: 'Local Bike',
+            title: 'Bike',
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const BikeLocalScreen()),
@@ -382,7 +468,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           _Category(
             icon: '🚚',
-            title: 'Local Truck',
+            title: 'Truck',
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const TruckLocalScreen()),
@@ -398,7 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           _Category(
             icon: '🌍',
-            title: "Int'Export",
+            title: "International\nExport",
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const InternationalDetails()),
@@ -406,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           _Category(
             icon: '🌍',
-            title: "Int'Import",
+            title: "International\nImport",
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const InternationalImport()),
@@ -458,50 +544,171 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildActiveShipment() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 14),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: blue,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Expanded(
+    final history = context.watch<HistoryProvider>();
+
+    if (history.isLoading) {
+      return const SizedBox(
+        height: 130,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final bookings = history.history?.ordersToDisplay.take(5).toList() ?? [];
+    if (bookings.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 120,
+      child: PageView.builder(
+        itemCount: bookings.length,
+        controller: _activeShipmentController,
+        itemBuilder: (context, index) {
+          final booking = bookings[index];
+          final route = [
+            booking.pickupCity,
+            booking.dropCity,
+          ].where((city) => city.trim().isNotEmpty).join(' → ');
+          final status = booking.status.isEmpty ? 'Processing' : booking.status;
+
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 6),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: blue,
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Active Shipment',
-                  style: TextStyle(color: Colors.white60, fontSize: 11),
-                ),
-                SizedBox(height: 3),
-                Text(
-                  'YCG-2025-00891',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Active Shipment',
+                          style: TextStyle(color: Colors.white60, fontSize: 11),
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                booking.orderNo,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            SizedBox(
+                              width: 52,
+                              child: _activeShipmentButton(
+                                'Modify',
+                                yellow,
+                                blue,
+                                () => _showShipmentAction('Modify', booking),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            SizedBox(
+                              width: 62,
+                              child: _activeShipmentButton(
+                                'Reschedule',
+                                yellow,
+                                blue,
+                                () => _showRescheduleAction(
+                                  'Reschedule',
+                                  booking,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '• $status${route.isEmpty ? '' : ' - $route'}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: yellow, fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                SizedBox(height: 4),
-                Text(
-                  '• In Transit - Kolkata → Delhi',
-                  style: TextStyle(color: yellow, fontSize: 12),
-                ),
+                // const SizedBox(height: 8),
+                // Row(
+                //   children: [
+                //     Expanded(
+                //       child: _activeShipmentButton(
+                //         'Track Live',
+                //         yellow,
+                //         blue,
+                //         _showTrackingDialog,
+                //       ),
+                //     ),
+                //   ],
+                // ),
               ],
             ),
-          ),
-          ElevatedButton(
-            onPressed: _showTrackingDialog,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: yellow,
-              foregroundColor: blue,
-              elevation: 0,
-            ),
-            child: const Text('Track Live'),
-          ),
-        ],
+          );
+        },
       ),
+    );
+  }
+
+  Widget _activeShipmentButton(
+    String label,
+    Color backgroundColor,
+    Color foregroundColor,
+    VoidCallback onPressed,
+  ) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: backgroundColor,
+        foregroundColor: foregroundColor,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  void _showShipmentAction(String action, Booking booking) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Disputes(
+          orderNo: booking.orderNo,
+          serviceName: booking.serviceName,
+          subServiceName: booking.subServiceName,
+          orderDate: booking.orderDate,
+          pickupCity: booking.pickupCity,
+          dropCity: booking.dropCity,
+          status: booking.status,
+          amount: booking.amount,
+        ),
+      ),
+    );
+  }
+
+  void _showRescheduleAction(String action, Booking booking) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => Reschedule(booking: booking)),
     );
   }
 
@@ -902,7 +1109,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Column(
       children: [
-        _sectionTitle('Our Services', 'View all'),
+        _sectionTitle('Our Services', ''),
         SizedBox(
           height: 145,
           child: ListView(
@@ -988,7 +1195,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         _sectionTitle(
           'Recent Shipments',
-          'See all',
+          '',
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const HistoryScreen()),
@@ -1032,11 +1239,16 @@ class _HomeScreenState extends State<HomeScreen> {
       booking.orderDate,
     ].where((value) => value.trim().isNotEmpty).join(' · ');
 
+    final displayStatus = booking.status.trim().toLowerCase() == 'created'
+        ? 'Track'
+        : (booking.status.isEmpty ? 'Processing' : booking.status);
+
     return _shipment(
       _bookingIcon(booking.serviceName),
       route.isEmpty ? 'Shipment' : route,
       details.isEmpty ? booking.subServiceName : details,
-      booking.status.isEmpty ? 'Processing' : booking.status,
+      displayStatus,
+      booking.orderNo,
     );
   }
 
@@ -1090,7 +1302,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _shipment(String icon, String location, String number, String status) {
+  Widget _shipment(
+    String icon,
+    String location,
+    String number,
+    String status, [
+    String? trackingId,
+  ]) {
     final isDelivered = status.toLowerCase().contains('delivered');
     final isTransit = status.toLowerCase().contains('transit');
     final statusColor = isDelivered
@@ -1140,34 +1358,102 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  number,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF7B8493),
-                    fontSize: 11,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        number,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF7B8493),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                    if (status == 'Track') ...[
+                      const SizedBox(width: 6),
+                      ElevatedButton(
+                        onPressed: () =>
+                            widget.onMoreTrack?.call(trackingId ?? number),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: yellow,
+                          foregroundColor: blue,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 5,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Track',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PaperworkRequired(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: blue,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 5,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Upload',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              status,
-              style: TextStyle(
-                color: statusColor,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
+          if (status != 'Track') ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(
+                  color: statusColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

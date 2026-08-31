@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/home_service.dart';
 
 class PaperworkRequired extends StatefulWidget {
   const PaperworkRequired({super.key});
@@ -11,45 +13,88 @@ class PaperworkRequired extends StatefulWidget {
 
 class _PaperworkRequiredState extends State<PaperworkRequired> {
   static const _green = AppColors.primaryMain;
-  int _selectedType = 0;
+  String _accountType = 'Individual';
 
-  static const _types = ['🏍 Local', '🚚 National', '☁ Export', '✈ Import'];
+  bool get _isBusiness => _accountType.trim().toLowerCase() == 'business';
 
-  static const _sections = [
-    _PaperSection(
-      title: 'Local Bike & Truck',
-      subtitle: 'Show customer what to bring',
-      documents: [
-        _Document('📄', 'Consignment Note', 'Filled & signed by sender', true),
-        _Document('📦', 'Packed Parcel', 'Properly sealed & labelled', true),
-        _Document(
-          '□',
-          'Sender ID Proof',
-          'Aadhaar / PAN / Driving License',
-          false,
-        ),
-      ],
-    ),
-    _PaperSection(
-      title: 'National Delivery',
-      subtitle: 'Additional docs for interstate',
-      documents: [
-        _Document('📄', 'Consignment Note', 'Yogayog printed CN form', true),
-        _Document(
-          '🧾',
-          'Invoice / Packing List',
-          'For goods above ₹50,000',
-          true,
-        ),
-        _Document('□', 'GSTIN of Sender', 'If GST invoice required', false),
-        _Document('📷', 'Photo of Package', 'For damage liability', false),
-      ],
+  @override
+  void initState() {
+    super.initState();
+    _loadAccountType();
+  }
+
+  Future<void> _loadAccountType() async {
+    final preferences = await SharedPreferences.getInstance();
+    final accountType = preferences.getString(
+      HomeService.profileAccountTypeKey,
+    );
+    if (!mounted || accountType == null || accountType.trim().isEmpty) return;
+    setState(() => _accountType = accountType);
+  }
+
+  List<_Document> get _accountDocuments => _isBusiness
+      ? const [
+          _Document('📄', 'PAN', 'Business PAN card', true),
+          _Document('🧾', 'GST', 'GST registration certificate', true),
+          _Document('🌐', 'IEC Code', 'Import Export Code', true),
+          _Document('🏢', 'MSME Certificate', 'Udyam/MSME registration', false),
+          _Document(
+            '🧾',
+            'Commercial Invoice',
+            'Signed invoice for the shipment',
+            true,
+          ),
+          _Document('📦', 'Packing List', 'Item-wise package details', true),
+          _Document(
+            '🏢',
+            'Company Proof',
+            'Certificate of incorporation or company ID',
+            true,
+          ),
+          _Document(
+            '🪪',
+            'Personal ID Proof / Personal PAN Card',
+            'Authorized person identity proof',
+            false,
+          ),
+        ]
+      : const [
+          _Document('📄', 'PAN', 'Personal PAN card', true),
+          _Document(
+            '🧾',
+            'GST',
+            'GST registration certificate, if available',
+            false,
+          ),
+          _Document(
+            '🌐',
+            'IEC Code',
+            'Import Export Code, if applicable',
+            false,
+          ),
+          _Document(
+            '🏢',
+            'MSME Certificate',
+            'Udyam/MSME registration, if available',
+            false,
+          ),
+          _Document('🪪', 'Aadhaar', 'Personal identity proof', true),
+        ];
+
+  static const _shipmentDocuments = [
+    _Document('🔖', 'AWB', 'Airway Bill / shipment document', true),
+    _Document('📦', 'Packing List', 'Item-wise package details', true),
+    _Document('🚢', 'Shipping Bill', 'Required for export shipment', false),
+    _Document(
+      '🧾',
+      'Commercial Invoice',
+      'Required for customs clearance',
+      true,
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final section = _sections[_selectedType == 0 ? 0 : 1];
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: _green,
@@ -61,18 +106,32 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
         body: Column(
           children: [
             const _PaperHeader(),
-            SizedBox(
-              height: 61,
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(9, 10, 9, 10),
-                scrollDirection: Axis.horizontal,
-                itemCount: _types.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, index) => _TypeChip(
-                  label: _types[index],
-                  selected: index == _selectedType,
-                  onTap: () => setState(() => _selectedType = index),
-                ),
+            Container(
+              margin: const EdgeInsets.fromLTRB(9, 10, 9, 9),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE9ECFF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.account_circle_outlined,
+                    color: _green,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      'Account type: $_accountType',
+                      style: const TextStyle(
+                        color: _green,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const Divider(height: 1),
@@ -81,42 +140,32 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
                 padding: EdgeInsets.zero,
                 children: [
                   _SectionHeading(
-                    title: section.title,
-                    subtitle: section.subtitle,
+                    title: _isBusiness
+                        ? 'Business Documents'
+                        : 'Individual Documents',
+                    subtitle: _isBusiness
+                        ? 'Documents required for business shipments'
+                        : 'Documents required for individual shipments',
                   ),
-                  ...section.documents.map(
+                  ..._accountDocuments.map(
                     (document) => _DocumentRow(document: document),
                   ),
-                  if (_selectedType > 1) ...[
-                    const _SectionHeading(
-                      title: 'International Documents',
-                      subtitle: 'Requirements vary by destination',
-                    ),
+                  const _SectionHeading(
+                    title: 'Shipment Documents',
+                    subtitle: 'Upload documents related to this shipment',
+                  ),
+                  ..._shipmentDocuments.map(
+                    (document) => _DocumentRow(document: document),
+                  ),
+                  if (!_isBusiness)
                     const _DocumentRow(
                       document: _Document(
-                        '🛂',
-                        'Government ID',
-                        'Passport or valid identity proof',
-                        true,
-                      ),
-                    ),
-                    const _DocumentRow(
-                      document: _Document(
-                        '🧾',
-                        'Commercial Invoice',
-                        'Required for customs clearance',
-                        true,
-                      ),
-                    ),
-                    const _DocumentRow(
-                      document: _Document(
-                        '📦',
-                        'Packing List',
-                        'Item-wise package details',
+                        '📍',
+                        'Need Shipment Track Upload',
+                        'Upload shipment tracking details',
                         false,
                       ),
                     ),
-                  ],
                 ],
               ),
             ),

@@ -37,7 +37,7 @@ class _DashboardState extends State<Dashboard> {
       HomeScreen(onMoreTrack: _openTrackTab),
       TrackAllOrder(trackingNumber: widget.initialTrackingNumber),
       const HistoryScreen(),
-      const ToolInformation(),
+      ToolInformation(onLogout: _logout),
     ];
   }
 
@@ -51,6 +51,46 @@ class _DashboardState extends State<Dashboard> {
     });
   }
 
+  void _logout() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Log Out'),
+        content: const Text('Are you sure you want to log out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              final provider = context.read<ProfileProvider>();
+              final loggedOut = await provider.logout();
+              if (!mounted) return;
+
+              if (!loggedOut) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(provider.errorMessage ?? 'Unable to log out'),
+                  ),
+                );
+                return;
+              }
+
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                (_) => false,
+              );
+            },
+            child: const Text('Log Out'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -61,6 +101,10 @@ class _DashboardState extends State<Dashboard> {
         bottomNavigationBar: BottomNavigationBar(
           currentIndex: pageIndex,
           onTap: (index) {
+            if (index == 4) {
+              _logout();
+              return;
+            }
             setState(() {
               pageIndex = index;
             });
@@ -97,6 +141,11 @@ class _DashboardState extends State<Dashboard> {
               icon: _navIcon('assets/images/more.png'),
               activeIcon: _navIcon('assets/images/more.png'),
               label: 'More',
+            ),
+            BottomNavigationBarItem(
+              icon: _navIcon('assets/images/logout.png'),
+              activeIcon: _navIcon('assets/images/logout.png'),
+              label: 'Logout',
             ),
           ],
         ),

@@ -58,4 +58,24 @@ class NationalProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<NationalOrderResponse?> createPostpaidOrder({
+    required Map<String, dynamic> payload,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      return await _service.createPostpaidOrder(payload: payload);
+    } on NationalException catch (error) {
+      _errorMessage = error.message;
+      return null;
+    } catch (_) {
+      _errorMessage = 'Something went wrong while creating post-paid order.';
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 }

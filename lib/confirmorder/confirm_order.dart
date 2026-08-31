@@ -9,9 +9,9 @@ class ConfirmOrder extends StatefulWidget {
     this.courierName = 'Delhivery',
     this.courierCode = 'DLVRY',
     this.serviceName = 'Express',
-    this.origin = 'Kolkata, WB',
-    this.destination = 'New Delhi',
-    this.receiverName = 'Vikram Singh',
+    this.origin = '',
+    this.destination = '',
+    this.receiverName = '',
     this.weightKg = 5.2,
     this.freight = 215,
     this.fuelSurcharge = 18,
@@ -42,6 +42,39 @@ class ConfirmOrder extends StatefulWidget {
 class _ConfirmOrderState extends State<ConfirmOrder> {
   final instructionController = TextEditingController();
 
+  Map<String, dynamic> get _pickup {
+    final value = widget.orderPayload['pickup'];
+    return value is Map ? Map<String, dynamic>.from(value) : {};
+  }
+
+  Map<String, dynamic> get _drop {
+    final value = widget.orderPayload['drop'];
+    return value is Map ? Map<String, dynamic>.from(value) : {};
+  }
+
+  String _value(Map<String, dynamic> data, String key) {
+    return data[key]?.toString().trim() ?? '';
+  }
+
+  String _locationText(Map<String, dynamic> data, String fallback) {
+    final house = _value(data, 'house_numb').isNotEmpty
+        ? _value(data, 'house_numb')
+        : _value(data, 'house_no');
+    final parts = [
+      house,
+      _value(data, 'address'),
+      _value(data, 'city'),
+      _value(data, 'district'),
+      _value(data, 'state'),
+      _value(data, 'pincode').isNotEmpty
+          ? 'PIN ${_value(data, 'pincode')}'
+          : _value(data, 'pin').isNotEmpty
+          ? 'PIN ${_value(data, 'pin')}'
+          : '',
+    ].where((part) => part.isNotEmpty).toList();
+    return parts.isEmpty ? fallback : parts.join(', ');
+  }
+
   @override
   void dispose() {
     instructionController.dispose();
@@ -65,31 +98,31 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
                     _courierSummary(),
                     const SizedBox(height: 14),
                     _priceDetails(),
-                    const SizedBox(height: 14),
-                    _notice(),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'DELIVERY INSTRUCTIONS (OPTIONAL)',
-                      style: TextStyle(
-                        color: Color(0xFF6B6B73),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    TextField(
-                      controller: instructionController,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Fragile, call before delivery',
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
+                    // const SizedBox(height: 14),
+                    // _notice(),
+                    // const SizedBox(height: 16),
+                    // const Text(
+                    //   'DELIVERY INSTRUCTIONS (OPTIONAL)',
+                    //   style: TextStyle(
+                    //     color: Color(0xFF6B6B73),
+                    //     fontSize: 12,
+                    //     fontWeight: FontWeight.bold,
+                    //   ),
+                    // ),
+                    // const SizedBox(height: 7),
+                    // TextField(
+                    //   controller: instructionController,
+                    //   maxLines: 3,
+                    //   decoration: InputDecoration(
+                    //     hintText: 'e.g. Fragile, call before delivery',
+                    //     filled: true,
+                    //     fillColor: Colors.white,
+                    //     border: OutlineInputBorder(
+                    //       borderRadius: BorderRadius.circular(15),
+                    //       borderSide: BorderSide.none,
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),
@@ -193,27 +226,44 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
 
   Widget _priceDetails() {
     return _card(
-      Column(
-        children: [
-          _row('From', widget.origin),
-          _row('To', widget.destination),
-          _row('Receiver', widget.receiverName),
-          _row('Courier', '${widget.courierName} ${widget.serviceName}'),
-          _row('Weight', '${widget.weightKg.toStringAsFixed(1)} kg'),
-          _row('Freight', 'Rs ${widget.freight.toStringAsFixed(0)}'),
-          _row(
-            'Fuel Surcharge',
-            'Rs ${widget.fuelSurcharge.toStringAsFixed(0)}',
+      Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          initiallyExpanded: false,
+          title: const Text(
+            'Order Details',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          _row('GST (18%)', 'Rs ${widget.gst.toStringAsFixed(0)}'),
-          const Divider(),
-          _row(
-            'Total',
-            'Rs ${widget.total.toStringAsFixed(0)}',
-            bold: true,
-            color: const Color(0xFF172786),
+          subtitle: Text(
+            'Total: Rs ${widget.total.toStringAsFixed(0)}',
+            style: const TextStyle(color: Color(0xFF172786)),
           ),
-        ],
+          children: [
+            _row('Pickup location', _locationText(_pickup, widget.origin)),
+            _row('Pickup name', _value(_pickup, 'name')),
+            _row('Pickup phone', _value(_pickup, 'mobile')),
+            _row('Drop location', _locationText(_drop, widget.destination)),
+            _row('Drop name', _value(_drop, 'name')),
+            _row('Drop phone', _value(_drop, 'mobile')),
+            _row('Courier', '${widget.courierName} ${widget.serviceName}'),
+            _row('Weight', '${widget.weightKg.toStringAsFixed(1)} kg'),
+            _row('Freight', 'Rs ${widget.freight.toStringAsFixed(0)}'),
+            _row(
+              'Fuel Surcharge',
+              'Rs ${widget.fuelSurcharge.toStringAsFixed(0)}',
+            ),
+            _row('GST (18%)', 'Rs ${widget.gst.toStringAsFixed(0)}'),
+            const Divider(),
+            _row(
+              'Total',
+              'Rs ${widget.total.toStringAsFixed(0)}',
+              bold: true,
+              color: const Color(0xFF172786),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -222,22 +272,30 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: bold ? Colors.black : Colors.grey.shade600,
-              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-              fontSize: bold ? 16 : 14,
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: bold ? Colors.black : Colors.grey.shade600,
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+                fontSize: bold ? 16 : 14,
+              ),
             ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              color: color ?? Colors.black,
-              fontWeight: FontWeight.bold,
-              fontSize: bold ? 20 : 14,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value.isEmpty ? '—' : value,
+              textAlign: TextAlign.left,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color ?? Colors.black,
+                fontWeight: FontWeight.bold,
+                fontSize: bold ? 20 : 14,
+              ),
             ),
           ),
         ],
@@ -310,40 +368,40 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
             const SizedBox(height: 12),
             Row(
               children: [
+                // Expanded(
+                //   child: SizedBox(
+                //     height: 80,
+                //     child: OutlinedButton.icon(
+                //       onPressed: () {
+                //         ScaffoldMessenger.of(context).showSnackBar(
+                //           const SnackBar(
+                //             content: Text('Document checklist is ready.'),
+                //           ),
+                //         );
+                //       },
+                //       icon: const Text('📄', style: TextStyle(fontSize: 20)),
+                //       label: const Text(
+                //         'Check Docs',
+                //         style: TextStyle(
+                //           color: AppColors.primaryMain,
+                //           fontSize: 17,
+                //           fontWeight: FontWeight.w800,
+                //         ),
+                //       ),
+                //       style: OutlinedButton.styleFrom(
+                //         backgroundColor: const Color(0xFFE8F5EF),
+                //         side: BorderSide.none,
+                //         shape: RoundedRectangleBorder(
+                //           borderRadius: BorderRadius.circular(15),
+                //         ),
+                //       ),
+                //     ),
+                //   ),
+                // ),
+                // const SizedBox(width: 10),
                 Expanded(
                   child: SizedBox(
-                    height: 80,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Document checklist is ready.'),
-                          ),
-                        );
-                      },
-                      icon: const Text('📄', style: TextStyle(fontSize: 20)),
-                      label: const Text(
-                        'Check Docs',
-                        style: TextStyle(
-                          color: AppColors.primaryMain,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE8F5EF),
-                        side: BorderSide.none,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SizedBox(
-                    height: 80,
+                    height: 60,
                     child: ElevatedButton(
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -373,7 +431,7 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
                         ),
                       ),
                       child: const Text(
-                        'Confirm\nBooking',
+                        'Confirm Booking',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 17,

@@ -14,12 +14,17 @@ class ApiEndpoints {
   static const String locations = "locations";
   static const String rates = "rates";
   static const String createOrder = "order/create";
+  static const String createPostpaidOrder = "order/create-postpaid";
   static const String pickupLocation = "locations/pickup";
   static const String nearbyBranches = "nearby-branches";
   static const String cutoffTimes = "cutoff-times";
   static const String contacts = "contacts";
   static const String pincodeServiceability = "check/pincode-serviceability";
   static const String termsAndConditions = "terms-and-conditions";
+  static const String invoices = "orders/invoices";
+  static const String sendIssue = "order/send-issue";
+  static const String reschedulePickup = "order/reschedule-pickup";
+  static String invoiceDownload(int orderId) => 'orders/$orderId/invoice/download';
 
   static String cutoffTime(int serviceId) => '$cutoffTimes/$serviceId';
 }

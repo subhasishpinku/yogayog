@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
-import 'package:pdf/pdf.dart' as pdf;
-import 'package:pdf/widgets.dart' as pw;
+import 'package:provider/provider.dart';
 import 'package:yogayog/bookscreen/book_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/invoices_service.dart';
 import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/homescreen/home_screen.dart';
 import 'package:yogayog/more/tools_information.dart';
 import 'package:yogayog/profile/profile_screen.dart';
 import 'package:yogayog/trackscreen/track_screen.dart';
+import 'package:yogayog/Invoices/provider/invoices_provider.dart';
+import 'package:yogayog/core/services/invoices_service.dart';
 
 class InvoicesScreen extends StatefulWidget {
   const InvoicesScreen({super.key});
@@ -20,47 +22,83 @@ class InvoicesScreen extends StatefulWidget {
 
 class _InvoicesScreenState extends State<InvoicesScreen> {
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<InvoicesProvider>().loadInvoices();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F4FA),
       body: SafeArea(
         child: Column(
           children: [
-            _summaryHeader(),
+            Consumer<InvoicesProvider>(
+              builder: (_, provider, __) =>
+                  _summaryHeader(provider.pendingCount),
+            ),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-                children: [
-                  const Text(
-                    'All Invoices',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  _invoiceCard(
-                    id: '#2908763000002978592',
-                    order: '1222000010',
-                    date: '31 Jul 2026, 7:23 PM',
-                    type: '🏍️ Local Delivery',
-                    senderAddress:
-                        '15, Chandra Nath Chatterjee St, Bhowanipore, Kolkata — 700025',
-                    receiver: 'Saheli Das',
-                    receiverAddress:
-                        'Kalighat Kali Mandir, Anami Sangha, Kalighat, Kolkata — 700026',
-                    amount: '₹57.75',
-                  ),
-                  const SizedBox(height: 12),
-                  _invoiceCard(
-                    id: '#2908763000002977841',
-                    order: '1222000009',
-                    date: '31 Jul 2026, 7:21 PM',
-                    type: '🌐 International',
-                    senderAddress:
-                        'Philippines, Bulacan, Santa Maria — GJK Pharma',
-                    receiver: null,
-                    receiverAddress: null,
-                    amount: '₹4,200.00',
-                  ),
-                ],
+              child: Consumer<InvoicesProvider>(
+                builder: (_, provider, __) {
+                  if (provider.isLoading && provider.invoices.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (provider.errorMessage != null &&
+                      provider.invoices.isEmpty) {
+                    return _stateMessage(
+                      provider.errorMessage!,
+                      onRetry: provider.loadInvoices,
+                    );
+                  }
+                  if (provider.invoices.isEmpty) {
+                    return _stateMessage('No invoices found');
+                  }
+                  return RefreshIndicator(
+                    onRefresh: provider.loadInvoices,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+                      itemCount: provider.invoices.length + 1,
+                      separatorBuilder: (_, index) => index == 0
+                          ? const SizedBox(height: 10)
+                          : const SizedBox(height: 12),
+                      itemBuilder: (_, index) {
+                        if (index == 0) {
+                          return const Text(
+                            'All Invoices',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        }
+                        final invoice = provider.invoices[index - 1];
+                        return _invoiceCard(
+                          invoiceId: invoice.id,
+                          id: invoice.invoiceId.isEmpty
+                              ? '#${invoice.id}'
+                              : invoice.invoiceId,
+                          order: invoice.orderId,
+                          date: _formatDate(
+                            invoice.createdAt,
+                            invoice.pickupDate,
+                          ),
+                          type: _invoiceType(invoice),
+                          senderAddress:
+                              'From location #${invoice.fromLocationId}',
+                          receiver: null,
+                          receiverAddress: null,
+                          amount: invoice.amount == null
+                              ? '—'
+                              : '₹${invoice.amount!.toStringAsFixed(2)}',
+                          status: invoice.paymentStatus,
+                        );
+                      },
+                    ),
+                  );
+                },
               ),
             ),
             // _bottomNavigation(),
@@ -70,7 +108,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     );
   }
 
-  Widget _summaryHeader() => Container(
+  Widget _summaryHeader(int pendingCount) => Container(
     width: double.infinity,
     padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
     color: AppColors.primaryMain,
@@ -103,14 +141,14 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             color: const Color(0xFFF0F1FF),
             borderRadius: BorderRadius.circular(13),
           ),
-          child: const Column(
+          child: Column(
             children: [
-              Text(
+              const Text(
                 'Pending',
                 style: TextStyle(color: Colors.grey, fontSize: 11),
               ),
               Text(
-                '6',
+                '$pendingCount',
                 style: TextStyle(
                   color: Color(0xFF9A7800),
                   fontSize: 18,
@@ -124,7 +162,34 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     ),
   );
 
+  Widget _stateMessage(String message, {VoidCallback? onRetry}) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(message, textAlign: TextAlign.center),
+          if (onRetry != null) ...[
+            const SizedBox(height: 10),
+            ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String createdAt, String pickupDate) {
+    final value = createdAt.isNotEmpty ? createdAt : pickupDate;
+    return value.replaceFirst(' ', ' • ');
+  }
+
+  String _invoiceType(InvoiceData invoice) {
+    if (invoice.serviceId == 7) return '🌐 International';
+    if (invoice.serviceId == 4) return '🚚 National';
+    return '🏍️ Local Delivery';
+  }
+
   Widget _invoiceCard({
+    required int invoiceId,
     required String id,
     required String order,
     required String date,
@@ -133,6 +198,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     required String? receiver,
     required String? receiverAddress,
     required String amount,
+    required String status,
   }) => Container(
     padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
     decoration: BoxDecoration(
@@ -172,7 +238,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                 ],
               ),
             ),
-            _statusBadge(),
+            _statusBadge(status),
           ],
         ),
         const SizedBox(height: 12),
@@ -215,6 +281,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             ),
             TextButton.icon(
               onPressed: () => _downloadInvoicePdf(
+                invoiceId: invoiceId,
                 id: id,
                 order: order,
                 date: date,
@@ -245,15 +312,15 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     ),
   );
 
-  Widget _statusBadge() => Container(
+  Widget _statusBadge(String status) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     decoration: BoxDecoration(
       color: const Color(0xFFFFF5CC),
       borderRadius: BorderRadius.circular(13),
     ),
-    child: const Text(
-      'Pending',
-      style: TextStyle(
+    child: Text(
+      status.isEmpty ? 'Unknown' : status,
+      style: const TextStyle(
         color: Color(0xFF9A7800),
         fontSize: 11,
         fontWeight: FontWeight.bold,
@@ -297,6 +364,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   );
 
   Future<void> _downloadInvoicePdf({
+    required int invoiceId,
     required String id,
     required String order,
     required String date,
@@ -306,52 +374,12 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     required String? receiverAddress,
     required String amount,
   }) async {
-    final document = pw.Document();
-    document.addPage(
-      pw.Page(
-        margin: const pw.EdgeInsets.all(36),
-        build: (context) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(
-              'YOGAYOG',
-              style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 4),
-            pw.Text('Invoice', style: pw.TextStyle(fontSize: 18)),
-            pw.Divider(),
-            pw.SizedBox(height: 12),
-            pw.Text('Invoice ID: $id'),
-            pw.Text('Order: $order'),
-            pw.Text('Date: $date'),
-            pw.SizedBox(height: 18),
-            pw.Text(
-              type,
-              style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 12),
-            pw.Table(
-              border: pw.TableBorder.all(color: pdf.PdfColors.grey300),
-              children: [
-                _pdfRow('Sender address', senderAddress),
-                if (receiver != null) _pdfRow('Receiver', receiver),
-                if (receiverAddress != null)
-                  _pdfRow('Receiver address', receiverAddress),
-                _pdfRow('Payment status', 'Pending'),
-                _pdfRow('Total amount', amount),
-              ],
-            ),
-            pw.SizedBox(height: 32),
-            pw.Text('Thank you for choosing Yogayog.'),
-          ],
-        ),
-      ),
-    );
-
     try {
-      final bytes = await document.save();
+      final bytes = await context.read<InvoicesProvider>().downloadInvoice(
+        invoiceId,
+      );
       final path = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save invoice PDF',
+        dialogTitle: 'Save invoice PDF from server',
         fileName:
             'invoice_${order.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}.pdf',
         type: FileType.custom,
@@ -362,23 +390,12 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       _message(
         path == null ? 'PDF download cancelled' : 'PDF saved successfully',
       );
+    } on InvoicesException catch (error) {
+      if (mounted) _message(error.message);
     } catch (_) {
-      if (mounted) _message('Unable to create PDF');
+      if (mounted) _message('Unable to download invoice PDF');
     }
   }
-
-  pw.TableRow _pdfRow(String label, String value) => pw.TableRow(
-    children: [
-      pw.Padding(
-        padding: const pw.EdgeInsets.all(8),
-        child: pw.Text(
-          label,
-          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-        ),
-      ),
-      pw.Padding(padding: const pw.EdgeInsets.all(8), child: pw.Text(value)),
-    ],
-  );
 
   Widget _bottomNavigation() => BottomNavigationBar(
     currentIndex: 3,

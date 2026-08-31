@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/home_service.dart';
@@ -21,6 +24,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
   final _cityController = TextEditingController();
   final _pinController = TextEditingController();
   final _stateController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  XFile? _profileImage;
   bool _filled = false;
 
   @override
@@ -79,81 +84,83 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Form(
               key: _formKey,
-              child: ListView(
+              child: Padding(
                 padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
-                children: [
-                  _profileBanner(profile),
-                  const SizedBox(height: 5),
-                  _sectionCard(
-                    title: 'Personal Information',
-                    icon: Icons.person_outline,
-                    children: [
-                      _field('FULL NAME', _nameController, 'Enter full name'),
-                      _field(
-                        'EMAIL',
-                        _emailController,
-                        'Email address',
-                        readOnly: true,
-                        keyboardType: TextInputType.emailAddress,
-                      ),
-                      _field(
-                        'MOBILE NUMBER',
-                        _mobileController,
-                        'Mobile number',
-                        readOnly: true,
-                        keyboardType: TextInputType.phone,
-                      ),
-                      _field(
-                        'ACCOUNT TYPE',
-                        _accountTypeController,
-                        'Account type',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 5),
-                  _sectionCard(
-                    title: 'Address Information',
-                    icon: Icons.location_on_outlined,
-                    children: [
-                      _field('ADDRESS', _addressController, 'Full address'),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _field('CITY', _cityController, 'City'),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _field(
-                              'PIN CODE',
-                              _pinController,
-                              'PIN code',
-                              keyboardType: TextInputType.number,
+                child: Column(
+                  children: [
+                    _profileBanner(profile),
+                    const SizedBox(height: 5),
+                    _sectionCard(
+                      title: 'Personal Information',
+                      icon: Icons.person_outline,
+                      children: [
+                        _field('FULL NAME', _nameController, 'Enter full name'),
+                        _fieldWithVerify(
+                          'EMAIL',
+                          _emailController,
+                          'Email address',
+                          onVerify: () => _showVerifyMessage('Email'),
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        _fieldWithVerify(
+                          'MOBILE NUMBER',
+                          _mobileController,
+                          'Mobile number',
+                          onVerify: () => _showVerifyMessage('Mobile number'),
+                          keyboardType: TextInputType.phone,
+                        ),
+                        // _field(
+                        //   'ACCOUNT TYPE',
+                        //   _accountTypeController,
+                        //   'Account type',
+                        // ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    _sectionCard(
+                      title: 'Address Information',
+                      icon: Icons.location_on_outlined,
+                      children: [
+                        _field('ADDRESS', _addressController, 'Full address'),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _field('CITY', _cityController, 'City'),
                             ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _field(
+                                'PIN CODE',
+                                _pinController,
+                                'PIN code',
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                          ],
+                        ),
+                        _field('STATE', _stateController, 'State'),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: _saveProfile,
+                        icon: const Icon(Icons.save_outlined),
+                        label: const Text('Save Changes'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryButton,
+                          foregroundColor: AppColors.primaryMain,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                        ],
-                      ),
-                      _field('STATE', _stateController, 'State'),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: _saveProfile,
-                      icon: const Icon(Icons.save_outlined),
-                      label: const Text('Save Changes'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryButton,
-                        foregroundColor: AppColors.primaryMain,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
     );
@@ -169,16 +176,46 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 27,
-            backgroundColor: AppColors.primaryButton,
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: AppColors.primaryMain,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+          InkWell(
+            onTap: _pickProfileImage,
+            borderRadius: BorderRadius.circular(32),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
+                  radius: 27,
+                  backgroundColor: AppColors.primaryButton,
+                  backgroundImage: _profileImage == null
+                      ? null
+                      : FileImage(File(_profileImage!.path)),
+                  child: _profileImage == null
+                      ? Text(
+                          initials,
+                          style: const TextStyle(
+                            color: AppColors.primaryMain,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                ),
+                Positioned(
+                  right: -2,
+                  bottom: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: AppColors.primaryButton,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.photo_camera_outlined,
+                      size: 13,
+                      color: AppColors.primaryMain,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 14),
@@ -298,6 +335,67 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         ),
       ),
     );
+  }
+
+  Widget _fieldWithVerify(
+    String label,
+    TextEditingController controller,
+    String hint, {
+    required VoidCallback onVerify,
+    TextInputType? keyboardType,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _field(
+            label,
+            controller,
+            hint,
+            readOnly: true,
+            keyboardType: keyboardType,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Padding(
+          padding: const EdgeInsets.only(top: 3),
+          child: SizedBox(
+            height: 45,
+            child: ElevatedButton(
+              onPressed: onVerify,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryButton,
+                foregroundColor: AppColors.primaryMain,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 11),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'VERIFY',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showVerifyMessage(String type) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$type verification will be available soon.')),
+    );
+  }
+
+  Future<void> _pickProfileImage() async {
+    final image = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (image == null || !mounted) return;
+    setState(() => _profileImage = image);
   }
 
   void _saveProfile() {

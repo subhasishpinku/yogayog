@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:yogayog/Payment/Payment_wallet_Screen.dart';
 import 'package:yogayog/Payment/payment_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/bikescreen_service.dart';
+import 'package:yogayog/core/services/viewledger_service.dart';
 
 class BikeConfirmScreem extends StatefulWidget {
   const BikeConfirmScreem({
@@ -29,6 +31,7 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
   static const Color yellow = AppColors.primaryButton;
 
   final instructionController = TextEditingController();
+  bool _isCheckingWallet = false;
 
   @override
   void dispose() {
@@ -36,27 +39,70 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
     super.dispose();
   }
 
-  void _proceedToPayment() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PaymentScreen(
-          amount: widget.rate.price,
-          orderPayload: {
-        'order_type': 'local',
-        'payment_method': 'ONLINE',
-        'price': widget.rate.price,
-        'pieces': 1,
-        'package_type_id': 1,
-        'service_id': 1,
-        'sub_service_id': 2,
-        'pickup_date': DateTime.now().toIso8601String().substring(0, 10),
-        'pickup': widget.pickup,
-            'drop': widget.drop,
-          },
+  Future<void> _proceedToPayment() async {
+    if (_isCheckingWallet) return;
+    setState(() => _isCheckingWallet = true);
+
+    final orderPayload = {
+      'order_type': 'local',
+      'payment_method': 'ONLINE',
+      'price': widget.rate.price,
+      'pieces': 1,
+      'package_type_id': 1,
+      'service_id': 1,
+      'sub_service_id': 2,
+      'pickup_date': DateTime.now().toIso8601String().substring(0, 10),
+      'delivery_instructions': instructionController.text.trim(),
+      'pickup': widget.pickup,
+      'drop': widget.drop,
+    };
+
+    try {
+      final ledger = await ViewledgerService().getLedger();
+      if (!mounted) return;
+
+      if (ledger.currentBalance < widget.rate.price) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PaymentScreen(
+              amount: widget.rate.price,
+              orderPayload: orderPayload,
+            ),
+          ),
+        );
+        return;
+      }
+
+      orderPayload['payment_method'] = 'WALLET';
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymentWalletScreen(
+            amount: widget.rate.price,
+            currentBalance: ledger.currentBalance,
+            orderPayload: orderPayload,
+          ),
         ),
-      ),
-    );
+      );
+    } on ViewledgerException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${error.message}. Opening online payment.')),
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PaymentScreen(
+            amount: widget.rate.price,
+            orderPayload: orderPayload,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isCheckingWallet = false);
+    }
   }
 
   @override
@@ -74,54 +120,50 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildSteps(),
-
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 3),
 
                     _buildSummaryCard(),
 
                     const SizedBox(height: 12),
 
-                    const Text(
-                      'DELIVERY INSTRUCTIONS (OPTIONAL)',
-                      style: TextStyle(
-                        color: Color(0xFF667085),
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: .6,
-                      ),
-                    ),
+                    // const Text(
+                    //   'DELIVERY INSTRUCTIONS (OPTIONAL)',
+                    //   style: TextStyle(
+                    //     color: Color(0xFF667085),
+                    //     fontSize: 11,
+                    //     fontWeight: FontWeight.bold,
+                    //     letterSpacing: .6,
+                    //   ),
+                    // ),
 
-                    const SizedBox(height: 6),
+                    // const SizedBox(height: 6),
 
-                    TextField(
-                      controller: instructionController,
-                      maxLines: 1,
-                      decoration: InputDecoration(
-                        hintText: 'e.g. Call on arrival, leave at gate...',
-                        hintStyle: const TextStyle(
-                          color: Color(0xFF8A8F9C),
-                          fontSize: 14,
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 15,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
+                    // TextField(
+                    //   controller: instructionController,
+                    //   maxLines: 1,
+                    //   decoration: InputDecoration(
+                    //     hintText: 'e.g. Call on arrival, leave at gate...',
+                    //     hintStyle: const TextStyle(
+                    //       color: Color(0xFF8A8F9C),
+                    //       fontSize: 14,
+                    //     ),
+                    //     filled: true,
+                    //     fillColor: Colors.white,
+                    //     contentPadding: const EdgeInsets.symmetric(
+                    //       horizontal: 16,
+                    //       vertical: 15,
+                    //     ),
+                    //     border: OutlineInputBorder(
+                    //       borderRadius: BorderRadius.circular(14),
+                    //       borderSide: BorderSide.none,
+                    //     ),
+                    //   ),
+                    // ),
 
-                    const SizedBox(height: 26),
+                    // const SizedBox(height: 26),
                     // _buildCommissionCard(),
                     // const SizedBox(height: 12),
                     // _buildDocumentNotice(),
-                    const SizedBox(height: 14),
-                    _buildBookingActions(),
 
                     /*
                     SizedBox(
@@ -154,12 +196,16 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
           ],
         ),
       ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: _buildBookingActions(),
+      ),
     );
   }
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      height: 100,
+      height: 150,
       width: double.infinity,
       color: blue,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
@@ -200,6 +246,8 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
             'Review before paying',
             style: TextStyle(color: Colors.white60, fontSize: 12),
           ),
+          const SizedBox(height: 6),
+          _buildSteps(),
         ],
       ),
     );
@@ -242,7 +290,7 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
         Text(
           title,
           style: TextStyle(
-            color: active ? blue : Colors.grey,
+            color: active ? yellow : Colors.white70,
             fontSize: 10,
             fontWeight: active ? FontWeight.bold : FontWeight.normal,
           ),
@@ -256,7 +304,7 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
       child: Container(
         height: 2,
         margin: const EdgeInsets.only(bottom: 20),
-        color: blue,
+        color: Colors.white54,
       ),
     );
   }
@@ -273,40 +321,79 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
       ),
       child: Column(
         children: [
-          _summaryRow('From', widget.pickupAddress),
-          _summaryRow('To', widget.dropAddress),
-          _summaryRow('Vehicle', '🏍 ${widget.rate.vehicleType}'),
-          _summaryRow('Distance', '${widget.distance.toStringAsFixed(2)} km'),
-          _summaryRow('Pickup', 'Now (~15 min)'),
           _summaryRow(
-            'Base Fare',
-            '₹${widget.rate.breakdown.basePrice.toStringAsFixed(2)}',
+            'Pickup address',
+            _locationValue(widget.pickup, 'address', widget.pickupAddress),
           ),
-          _summaryRow(
-            'Other Charges',
-            '₹${widget.rate.breakdown.otherCharges.toStringAsFixed(2)}',
-          ),
-          _summaryRow(
-            'GST',
-            '₹${widget.rate.breakdown.gstAmount.toStringAsFixed(2)}',
-          ),
-
-          const Divider(height: 18),
-
-          Row(
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            initiallyExpanded: false,
+            title: const Text(
+              'View booking details',
+              style: TextStyle(color: blue, fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              'Total ₹${widget.rate.price.toStringAsFixed(2)}',
+              style: const TextStyle(color: Color(0xFF8A8F9C)),
+            ),
             children: [
-              const Text(
-                'Total',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              _summaryRow(
+                'Pickup name',
+                _locationValue(widget.pickup, 'name', 'Not provided'),
               ),
-              const Spacer(),
-              Text(
-                '₹${widget.rate.price.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: blue,
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
+              _summaryRow(
+                'Pickup number',
+                _locationValue(widget.pickup, 'mobile', 'Not provided'),
+              ),
+              _summaryRow('Pickup city/PIN', _cityPin(widget.pickup)),
+              _summaryRow(
+                'Drop address',
+                _locationValue(widget.drop, 'address', widget.dropAddress),
+              ),
+              _summaryRow(
+                'Drop name',
+                _locationValue(widget.drop, 'name', 'Not provided'),
+              ),
+              _summaryRow(
+                'Drop number',
+                _locationValue(widget.drop, 'mobile', 'Not provided'),
+              ),
+              _summaryRow('Drop city/PIN', _cityPin(widget.drop)),
+              _summaryRow('Vehicle', '🏍 ${widget.rate.vehicleType}'),
+              _summaryRow(
+                'Distance',
+                '${widget.distance.toStringAsFixed(2)} km',
+              ),
+              _summaryRow('Pickup', 'Now (~15 min)'),
+              _summaryRow(
+                'Base Fare',
+                '₹${widget.rate.breakdown.basePrice.toStringAsFixed(2)}',
+              ),
+              _summaryRow(
+                'Other Charges',
+                '₹${widget.rate.breakdown.otherCharges.toStringAsFixed(2)}',
+              ),
+              _summaryRow(
+                'GST',
+                '₹${widget.rate.breakdown.gstAmount.toStringAsFixed(2)}',
+              ),
+              const Divider(height: 18),
+              Row(
+                children: [
+                  const Text(
+                    'Total',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '₹${widget.rate.price.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: blue,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -392,40 +479,40 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
   Widget _buildBookingActions() {
     return Row(
       children: [
+        // Expanded(
+        //   child: SizedBox(
+        //     height: 80,
+        //     child: OutlinedButton.icon(
+        //       onPressed: () {
+        //         ScaffoldMessenger.of(context).showSnackBar(
+        //           const SnackBar(content: Text('Document checklist is ready.')),
+        //         );
+        //       },
+        //       icon: const Text('📄', style: TextStyle(fontSize: 20)),
+        //       label: const Text(
+        //         'Check Docs',
+        //         style: TextStyle(
+        //           color: AppColors.primaryMain,
+        //           fontSize: 17,
+        //           fontWeight: FontWeight.w800,
+        //         ),
+        //       ),
+        //       style: OutlinedButton.styleFrom(
+        //         backgroundColor: const Color(0xFFE8F5EF),
+        //         side: BorderSide.none,
+        //         shape: RoundedRectangleBorder(
+        //           borderRadius: BorderRadius.circular(15),
+        //         ),
+        //       ),
+        //     ),
+        //   ),
+        // ),
+        // const SizedBox(width: 10),
         Expanded(
           child: SizedBox(
-            height: 80,
-            child: OutlinedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Document checklist is ready.')),
-                );
-              },
-              icon: const Text('📄', style: TextStyle(fontSize: 20)),
-              label: const Text(
-                'Check Docs',
-                style: TextStyle(
-                  color: AppColors.primaryMain,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                backgroundColor: const Color(0xFFE8F5EF),
-                side: BorderSide.none,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(15),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: SizedBox(
-            height: 80,
+            height: 60,
             child: ElevatedButton(
-              onPressed: _proceedToPayment,
+              onPressed: _isCheckingWallet ? null : _proceedToPayment,
               style: ElevatedButton.styleFrom(
                 backgroundColor: yellow,
                 foregroundColor: Colors.black,
@@ -434,11 +521,20 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
                   borderRadius: BorderRadius.circular(15),
                 ),
               ),
-              child: const Text(
-                'Confirm\nBooking',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-              ),
+              child: _isCheckingWallet
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Confirm Booking',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
             ),
           ),
         ),
@@ -451,15 +547,17 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Text(
-            title,
-            style: const TextStyle(color: Color(0xFF8A8F9C), fontSize: 12),
+          SizedBox(
+            width: 118,
+            child: Text(
+              title,
+              style: const TextStyle(color: Color(0xFF8A8F9C), fontSize: 12),
+            ),
           ),
-          const Spacer(),
           Flexible(
             child: Text(
               value,
-              textAlign: TextAlign.right,
+              textAlign: TextAlign.left,
               style: const TextStyle(
                 color: Color(0xFF202020),
                 fontSize: 12,
@@ -470,5 +568,24 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
         ],
       ),
     );
+  }
+
+  String _locationValue(
+    Map<String, dynamic> location,
+    String key,
+    String fallback,
+  ) {
+    final value = location[key]?.toString().trim() ?? '';
+    return value.isEmpty ? fallback : value;
+  }
+
+  String _cityPin(Map<String, dynamic> location) {
+    final city = location['city']?.toString().trim() ?? '';
+    final pin = location['pincode']?.toString().trim() ?? '';
+    final parts = [
+      city,
+      if (pin.isNotEmpty) 'PIN $pin',
+    ].where((part) => part.isNotEmpty).toList();
+    return parts.isEmpty ? 'Not provided' : parts.join(' · ');
   }
 }

@@ -44,75 +44,109 @@ class _ChooseCourierState extends State<ChooseCourier> {
             _header(),
             _shipmentSummary(),
             Expanded(
-              child: ListView(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.all(14),
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '${widget.rates?.rates.length ?? 3} options available',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 13,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${widget.rates?.rates.length ?? 3} options available',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
-                      const Text(
-                        'Cheapest first',
-                        style: TextStyle(
-                          color: Color(0xFF172786),
-                          fontWeight: FontWeight.bold,
+                        const Text(
+                          'Cheapest first',
+                          style: TextStyle(
+                            color: Color(0xFF172786),
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    if (widget.rates != null &&
+                        widget.rates!.rates.isNotEmpty) ...[
+                      _courierCardFromRate(0),
+                      if (widget.rates!.rates.length > 1) _otherCouriers(),
+                    ] else ...[
+                      _courierCard(
+                        name: 'Delhivery',
+                        code: 'DLVRY',
+                        totalPrice: 298,
+                        color: const Color(0xFFFF424A),
+                        price: 'Rs 298',
+                        delivery: 'Delivery in 3-4 days',
+                        note: 'Real-time tracking included',
+                        tags: const ['Door Pickup', 'Door Delivery'],
+                        cheapest: true,
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
 
-                  if (widget.rates != null)
-                    ...widget.rates!.rates.asMap().entries.map(
-                      (entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _courierCard(
-                          name: entry.value.carrierName,
-                          code: entry.value.serviceMode,
-                          totalPrice: entry.value.price,
-                          color: _courierColor(entry.key),
-                          price: 'Rs ${entry.value.price.toStringAsFixed(2)}',
-                          delivery: entry.value.deliveryTime.isEmpty
-                              ? 'Delivery time unavailable'
-                              : entry.value.deliveryTime,
-                          note:
-                              'Zone ${widget.rates!.zone} • ${widget.rates!.distance.toStringAsFixed(2)} km',
-                          tags: [
-                            entry.value.serviceMode,
-                            'Prepaid',
-                            'Door Pickup',
-                          ],
-                          cheapest: entry.key == 0,
-                        ),
-                      ),
-                    )
-                  else ...[
-                    _courierCard(
-                      name: 'Delhivery',
-                      code: 'DLVRY',
-                      totalPrice: 298,
-                      color: const Color(0xFFFF424A),
-                      price: 'Rs 298',
-                      delivery: 'Delivery in 3-4 days',
-                      note: 'Real-time tracking included',
-                      tags: const ['Door Pickup', 'Door Delivery'],
-                      cheapest: true,
-                    ),
+                    const SizedBox(height: 12),
+                    _infoBanner(),
                   ],
-
-                  const SizedBox(height: 12),
-                  _infoBanner(),
-                ],
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _courierCardFromRate(int index) {
+    final rate = widget.rates!.rates[index];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _courierCard(
+        name: rate.carrierName,
+        code: rate.serviceMode,
+        totalPrice: rate.price,
+        color: _courierColor(index),
+        price: 'Rs ${rate.price.toStringAsFixed(2)}',
+        delivery: rate.deliveryTime.isEmpty
+            ? 'Delivery time unavailable'
+            : rate.deliveryTime,
+        note:
+            'Zone ${widget.rates!.zone} • ${widget.rates!.distance.toStringAsFixed(2)} km',
+        tags: [rate.serviceMode, 'Prepaid', 'Door Pickup'],
+        cheapest: index == 0,
+      ),
+    );
+  }
+
+  Widget _otherCouriers() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+        title: const Text(
+          'Other courier options',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text('${widget.rates!.rates.length - 1} more available'),
+        children: [
+          for (var index = 1; index < widget.rates!.rates.length; index++)
+            _courierCardFromRate(index),
+        ],
       ),
     );
   }

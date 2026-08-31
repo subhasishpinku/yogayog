@@ -28,6 +28,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
       );
       return;
     }
+    if (selectedMethod == 'UPI') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Online UPI payment is currently unavailable'),
+        ),
+      );
+      return;
+    }
     if (widget.orderPayload.isEmpty) {
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const BookingSuccess()),
@@ -36,12 +44,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
       return;
     }
     final payload = Map<String, dynamic>.from(widget.orderPayload)
-      ..['payment_method'] = selectedMethod == 'Cash on Delivery' ? 'COD' : 'ONLINE';
-    final order = await context.read<PaymentProvider>().createOrder(payload: payload);
+      ..['payment_method'] = selectedMethod == 'Cash on Delivery'
+          ? 'COD'
+          : 'ONLINE';
+    final order = await context.read<PaymentProvider>().createOrder(
+      payload: payload,
+    );
     if (!mounted) return;
     if (order == null) {
-      final message = context.read<PaymentProvider>().errorMessage ?? 'Unable to create order';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      final message =
+          context.read<PaymentProvider>().errorMessage ??
+          'Unable to create order';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
       return;
     }
     Navigator.of(context).pushAndRemoveUntil(
@@ -83,7 +99,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: context.watch<PaymentProvider>().isLoading ? null : _processPayment,
+              onPressed: context.watch<PaymentProvider>().isLoading
+                  ? null
+                  : _processPayment,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryButton,
                 foregroundColor: Colors.black,
@@ -259,14 +277,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
             title: 'Online UPI Payment',
             subtitle: 'GPay, PhonePe, Paytm, any UPI ID',
             method: 'UPI',
-          ),
-          _divider(),
-          _paymentTile(
-            icon: Icons.credit_card,
-            iconColor: Colors.orange,
-            title: 'Wallet',
-            subtitle: 'Visa, Mastercard, RuPay',
-            method: 'Card',
           ),
           // _divider(),
           // _paymentTile(

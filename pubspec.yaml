@@ -30,6 +30,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  billdesk_sdk:
+    path: ./billDeskSDK
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -52,6 +54,8 @@ dependencies:
   intl: ^0.20.3
   flutter_background_service_android: ^6.3.1
   file_picker: ^8.1.4
+  share_plus: ^12.0.1
+  path_provider: ^2.1.5
   pdf: ^3.11.3
   image_picker: ^1.2.3
   cookie_jar: ^4.0.9
@@ -97,6 +101,7 @@ flutter:
     - assets/images/profile.png
     - assets/images/track.png
     - assets/images/more.png
+    - assets/images/logout.png
     - assets/images/tracking_pin.png
     - assets/notification_sound.mp3
   #   - images/a_dot_ham.jpeg

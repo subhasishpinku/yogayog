@@ -29,10 +29,17 @@ class PaymentService {
 }
 
 class PaymentOrderResponse {
-  const PaymentOrderResponse({required this.orderId, required this.invoiceId, required this.invoiceUrl});
+  const PaymentOrderResponse({
+    required this.orderId,
+    required this.invoiceId,
+    required this.invoiceUrl,
+    this.databaseId,
+  });
   final String orderId;
   final String invoiceId;
   final String invoiceUrl;
+  /// Numeric database id required by `/orders/{id}/invoice/download`.
+  final int? databaseId;
 
   factory PaymentOrderResponse.fromJson(Map<String, dynamic> json) {
     final order = json['order'] is Map ? Map<String, dynamic>.from(json['order']) : const <String, dynamic>{};
@@ -40,6 +47,7 @@ class PaymentOrderResponse {
       orderId: order['order_id']?.toString() ?? order['id']?.toString() ?? '',
       invoiceId: order['invoice_id']?.toString() ?? '',
       invoiceUrl: order['invoice_url']?.toString() ?? '',
+      databaseId: int.tryParse(order['id']?.toString() ?? ''),
     );
   }
 }

@@ -4,12 +4,16 @@ import 'package:yogayog/CutOffTime/cut_of_time.dart';
 import 'package:yogayog/branchaddresses/branchaddresses.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/contactpersons/contactpersons.dart';
+import 'package:yogayog/disputes/refunds.dart';
 import 'package:yogayog/nearesthub/nearesthub.dart';
 import 'package:yogayog/paperworkrequired/paperwork_required.dart';
 import 'package:yogayog/pincodecheck/check_pin.dart';
+import 'package:yogayog/reschedule/pickup_rescheduled.dart';
 
 class ToolInformation extends StatefulWidget {
-  const ToolInformation({super.key});
+  const ToolInformation({super.key, this.onLogout});
+
+  final VoidCallback? onLogout;
 
   @override
   State<ToolInformation> createState() => _ToolInformationState();
@@ -68,6 +72,22 @@ class _ToolInformationState extends State<ToolInformation> {
       iconColor: Color(0xFF08743D),
       details: 'Check whether a PIN code is serviceable before booking.',
     ),
+    _ToolItem(
+      title: 'My claims',
+      subtitle: 'Track every support request',
+      icon: Icons.receipt_long,
+      iconBackground: Color(0xFFE4F3ED),
+      iconColor: Color(0xFF08743D),
+      details: 'CTrack every support request',
+    ),
+    // _ToolItem(
+    //   title: 'Pickup rescheduled',
+    //   subtitle: 'Pickup rescheduled',
+    //   icon: Icons.receipt_long,
+    //   iconBackground: Color(0xFFE4F3ED),
+    //   iconColor: Color(0xFF08743D),
+    //   details: 'Pickup rescheduled',
+    // ),
   ];
 
   @override
@@ -138,10 +158,46 @@ class _ToolInformationState extends State<ToolInformation> {
                       );
                       return;
                     }
+                    if (_tools[index].title == 'My claims') {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const Refunds()),
+                      );
+                      return;
+                    }
+                    // if (_tools[index].title == 'Pickup rescheduled') {
+                    //   Navigator.of(context).push(
+                    //     MaterialPageRoute(
+                    //       builder: (_) => const PickupRescheduled(),
+                    //     ),
+                    //   );
+                    //   return;
+                    // }
                   },
                 ),
               ),
             ),
+            // if (widget.onLogout != null)
+            //   Padding(
+            //     padding: const EdgeInsets.fromLTRB(12, 0, 12, 18),
+            //     child: SizedBox(
+            //       width: double.infinity,
+            //       height: 50,
+            //       child: OutlinedButton.icon(
+            //         onPressed: widget.onLogout,
+            //         icon: const Icon(Icons.logout, color: Colors.red),
+            //         label: const Text(
+            //           'Log Out',
+            //           style: TextStyle(color: Colors.red),
+            //         ),
+            //         style: OutlinedButton.styleFrom(
+            //           side: const BorderSide(color: Colors.red),
+            //           shape: RoundedRectangleBorder(
+            //             borderRadius: BorderRadius.circular(12),
+            //           ),
+            //         ),
+            //       ),
+            //     ),
+            //   ),
           ],
         ),
       ),

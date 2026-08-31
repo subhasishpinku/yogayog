@@ -11,10 +11,26 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _logoController;
+  late final Animation<double> _logoScale;
+  late final Animation<double> _logoOpacity;
+
   @override
   void initState() {
     super.initState();
+
+    _logoController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+    final animation = CurvedAnimation(
+      parent: _logoController,
+      curve: Curves.easeInOut,
+    );
+    _logoScale = Tween<double>(begin: .88, end: 1.04).animate(animation);
+    _logoOpacity = Tween<double>(begin: .65, end: 1).animate(animation);
 
     Future.delayed(const Duration(seconds: 3), () async {
       if (!mounted) return;
@@ -35,6 +51,12 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   @override
+  void dispose() {
+    _logoController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primaryMain,
@@ -48,7 +70,13 @@ class _SplashScreenState extends State<SplashScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset('assets/images/logo.png', height: 90),
+                FadeTransition(
+                  opacity: _logoOpacity,
+                  child: ScaleTransition(
+                    scale: _logoScale,
+                    child: Image.asset('assets/images/logo.png', height: 90),
+                  ),
+                ),
                 const SizedBox(height: 20),
                 const Text(
                   'COURIER PVT. LIMITED',
@@ -97,7 +125,7 @@ class _SplashScreenState extends State<SplashScreen> {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.08), width: 12),
+        border: Border.all(color: AppColors.yellow, width: 12),
       ),
     );
   }

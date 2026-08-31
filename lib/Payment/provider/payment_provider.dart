@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:yogayog/core/services/payment_service.dart';
 
 class PaymentProvider extends ChangeNotifier {
-  PaymentProvider({PaymentService? service}) : _service = service ?? PaymentService();
+  PaymentProvider({PaymentService? service})
+    : _service = service ?? PaymentService();
   final PaymentService _service;
   bool _isLoading = false;
   String? _errorMessage;
@@ -10,7 +11,9 @@ class PaymentProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  Future<PaymentOrderResponse?> createOrder({required Map<String, dynamic> payload}) async {
+  Future<PaymentOrderResponse?> createOrder({
+    required Map<String, dynamic> payload,
+  }) async {
     if (_isLoading) return null;
     _isLoading = true;
     _errorMessage = null;

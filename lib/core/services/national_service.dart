@@ -40,11 +40,50 @@ class NationalService {
       );
     }
   }
+
+  Future<NationalOrderResponse> createPostpaidOrder({
+    required Map<String, dynamic> payload,
+  }) async {
+    try {
+      final response = await ApiClient.dio.post(
+        ApiEndpoints.createPostpaidOrder,
+        data: payload,
+      );
+      final data = response.data;
+      if (data is! Map || data['success'] != true) {
+        throw NationalException(
+          data is Map
+              ? data['message']?.toString() ??
+                    'Unable to create post-paid order'
+              : 'Invalid response from the server',
+        );
+      }
+      return NationalOrderResponse.fromJson(Map<String, dynamic>.from(data));
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      if (data is Map && data['message'] != null) {
+        throw NationalException(data['message'].toString());
+      }
+      throw NationalException(
+        error.message ?? 'Network error while creating post-paid order',
+      );
+    }
+  }
 }
 
 class NationalException implements Exception {
   const NationalException(this.message);
   final String message;
+}
+
+class NationalOrderResponse {
+  const NationalOrderResponse({required this.raw});
+
+  final Map<String, dynamic> raw;
+
+  factory NationalOrderResponse.fromJson(Map<String, dynamic> json) {
+    return NationalOrderResponse(raw: json);
+  }
 }
 
 class NationalRateResponse {

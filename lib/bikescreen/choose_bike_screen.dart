@@ -33,6 +33,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
 
   int selectedVehicle = 0;
   bool scheduleLater = false;
+  bool _showAllVehicles = false;
 
   double get totalWeight =>
       widget.approximateWeightKg > widget.volumetricWeightKg
@@ -54,58 +55,82 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(12, 14, 12, 24),
                 children: [
-                  _steps(),
-
                   const SizedBox(height: 14),
 
                   ...List.generate(
-                    vehicles.length,
+                    _showAllVehicles
+                        ? vehicles.length
+                        : vehicles.take(1).length,
                     (index) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _vehicleCard(index),
                     ),
                   ),
-
-                  _scheduleCard(),
-
-                  const SizedBox(height: 28),
-
-                  SizedBox(
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => BikeConfirmScreem(
-                              rate: vehicles[selectedVehicle],
-                              distance: widget.rateResponse.distance,
-                              pickupAddress: widget.pickupAddress,
-                              dropAddress: widget.dropAddress,
-                              pickup: widget.pickup,
-                              drop: widget.drop,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: yellow,
-                        foregroundColor: blue,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                  if (vehicles.length > 1)
+                    Align(
+                      alignment: Alignment.center,
+                      child: TextButton.icon(
+                        onPressed: () => setState(
+                          () => _showAllVehicles = !_showAllVehicles,
                         ),
-                      ),
-                      child: const Text(
-                        'Continue →',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                        icon: Icon(
+                          _showAllVehicles
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
+                          color: blue,
+                        ),
+                        label: Text(
+                          _showAllVehicles
+                              ? 'Show fewer vehicles'
+                              : 'View all vehicles (${vehicles.length})',
+                          style: const TextStyle(
+                            color: blue,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+
+                  // _scheduleCard(),
+                  const SizedBox(height: 28),
                 ],
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => BikeConfirmScreem(
+                          rate: vehicles[selectedVehicle],
+                          distance: widget.rateResponse.distance,
+                          pickupAddress: widget.pickupAddress,
+                          dropAddress: widget.dropAddress,
+                          pickup: widget.pickup,
+                          drop: widget.drop,
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: yellow,
+                    foregroundColor: blue,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'Continue →',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
               ),
             ),
           ],
@@ -116,7 +141,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
 
   Widget _header(BuildContext context) {
     return Container(
-      height: 100,
+      height: 150,
       width: double.infinity,
       color: blue,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
@@ -161,6 +186,8 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
             'Prices include pickup & drop · ${totalWeight.toStringAsFixed(2)} kg',
             style: const TextStyle(color: Colors.white60, fontSize: 12),
           ),
+          const SizedBox(height: 6),
+          _steps(),
         ],
       ),
     );
@@ -191,8 +218,8 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
                 ? blue
                 : active
                 ? yellow
-                : Colors.white,
-            border: Border.all(color: active ? blue : const Color(0xFFD9DCE5)),
+                : Colors.white24,
+            border: Border.all(color: active ? blue : Colors.white54),
           ),
           child: Text(
             number,
@@ -201,7 +228,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
                   ? Colors.white
                   : active
                   ? blue
-                  : const Color(0xFF8A8F9C),
+                  : Colors.white70,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -210,7 +237,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
         Text(
           label,
           style: TextStyle(
-            color: active ? blue : const Color(0xFF8A8F9C),
+            color: active ? yellow : Colors.white70,
             fontSize: 10,
             fontWeight: active ? FontWeight.bold : FontWeight.normal,
           ),
@@ -224,7 +251,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
       child: Container(
         height: 2,
         margin: const EdgeInsets.only(bottom: 20),
-        color: const Color(0xFFD9DCE5),
+        color: Colors.white54,
       ),
     );
   }
@@ -256,7 +283,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
               ),
               child: Center(
                 child: Text(
-                    vehicle.vehicleType == 'bike' ? '🏍️' : '🚚',
+                  vehicle.vehicleType == 'bike' ? '🏍️' : '🚚',
                   style: const TextStyle(fontSize: 27),
                 ),
               ),
@@ -288,7 +315,14 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
 
                   const SizedBox(height: 6),
 
-                  Text('Base ₹${vehicle.basePrice.toStringAsFixed(2)} + GST', style: const TextStyle(color: blue, fontSize: 10, fontWeight: FontWeight.bold)),
+                  Text(
+                    'Base ₹${vehicle.basePrice.toStringAsFixed(2)} + GST',
+                    style: const TextStyle(
+                      color: blue,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),

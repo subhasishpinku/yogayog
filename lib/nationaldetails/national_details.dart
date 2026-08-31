@@ -11,10 +11,12 @@ import 'package:yogayog/choosecourier/choose_courier.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:yogayog/core/services/bikescreen_service.dart';
 import 'package:yogayog/core/services/home_service.dart';
+import 'package:yogayog/dashboard/dashboard_scren.dart';
 import 'package:yogayog/nationaldetails/provider/national_provider.dart';
 import 'package:yogayog/core/services/national_service.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/nationaldetails/national_details_next.dart';
 
 class _PlaceSuggestion {
   const _PlaceSuggestion({required this.placeId, required this.description});
@@ -25,18 +27,22 @@ class _PlaceSuggestion {
 class _GeoLocation {
   const _GeoLocation({
     required this.address,
+    this.houseNumber = '',
     required this.city,
     required this.pincode,
     required this.state,
     this.latitude,
     this.longitude,
+    this.clear = false,
   });
   final String address;
+  final String houseNumber;
   final String city;
   final String pincode;
   final String state;
   final double? latitude;
   final double? longitude;
+  final bool clear;
 }
 
 class _PlaceSearchDialog extends StatefulWidget {
@@ -169,6 +175,7 @@ class _PickupEditDialog extends StatefulWidget {
   const _PickupEditDialog({
     this.title = 'Edit Pickup Location',
     required this.initialAddress,
+    this.initialHouseNumber = '',
     required this.initialCity,
     required this.initialPincode,
     required this.initialState,
@@ -180,6 +187,7 @@ class _PickupEditDialog extends StatefulWidget {
 
   final String title;
   final String initialAddress;
+  final String initialHouseNumber;
   final String initialCity;
   final String initialPincode;
   final String initialState;
@@ -194,6 +202,7 @@ class _PickupEditDialog extends StatefulWidget {
 
 class _PickupEditDialogState extends State<_PickupEditDialog> {
   late final TextEditingController _addressController;
+  late final TextEditingController _houseNumberController;
   late final TextEditingController _cityController;
   late final TextEditingController _pincodeController;
   late final TextEditingController _stateController;
@@ -209,6 +218,9 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
   void initState() {
     super.initState();
     _addressController = TextEditingController(text: widget.initialAddress);
+    _houseNumberController = TextEditingController(
+      text: widget.initialHouseNumber,
+    );
     _cityController = TextEditingController(text: widget.initialCity);
     _pincodeController = TextEditingController(text: widget.initialPincode);
     _stateController = TextEditingController(text: widget.initialState);
@@ -226,6 +238,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
   void dispose() {
     _debounce?.cancel();
     _addressController.dispose();
+    _houseNumberController.dispose();
     _cityController.dispose();
     _pincodeController.dispose();
     _stateController.dispose();
@@ -310,6 +323,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _field(_addressController, 'Address', onChanged: _searchAddress),
+            _field(_houseNumberController, 'House Number'),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.red)),
             if (_suggestions.isNotEmpty)
@@ -337,6 +351,21 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
       ),
       actions: [
         TextButton(
+          onPressed: () => Navigator.pop(
+            context,
+            const _GeoLocation(
+              address: '',
+              city: '',
+              pincode: '',
+              state: '',
+              latitude: null,
+              longitude: null,
+              clear: true,
+            ),
+          ),
+          child: const Text('Clear'),
+        ),
+        TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
@@ -345,6 +374,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
             context,
             _GeoLocation(
               address: _addressController.text.trim(),
+              houseNumber: _houseNumberController.text.trim(),
               city: _cityController.text.trim(),
               pincode: _pincodeController.text.trim(),
               state: _stateController.text.trim(),
@@ -386,6 +416,9 @@ class NationalDetails extends StatefulWidget {
 }
 
 class _NationalDetailsState extends State<NationalDetails> {
+  bool _showLegacyPackageSection = false;
+  bool _showInlineShipmentFields = false;
+  final ValueNotifier<int> _packageBoxesVersion = ValueNotifier(0);
   static const placesKey = String.fromEnvironment(
     'GOOGLE_MAPS_API_KEY',
     defaultValue: 'AIzaSyC6atqg-XZ8SVzSlLrt5W5mhCgkG-8h6Lo',
@@ -401,6 +434,7 @@ class _NationalDetailsState extends State<NationalDetails> {
   final pickupPhoneController = TextEditingController();
   final pickupPinController = TextEditingController();
   final addressController = TextEditingController();
+  final houseNumberController = TextEditingController();
   final cityController = TextEditingController();
   final pinController = TextEditingController();
   final piecesController = TextEditingController(text: '1');
@@ -409,6 +443,8 @@ class _NationalDetailsState extends State<NationalDetails> {
   final List<PackageBox> packageBoxes = [];
 
   String pickupAddress = 'Fetching current location...';
+  String pickupHouseNumber = '';
+  final pickupHouseNumberController = TextEditingController();
   String pickupCity = '';
   String pickupPincode = '';
   String pickupState = '';
@@ -416,6 +452,7 @@ class _NationalDetailsState extends State<NationalDetails> {
   double? pickupLongitude;
 
   String dropAddress = 'Tap to add destination';
+  String dropHouseNumber = '';
   String dropCity = '';
   String dropPincode = '';
   String dropState = '';
@@ -452,10 +489,13 @@ class _NationalDetailsState extends State<NationalDetails> {
     pickupPhoneController.dispose();
     pickupPinController.dispose();
     addressController.dispose();
+    pickupHouseNumberController.dispose();
+    houseNumberController.dispose();
     cityController.dispose();
     pinController.dispose();
     piecesController.dispose();
     approximateWeightController.dispose();
+    _packageBoxesVersion.dispose();
     for (final box in packageBoxes) {
       box.dispose();
     }
@@ -589,6 +629,7 @@ class _NationalDetailsState extends State<NationalDetails> {
       context: context,
       builder: (_) => _PickupEditDialog(
         initialAddress: pickupAddress,
+        initialHouseNumber: pickupHouseNumber,
         initialCity: pickupCity,
         initialPincode: pickupPincode,
         initialState: pickupState,
@@ -599,8 +640,25 @@ class _NationalDetailsState extends State<NationalDetails> {
       ),
     );
     if (result == null || !mounted) return;
+    if (result.clear) {
+      setState(() {
+        pickupAddress = '';
+        pickupHouseNumber = '';
+        pickupHouseNumberController.clear();
+        pickupCity = '';
+        pickupPincode = '';
+        pickupPinController.clear();
+        pickupState = '';
+        pickupLatitude = null;
+        pickupLongitude = null;
+      });
+      return;
+    }
+    if (!_requireHouseNumber(result.houseNumber, 'Pickup')) return;
     setState(() {
       pickupAddress = result.address;
+      pickupHouseNumber = result.houseNumber;
+      pickupHouseNumberController.text = pickupHouseNumber;
       pickupCity = result.city;
       pickupPincode = result.pincode;
       pickupPinController.text = pickupPincode;
@@ -613,8 +671,8 @@ class _NationalDetailsState extends State<NationalDetails> {
       payload: {
         'name': pickupNameController.text.trim(),
         'mobile': pickupPhoneController.text.trim(),
-        'service_id': 1,
-        'house_numb': '',
+        'service_id': 4,
+        'house_numb': pickupHouseNumberController.text.trim(),
         'street': result.address,
         'city': result.city,
         'district': result.city,
@@ -650,6 +708,8 @@ class _NationalDetailsState extends State<NationalDetails> {
     if (selected == null || !mounted) return;
     setState(() {
       pickupAddress = selected.address;
+      pickupHouseNumber = selected.houseNumber;
+      pickupHouseNumberController.text = pickupHouseNumber;
       pickupCity = selected.city;
       pickupPincode = selected.pincode;
       pickupPinController.text = pickupPincode;
@@ -658,9 +718,35 @@ class _NationalDetailsState extends State<NationalDetails> {
       pickupLongitude = selected.longitude;
     });
     if (!await _checkNationalPincode(selected.pincode)) return;
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': pickupNameController.text.trim(),
+        'mobile': pickupPhoneController.text.trim(),
+        'service_id': 4,
+        'house_numb': pickupHouseNumberController.text.trim(),
+        'street': selected.address,
+        'city': selected.city,
+        'district': selected.city,
+        'state': selected.state,
+        'pin': selected.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'lat': selected.latitude,
+        'lon': selected.longitude,
+        'flag': 'pickup',
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Pickup address saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save pickup address',
+    );
   }
 
   Future<void> _openSavedDropLocations() async {
+    if (!_validateDropContact()) return;
     final provider = context.read<BikescreenProvider>();
     await provider.loadLocations(serviceId: 4);
     if (!mounted) return;
@@ -673,8 +759,14 @@ class _NationalDetailsState extends State<NationalDetails> {
       builder: (_) => _SavedLocationDialog(locations: provider.locations),
     );
     if (selected == null || !mounted) return;
+    final selectedHouseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : dropHouseNumber.trim();
+    if (!_requireHouseNumber(selectedHouseNumber, 'Drop')) return;
     setState(() {
       dropAddress = selected.address;
+      dropHouseNumber = selectedHouseNumber;
+      houseNumberController.text = selectedHouseNumber;
       dropCity = selected.city;
       dropPincode = selected.pincode;
       pinController.text = dropPincode;
@@ -691,7 +783,7 @@ class _NationalDetailsState extends State<NationalDetails> {
         'name': receiverNameController.text.trim(),
         'mobile': mobileController.text.trim(),
         'service_id': 4,
-        'house_numb': '',
+        'house_numb': houseNumberController.text.trim(),
         'street': selected.address,
         'city': selected.city,
         'district': selected.city,
@@ -716,6 +808,7 @@ class _NationalDetailsState extends State<NationalDetails> {
   // ==================== Drop Location ====================
 
   Future<void> _openDropSearchDialog() async {
+    if (!_validateDropContact()) return;
     if (placesKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -731,6 +824,7 @@ class _NationalDetailsState extends State<NationalDetails> {
     if (selected == null || !mounted) return;
     setState(() {
       dropAddress = selected.address;
+      houseNumberController.text = dropHouseNumber;
       dropCity = selected.city;
       dropPincode = selected.pincode;
       dropState = selected.state;
@@ -747,7 +841,7 @@ class _NationalDetailsState extends State<NationalDetails> {
         'name': receiverNameController.text.trim(),
         'mobile': mobileController.text.trim(),
         'service_id': 4,
-        'house_numb': '',
+        'house_numb': houseNumberController.text.trim(),
         'street': selected.address,
         'city': selected.city,
         'district': selected.city,
@@ -778,6 +872,7 @@ class _NationalDetailsState extends State<NationalDetails> {
   }
 
   Future<void> _editDrop() async {
+    if (!_validateDropContact()) return;
     if (placesKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -787,6 +882,7 @@ class _NationalDetailsState extends State<NationalDetails> {
       builder: (_) => _PickupEditDialog(
         title: 'Edit Drop Location',
         initialAddress: dropAddress,
+        initialHouseNumber: dropHouseNumber,
         initialCity: dropCity,
         initialPincode: dropPincode,
         initialState: dropState,
@@ -797,8 +893,27 @@ class _NationalDetailsState extends State<NationalDetails> {
       ),
     );
     if (selected == null || !mounted) return;
+    if (selected.clear) {
+      setState(() {
+        dropAddress = 'Tap to add destination';
+        dropHouseNumber = '';
+        houseNumberController.clear();
+        dropCity = '';
+        dropPincode = '';
+        pinController.clear();
+        dropState = '';
+        dropLatitude = null;
+        dropLongitude = null;
+        addressController.clear();
+        cityController.clear();
+      });
+      return;
+    }
+    if (!_requireHouseNumber(selected.houseNumber, 'Drop')) return;
     setState(() {
       dropAddress = selected.address;
+      dropHouseNumber = selected.houseNumber;
+      houseNumberController.text = dropHouseNumber;
       dropCity = selected.city;
       dropPincode = selected.pincode;
       dropState = selected.state;
@@ -815,7 +930,7 @@ class _NationalDetailsState extends State<NationalDetails> {
         'name': receiverNameController.text.trim(),
         'mobile': mobileController.text.trim(),
         'service_id': 4,
-        'house_numb': '',
+        'house_numb': houseNumberController.text.trim(),
         'street': selected.address,
         'city': selected.city,
         'district': selected.city,
@@ -845,6 +960,28 @@ class _NationalDetailsState extends State<NationalDetails> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  bool _validateDropContact() {
+    final name = receiverNameController.text.trim();
+    final phone = mobileController.text.trim();
+    if (name.isEmpty) {
+      _showMessage('Please enter drop name first');
+      return false;
+    }
+    if (phone.length != 10) {
+      _showMessage('Please enter a valid 10-digit drop phone number first');
+      return false;
+    }
+    return true;
+  }
+
+  bool _requireHouseNumber(String value, String locationLabel) {
+    if (value.trim().isEmpty) {
+      _showMessage('Please enter $locationLabel house number before saving');
+      return false;
+    }
+    return true;
+  }
+
   void _onPiecesChanged(String value) {
     if (selectedPackageType != 'Non-document') return;
     final count = int.tryParse(value) ?? 0;
@@ -868,7 +1005,7 @@ class _NationalDetailsState extends State<NationalDetails> {
 
   Widget _label(String text) {
     return Padding(
-      padding: const EdgeInsets.only(left: 20, top: 12, bottom: 6),
+      padding: const EdgeInsets.only(left: 20, top: 7, bottom: 3),
       child: Text(
         text,
         style: const TextStyle(
@@ -920,8 +1057,114 @@ class _NationalDetailsState extends State<NationalDetails> {
   }
 
   Widget _locationCard() {
+    return Column(
+      children: [
+        _nationalLocationCard(pickup: true),
+        const SizedBox(height: 8),
+        _nationalLocationCard(pickup: false),
+      ],
+    );
+  }
+
+  Widget _nationalLocationCard({required bool pickup}) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
+        ],
+      ),
+      child: Column(
+        children: [
+          _nationalLocationHeader(pickup: pickup),
+          const SizedBox(height: 6),
+          _contactRow(
+            nameController: pickup
+                ? pickupNameController
+                : receiverNameController,
+            phoneController: pickup ? pickupPhoneController : mobileController,
+            nameLabel: pickup ? 'PICKUP NAME' : 'DROP NAME',
+            phoneLabel: pickup ? 'PICKUP PHONE' : 'DROP PHONE',
+            nameHint: pickup ? 'Pickup name' : 'Drop name',
+            phoneHint: pickup ? 'Pickup phone' : 'Drop phone',
+          ),
+          const SizedBox(height: 8),
+          _locationRow(
+            pickup ? 'PICKUP' : 'DROP',
+            pickup ? pickupAddress : dropAddress,
+            pickup ? pickupCity : dropCity,
+            pickup ? pickupPincode : dropPincode,
+            pickup,
+            pickup ? _editPickup : _dropLocationAction,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _nationalLocationHeader({required bool pickup}) {
+    final accent = pickup ? const Color(0xFFFFB800) : const Color(0xFF5EA8FF);
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: pickup ? const Color(0xFF121214) : const Color(0xFF1E2B43),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 10,
+            backgroundColor: accent,
+            child: Text(
+              pickup ? 'P' : 'D',
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            pickup ? 'PICKUP' : 'DROP',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: pickup ? _openSavedLocations : _openSavedDropLocations,
+            icon: const Icon(Icons.folder, size: 13),
+            label: const Text('SAVED ADDRESS'),
+            style: TextButton.styleFrom(
+              foregroundColor: accent,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              textStyle: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+              side: BorderSide(color: accent.withOpacity(.5)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /*
+  Widget _locationCard() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(5, 10, 16, 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
@@ -935,41 +1178,33 @@ class _NationalDetailsState extends State<NationalDetails> {
       ),
       child: Column(
         children: [
-          InkWell(
-            onTap: _openSavedLocations,
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              height: 49,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F8FC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE1E1E6)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.search, color: Color(0xFF667085), size: 23),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Search saved pickup location',
-                      style: TextStyle(color: Color(0xFF667085), fontSize: 14),
-                    ),
-                  ),
-                  Icon(Icons.keyboard_arrow_down, color: Color(0xFF667085)),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _locationRow(
-            'PICKUP',
-            pickupAddress,
-            pickupCity,
-            pickupPincode,
-            true,
-            _editPickup,
-          ),
+          // InkWell(
+          //   onTap: _openSavedLocations,
+          //   borderRadius: BorderRadius.circular(12),
+          //   child: Container(
+          //     height: 49,
+          //     padding: const EdgeInsets.symmetric(horizontal: 14),
+          //     decoration: BoxDecoration(
+          //       color: const Color(0xFFF8F8FC),
+          //       borderRadius: BorderRadius.circular(12),
+          //       border: Border.all(color: const Color(0xFFE1E1E6)),
+          //     ),
+          //     child: const Row(
+          //       children: [
+          //         Icon(Icons.search, color: Color(0xFF667085), size: 23),
+          //         SizedBox(width: 12),
+          //         Expanded(
+          //           child: Text(
+          //             'Search saved pickup location',
+          //             style: TextStyle(color: Color(0xFF667085), fontSize: 14),
+          //           ),
+          //         ),
+          //         Icon(Icons.keyboard_arrow_down, color: Color(0xFF667085)),
+          //       ],
+          //     ),
+          //   ),
+          // ),
+          const SizedBox(height: 5),
           _contactRow(
             nameController: pickupNameController,
             phoneController: pickupPhoneController,
@@ -978,45 +1213,46 @@ class _NationalDetailsState extends State<NationalDetails> {
             nameHint: 'Pickup name',
             phoneHint: 'Pickup phone',
           ),
+          const SizedBox(height: 10),
+          _locationRow(
+            'PICKUP',
+            pickupAddress,
+            pickupCity,
+            pickupPincode,
+            true,
+            _editPickup,
+          ),
           const Padding(
             padding: EdgeInsets.only(left: 6),
             child: Divider(height: 20),
           ),
-          InkWell(
-            onTap: _openSavedDropLocations,
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              height: 49,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F8FC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE1E1E6)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.search, color: Color(0xFF667085), size: 23),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Search saved drop location',
-                      style: TextStyle(color: Color(0xFF667085), fontSize: 14),
-                    ),
-                  ),
-                  Icon(Icons.keyboard_arrow_down, color: Color(0xFF667085)),
-                ],
-              ),
-            ),
-          ),
+          // InkWell(
+          //   onTap: _openSavedDropLocations,
+          //   borderRadius: BorderRadius.circular(12),
+          //   child: Container(
+          //     height: 49,
+          //     padding: const EdgeInsets.symmetric(horizontal: 14),
+          //     decoration: BoxDecoration(
+          //       color: const Color(0xFFF8F8FC),
+          //       borderRadius: BorderRadius.circular(12),
+          //       border: Border.all(color: const Color(0xFFE1E1E6)),
+          //     ),
+          //     child: const Row(
+          //       children: [
+          //         Icon(Icons.search, color: Color(0xFF667085), size: 23),
+          //         SizedBox(width: 12),
+          //         Expanded(
+          //           child: Text(
+          //             'Search saved drop location',
+          //             style: TextStyle(color: Color(0xFF667085), fontSize: 14),
+          //           ),
+          //         ),
+          //         Icon(Icons.keyboard_arrow_down, color: Color(0xFF667085)),
+          //       ],
+          //     ),
+          //   ),
+          // ),
           const SizedBox(height: 12),
-          _locationRow(
-            'DROP',
-            dropAddress,
-            dropCity,
-            dropPincode,
-            false,
-            _dropLocationAction,
-          ),
           _contactRow(
             nameController: receiverNameController,
             phoneController: mobileController,
@@ -1025,10 +1261,21 @@ class _NationalDetailsState extends State<NationalDetails> {
             nameHint: 'Drop name',
             phoneHint: 'Drop phone',
           ),
+          const SizedBox(height: 10),
+          _locationRow(
+            'DROP',
+            dropAddress,
+            dropCity,
+            dropPincode,
+            false,
+            _dropLocationAction,
+          ),
         ],
       ),
     );
   }
+
+  */
 
   Widget _contactRow({
     required TextEditingController nameController,
@@ -1039,7 +1286,7 @@ class _NationalDetailsState extends State<NationalDetails> {
     required String phoneHint,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.only(top: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1333,6 +1580,7 @@ class _NationalDetailsState extends State<NationalDetails> {
                       box.dispose();
                       packageBoxes.removeAt(index);
                       piecesController.text = packageBoxes.length.toString();
+                      _packageBoxesVersion.value++;
                     });
                   },
                   child: const CircleAvatar(
@@ -1389,7 +1637,10 @@ class _NationalDetailsState extends State<NationalDetails> {
     return TextField(
       controller: controller,
       keyboardType: TextInputType.number,
-      onChanged: (_) => setState(() {}),
+      onChanged: (_) {
+        setState(() {});
+        _packageBoxesVersion.value++;
+      },
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: Color(0xFF536078), fontSize: 13),
@@ -1460,7 +1711,10 @@ class _NationalDetailsState extends State<NationalDetails> {
     return true;
   }
 
-  Future<bool> _checkNationalPincode(String pincode) async {
+  Future<bool> _checkNationalPincode(
+    String pincode, {
+    bool showSuccess = false,
+  }) async {
     final value = pincode.trim();
     if (!RegExp(r'^\d{6}$').hasMatch(value)) {
       _showMessage('Please enter a valid 6-digit pincode');
@@ -1477,6 +1731,7 @@ class _NationalDetailsState extends State<NationalDetails> {
       );
       return false;
     }
+    if (showSuccess) _showMessage('Pincode is serviceable');
     return true;
   }
 
@@ -1528,13 +1783,24 @@ class _NationalDetailsState extends State<NationalDetails> {
                 },
               )
               .toList();
+    final preferences = await SharedPreferences.getInstance();
+    final paymentMode =
+        preferences
+            .getString(HomeService.profilePaymentModeKey)
+            ?.trim()
+            .toLowerCase()
+            .replaceAll(RegExp(r'[\s_-]'), '') ??
+        '';
+    final isPrepaid = paymentMode == 'prepaid';
+    final paymentModeLabel = isPrepaid ? 'Pre-Paid' : 'Post-Paid';
     final ratesPayload = <String, dynamic>{
       'service_id': 4,
       'package_type_id': 1,
       'weight': weight,
       'pickup_pincode': pickupPincode.trim(),
       'delivery_pincode': dropPincode.trim(),
-      'payment_type': 'prepaid',
+      'payment_type': isPrepaid ? 'prepaid' : 'postpaid',
+      'payment_mode': paymentModeLabel,
       'drop_lat': dropLatitude ?? 0,
       'pickup_lat': pickupLatitude ?? 0,
       'pickup_lng': pickupLongitude ?? 0,
@@ -1546,20 +1812,23 @@ class _NationalDetailsState extends State<NationalDetails> {
       'service_id': 4,
       'sub_service_id': 5,
       'pickup_date': DateTime.now().toIso8601String().split('T').first,
-      'payment_method': 'ONLINE',
+      'payment_method': isPrepaid ? 'ONLINE' : 'COD',
+      'payment_mode': paymentModeLabel,
       'price': 0,
       'package_type_id': 1,
       'pieces': int.tryParse(piecesController.text) ?? 1,
       'dead_weight': weight,
       'volumetric_weight': volumetricWeight,
-      'chargeable_weight': weight > volumetricWeight ? weight : volumetricWeight,
+      'chargeable_weight': weight > volumetricWeight
+          ? weight
+          : volumetricWeight,
       'hsn_code': '8517',
       'boxes': boxes,
       'pickup': {
         'name': pickupNameController.text.trim(),
         'mobile': pickupPhoneController.text.trim(),
         'address': pickupAddress,
-        'house_no': '',
+        'house_no': pickupHouseNumber.trim(),
         'city': pickupCity,
         'state': pickupState,
         'pincode': pickupPincode,
@@ -1571,7 +1840,7 @@ class _NationalDetailsState extends State<NationalDetails> {
         'name': receiverNameController.text.trim(),
         'mobile': mobileController.text.trim(),
         'address': dropAddress,
-        'house_no': '',
+        'house_no': dropHouseNumber.trim(),
         'city': dropCity,
         'state': dropState,
         'pincode': dropPincode,
@@ -1581,14 +1850,19 @@ class _NationalDetailsState extends State<NationalDetails> {
       },
     };
     final provider = context.read<NationalProvider>();
-    final rates = await provider.loadRates(payload: ratesPayload);
+    NationalRateResponse? rates;
+    if (isPrepaid) {
+      rates = await provider.loadRates(payload: ratesPayload);
+    }
     if (!mounted) return;
-    if (rates == null || rates.rates.isEmpty) {
+    if (isPrepaid && (rates == null || rates.rates.isEmpty)) {
       _showMessage(provider.errorMessage ?? 'No courier rates available');
       return;
     }
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString('national_rates_response', jsonEncode(rates.raw));
+    await preferences.setString(
+      'national_rates_response',
+      rates == null ? '' : jsonEncode(rates.raw),
+    );
     await preferences.setString(
       'national_rates_payload',
       jsonEncode(ratesPayload),
@@ -1637,6 +1911,29 @@ class _NationalDetailsState extends State<NationalDetails> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    if (!isPrepaid) {
+      final postpaidPayload = Map<String, dynamic>.from(orderPayload)
+        ..remove('payment_method')
+        ..remove('payment_mode')
+        ..remove('price');
+      final created = await provider.createPostpaidOrder(
+        payload: postpaidPayload,
+      );
+      if (!mounted) return;
+      if (created == null) {
+        _showMessage(
+          provider.errorMessage ?? 'Unable to create post-paid order',
+        );
+        return;
+      }
+      await preferences.setString(
+        'national_order_payload',
+        jsonEncode(postpaidPayload),
+      );
+      Navigator.push(context, MaterialPageRoute(builder: (_) => Dashboard()));
+      _showMessage('Post-paid order created successfully');
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1652,6 +1949,229 @@ class _NationalDetailsState extends State<NationalDetails> {
     );
   }
 
+  Future<void> _showShipmentDetailsDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Shipment details'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _label('DELIVERY ADDRESS'),
+                _textField(
+                  controller: addressController,
+                  hintText: 'Full address',
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('PICKUP HOUSE NO'),
+                          _textField(
+                            controller: pickupHouseNumberController,
+                            hintText: 'Pickup House No',
+                            onChanged: (value) => pickupHouseNumber = value,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('DROP HOUSE NO'),
+                          _textField(
+                            controller: houseNumberController,
+                            hintText: 'Drop House No',
+                            onChanged: (value) => dropHouseNumber = value,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('APPROX. WEIGHT (KG)'),
+                          _textField(
+                            controller: approximateWeightController,
+                            hintText: 'e.g. 2.5',
+                            keyboardType: TextInputType.number,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('CITY'),
+                          _textField(
+                            controller: cityController,
+                            hintText: 'City',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('PICKUP PIN'),
+                          _textField(
+                            controller: pickupPinController,
+                            hintText: 'Pickup PIN',
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            maxLength: 6,
+                            onChanged: (value) => pickupPincode = value,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('DROP PIN'),
+                          _textField(
+                            controller: pinController,
+                            hintText: 'Drop PIN',
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            maxLength: 6,
+                            onChanged: (value) => dropPincode = value,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (_validatePackageFields()) Navigator.pop(dialogContext);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openPackageSelection() async {
+    FocusScope.of(context).unfocus();
+    if (!_validatePackageFields()) {
+      await _showShipmentDetailsDialog();
+      if (!mounted || !_validatePackageFields()) return;
+    }
+    if (!await _checkNationalPincode(pickupPinController.text.trim())) return;
+    if (!await _checkNationalPincode(pinController.text.trim())) return;
+    if (await _rejectUnserviceableKolkataRoute()) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NationalDetailsNext(
+          selectedPackageType: selectedPackageType,
+          selectedPackageSize: selectedPackageSize,
+          onPackageTypeChanged: (value) => setState(() {
+            selectedPackageType = value;
+          }),
+          onPackageSizeChanged: (value) => setState(() {
+            selectedPackageSize = value;
+            if (value == '0 - 500g') {
+              approximateWeightController.text = '0.5';
+            } else if (value == '500g - 1kg') {
+              approximateWeightController.text = '1';
+            }
+          }),
+          piecesController: piecesController,
+          weightController: approximateWeightController,
+          onPiecesChanged: _onPiecesChanged,
+          packageBoxesBuilder: _packageBoxesWidget,
+          packageBoxesVersion: _packageBoxesVersion,
+          onReviewAndConfirm: _reviewAndConfirm,
+        ),
+      ),
+    );
+  }
+
+  bool _validatePackageFields() {
+    final fullAddress = addressController.text.trim();
+    final pickupHouseNo = pickupHouseNumberController.text.trim();
+    final dropHouseNo = houseNumberController.text.trim();
+    final approximateWeight = approximateWeightController.text.trim();
+    final city = cityController.text.trim();
+    final pickupPin = pickupPinController.text.trim();
+    final dropPin = pinController.text.trim();
+
+    if (pickupAddress.trim().isEmpty ||
+        pickupAddress == 'Fetching current location...') {
+      _showMessage('Please enter pickup full address');
+      return false;
+    }
+    if (fullAddress.isEmpty ||
+        dropAddress.trim().isEmpty ||
+        dropAddress == 'Tap to add destination') {
+      _showMessage('Please enter drop full address');
+      return false;
+    }
+    if (pickupHouseNo.isEmpty) {
+      _showMessage('Please enter pickup house number');
+      return false;
+    }
+    if (dropHouseNo.isEmpty) {
+      _showMessage('Please enter drop house number');
+      return false;
+    }
+    if ((double.tryParse(approximateWeight) ?? 0) <= 0) {
+      _showMessage('Please enter approximate weight');
+      return false;
+    }
+    if (city.isEmpty) {
+      _showMessage('Please enter city');
+      return false;
+    }
+    if (!RegExp(r'^\d{6}$').hasMatch(pickupPin)) {
+      _showMessage('Please enter a valid 6-digit pickup PIN');
+      return false;
+    }
+    if (!RegExp(r'^\d{6}$').hasMatch(dropPin)) {
+      _showMessage('Please enter a valid 6-digit drop PIN');
+      return false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1661,7 +2181,7 @@ class _NationalDetailsState extends State<NationalDetails> {
         elevation: 0,
         foregroundColor: Colors.black,
         title: const Text(
-          'Receiver Details',
+          'National Details',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
@@ -1671,205 +2191,178 @@ class _NationalDetailsState extends State<NationalDetails> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _locationCard(),
-            const SizedBox(height: 14),
-
-            _label('DELIVERY ADDRESS'),
-            _textField(controller: addressController, hintText: 'Full address'),
-
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _label('APPROX. WEIGHT (KG)'),
-                      _textField(
-                        controller: approximateWeightController,
-                        hintText: 'e.g. 2.5',
-                        keyboardType: TextInputType.number,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _label('CITY'),
-                      _textField(controller: cityController, hintText: 'City'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _label('PICKUP PIN'),
-                      _textField(
-                        controller: pickupPinController,
-                        hintText: 'Pickup PIN',
-                        keyboardType: TextInputType.number,
-                        readOnly: true,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _label('DROP PIN'),
-                      _textField(
-                        controller: pinController,
-                        hintText: 'PIN',
-                        keyboardType: TextInputType.number,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 25),
-
-            const Text(
-              'Select Your Package',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _packageTypeCard(
-                    title: 'Document',
-                    icon: Icons.mail_outline,
-                    packageType: 'Document',
-                  ),
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: _packageTypeCard(
-                    title: 'Non-document',
-                    icon: Icons.inventory_2_outlined,
-                    packageType: 'Non-document',
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 22),
-
-            const Text(
-              'Select Package Size',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            Wrap(
-              spacing: 8,
-              children: [
-                _packageSizeChip('0 - 500g'),
-                _packageSizeChip('500g - 1kg'),
-                _packageSizeChip('Greater than 1kg'),
-              ],
-            ),
-
-            const SizedBox(height: 18),
-
-            const Text(
-              'Enter Package Details',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-
             const SizedBox(height: 10),
 
-            Row(
-              children: [
-                const SizedBox(
-                  width: 190,
-                  child: Text(
-                    'Number of Total Pieces :',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                Expanded(
-                  child: _textField(
-                    controller: piecesController,
-                    hintText: '1',
-                    keyboardType: TextInputType.number,
-                    onChanged: _onPiecesChanged,
-                  ),
-                ),
-              ],
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _showShipmentDetailsDialog,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Enter shipment details'),
+              ),
             ),
 
-            const SizedBox(height: 8),
-
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(
-                  width: 190,
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 14),
-                    child: Text(
-                      'Approximate Weight (KG) :',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
+            if (_showInlineShipmentFields) ...[
+              _label('DELIVERY ADDRESS'),
+              _textField(
+                controller: addressController,
+                hintText: 'Full address',
+              ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('PICKUP HOUSE NO'),
+                        _textField(
+                          controller: pickupHouseNumberController,
+                          hintText: 'Pickup House No',
+                          onChanged: (value) => pickupHouseNumber = value,
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _textField(
-                        controller: approximateWeightController,
-                        hintText: 'e.g., 2.5',
-                        keyboardType: TextInputType.number,
-                      ),
-                      if (selectedPackageSize != 'Greater than 1kg')
-                        Padding(
-                          padding: const EdgeInsets.only(left: 4, top: 4),
-                          child: Text(
-                            '💡 Weight set to ${approximateWeightController.text}kg for this size',
-                            style: const TextStyle(
-                              color: Color(0xFF536078),
-                              fontSize: 12,
-                            ),
-                          ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('DROP HOUSE NO'),
+                        _textField(
+                          controller: houseNumberController,
+                          hintText: 'Drop House No',
+                          onChanged: (value) => dropHouseNumber = value,
                         ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
 
-            if (selectedPackageType == 'Non-document') ...[
-              const SizedBox(height: 16),
-              _packageBoxesWidget(),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('APPROX. WEIGHT (KG)'),
+                        _textField(
+                          controller: approximateWeightController,
+                          hintText: 'e.g. 2.5',
+                          keyboardType: TextInputType.number,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('CITY'),
+                        _textField(
+                          controller: cityController,
+                          hintText: 'City',
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('PICKUP PIN'),
+                        _textField(
+                          controller: pickupPinController,
+                          hintText: 'Pickup PIN',
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          maxLength: 6,
+                          onChanged: (value) {
+                            pickupPincode = value;
+                            if (value.length == 6) {
+                              _checkNationalPincode(value, showSuccess: true);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('DROP PIN'),
+                        _textField(
+                          controller: pinController,
+                          hintText: 'PIN',
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          maxLength: 6,
+                          onChanged: (value) {
+                            dropPincode = value;
+                            if (value.length == 6) {
+                              _checkNationalPincode(value, showSuccess: true);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
 
-            const SizedBox(height: 28),
+            const SizedBox(height: 14),
 
+            if (_showLegacyPackageSection) ...[
+              const Text(
+                'Select Your Package',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 8),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: _packageTypeCard(
+                      title: 'Document',
+                      icon: Icons.mail_outline,
+                      packageType: 'Document',
+                    ),
+                  ),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: _packageTypeCard(
+                      title: 'Non-document',
+                      icon: Icons.inventory_2_outlined,
+                      packageType: 'Non-document',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+
+            const SizedBox(height: 22),
             SizedBox(
               width: double.infinity,
               height: 57,
               child: ElevatedButton(
-                onPressed: _reviewAndConfirm,
+                onPressed: _openPackageSelection,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFFC400),
                   foregroundColor: const Color(0xFF101B8F),
@@ -1879,11 +2372,134 @@ class _NationalDetailsState extends State<NationalDetails> {
                   ),
                 ),
                 child: const Text(
-                  'Review & Confirm →',
+                  'Select Package →',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
+
+            if (_showLegacyPackageSection) ...[
+              const SizedBox(height: 22),
+
+              const Text(
+                'Select Package Size',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 8),
+
+              Wrap(
+                spacing: 8,
+                children: [
+                  _packageSizeChip('0 - 500g'),
+                  _packageSizeChip('500g - 1kg'),
+                  _packageSizeChip('Greater than 1kg'),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+
+              const Text(
+                'Enter Package Details',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
+                  const SizedBox(
+                    width: 190,
+                    child: Text(
+                      'Number of Total Pieces :',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: _textField(
+                      controller: piecesController,
+                      hintText: '1',
+                      keyboardType: TextInputType.number,
+                      onChanged: _onPiecesChanged,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 8),
+
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(
+                    width: 190,
+                    child: Padding(
+                      padding: EdgeInsets.only(top: 14),
+                      child: Text(
+                        'Approximate Weight (KG) :',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _textField(
+                          controller: approximateWeightController,
+                          hintText: 'e.g., 2.5',
+                          keyboardType: TextInputType.number,
+                        ),
+                        if (selectedPackageSize != 'Greater than 1kg')
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, top: 4),
+                            child: Text(
+                              '💡 Weight set to ${approximateWeightController.text}kg for this size',
+                              style: const TextStyle(
+                                color: Color(0xFF536078),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              if (selectedPackageType == 'Non-document') ...[
+                const SizedBox(height: 16),
+                _packageBoxesWidget(),
+              ],
+
+              const SizedBox(height: 28),
+
+              SizedBox(
+                width: double.infinity,
+                height: 57,
+                child: ElevatedButton(
+                  onPressed: _reviewAndConfirm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFC400),
+                    foregroundColor: const Color(0xFF101B8F),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'Review & Confirm →',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

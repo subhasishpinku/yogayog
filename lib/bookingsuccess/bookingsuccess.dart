@@ -1,9 +1,16 @@
+import 'dart:typed_data';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/dashboard/dashboard_scren.dart';
 import 'package:yogayog/homescreen/home_screen.dart';
 import 'package:yogayog/core/services/payment_service.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:yogayog/paperworkrequired/paperwork_required.dart';
+import 'package:yogayog/bookingsuccess/provider/bookingsuccess_provider.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 
 class BookingSuccess extends StatefulWidget {
   const BookingSuccess({super.key, this.order});
@@ -61,23 +68,32 @@ class _BookingSuccessState extends State<BookingSuccess> {
               // const _CommissionCard(),
               // const SizedBox(height: 21),
               SizedBox(
-                width: double.infinity,
                 height: 57,
-                child: ElevatedButton(
-                  onPressed: _backToHome,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _yellow,
-                    foregroundColor: Colors.black,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PaperworkRequired(),
+                            ),
+                          );
+                        },
+                        style: _actionButtonStyle(),
+                        child: const Text('Upload'),
+                      ),
                     ),
-                    textStyle: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _backToHome,
+                        style: _actionButtonStyle(),
+                        child: const Text('Back to Home'),
+                      ),
                     ),
-                  ),
-                  child: const Text('Back to Home'),
+                  ],
                 ),
               ),
             ],
@@ -86,6 +102,15 @@ class _BookingSuccessState extends State<BookingSuccess> {
       ),
     );
   }
+
+  ButtonStyle _actionButtonStyle() => ElevatedButton.styleFrom(
+    backgroundColor: _yellow,
+    foregroundColor: Colors.black,
+    elevation: 0,
+    minimumSize: const Size.fromHeight(57),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+    textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+  );
 }
 
 class _SuccessIcon extends StatelessWidget {
@@ -151,22 +176,85 @@ class _TrackingCard extends StatelessWidget {
   }
 }
 
-class _InvoiceCard extends StatelessWidget {
+class _InvoiceCard extends StatefulWidget {
   const _InvoiceCard({required this.order});
 
   final PaymentOrderResponse order;
 
+  @override
+  State<_InvoiceCard> createState() => _InvoiceCardState();
+}
+
+class _InvoiceCardState extends State<_InvoiceCard> {
+  final _provider = BookingSuccessProvider();
+
   Future<void> _downloadInvoice(BuildContext context) async {
-    final uri = Uri.tryParse(order.invoiceUrl);
-    if (uri == null || !await canLaunchUrl(uri)) {
+    final orderId = int.tryParse(widget.order.orderId);
+    if (orderId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Order ID is unavailable for invoice')),
+      );
+      return;
+    }
+    final bytes = await _provider.downloadInvoice(orderId);
+    if (!context.mounted) return;
+    if (bytes != null) {
+      final filePath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Download invoice',
+        fileName: 'invoice_$orderId.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        bytes: Uint8List.fromList(bytes),
+      );
+      if (!context.mounted) return;
+      if (filePath == null || filePath.isEmpty) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Invoice downloaded: $filePath')));
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_provider.errorMessage ?? 'Unable to download invoice'),
+      ),
+    );
+  }
+
+  Future<void> _shareInvoice(BuildContext context) async {
+    final orderId = int.tryParse(widget.order.orderId);
+    if (orderId == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to open invoice download link')),
+          const SnackBar(content: Text('Order ID is unavailable for invoice')),
         );
       }
       return;
     }
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final bytes = await _provider.downloadInvoice(orderId);
+    if (!context.mounted) return;
+    if (bytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_provider.errorMessage ?? 'Unable to download invoice'),
+        ),
+      );
+      return;
+    }
+    final temporaryDirectory = await getTemporaryDirectory();
+    final file = File('${temporaryDirectory.path}/invoice_$orderId.pdf');
+    await file.writeAsBytes(bytes, flush: true);
+    if (!context.mounted) return;
+    await Share.shareXFiles(
+      [
+        XFile(
+          file.path,
+          mimeType: 'application/pdf',
+          name: 'invoice_$orderId.pdf',
+        ),
+      ],
+      text:
+          'Invoice ${widget.order.invoiceId.isEmpty ? orderId : widget.order.invoiceId}',
+    );
   }
 
   @override
@@ -193,31 +281,49 @@ class _InvoiceCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Invoice: ${order.invoiceId.isEmpty ? '-' : order.invoiceId}',
+            'Invoice: ${widget.order.invoiceId.isEmpty ? '-' : widget.order.invoiceId}',
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton.icon(
-              onPressed: order.invoiceUrl.isEmpty
-                  ? null
-                  : () => _downloadInvoice(context),
-              icon: const Icon(Icons.download_outlined),
-              label: const Text('Download Invoice'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryButton,
-                foregroundColor: Colors.black,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _downloadInvoice(context),
+                  icon: const Icon(Icons.download_outlined),
+                  label: const Text('Download'),
+                  style: _invoiceButtonStyle(),
                 ),
               ),
-            ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => _shareInvoice(context),
+                  icon: const Icon(Icons.share_outlined),
+                  label: const Text('WhatsApp'),
+                  style: _invoiceButtonStyle(
+                    backgroundColor: const Color(0xFFE8F5EF),
+                    foregroundColor: const Color(0xFF08743D),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+
+  ButtonStyle _invoiceButtonStyle({
+    Color backgroundColor = AppColors.primaryButton,
+    Color foregroundColor = Colors.black,
+  }) {
+    return ElevatedButton.styleFrom(
+      backgroundColor: backgroundColor,
+      foregroundColor: foregroundColor,
+      elevation: 0,
+      minimumSize: const Size.fromHeight(48),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
 }

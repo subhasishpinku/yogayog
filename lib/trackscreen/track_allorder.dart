@@ -509,16 +509,23 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
       'Delivered',
     ];
 
+    final visibleNames = names
+        .where(
+          (name) =>
+              name == 'All' || orders.any((o) => _statusMatches(o, name)),
+        )
+        .toList();
+
     return SizedBox(
       height: 62,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(10, 13, 10, 9),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: names.length,
+        itemCount: visibleNames.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, index) {
-          final name = names[index];
+          final name = visibleNames[index];
 
           final active = filter == name;
 
