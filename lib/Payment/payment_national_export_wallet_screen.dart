@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:yogayog/Payment/provider/payment_provider.dart';
+import 'package:yogayog/Payment/provider/payment_national_export_provider.dart';
 import 'package:yogayog/bookingsuccess/bookingsuccess.dart';
 import 'package:yogayog/constants/app_colors.dart';
 
-class PaymentWalletScreen extends StatelessWidget {
-  const PaymentWalletScreen({
+class PaymentWalletNationalExportWalletScreen extends StatelessWidget {
+  const PaymentWalletNationalExportWalletScreen({
     super.key,
     required this.amount,
     required this.currentBalance,
@@ -17,7 +17,7 @@ class PaymentWalletScreen extends StatelessWidget {
   final Map<String, dynamic> orderPayload;
 
   Future<void> _payFromWallet(BuildContext context) async {
-    final provider = context.read<PaymentProvider>();
+    final provider = context.read<PaymentNationalExportProvider>();
     final walletPaid = await provider.payFromWallet(amount: amount);
     if (!context.mounted) return;
     if (!walletPaid) {
@@ -39,7 +39,7 @@ class PaymentWalletScreen extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.read<PaymentProvider>().errorMessage ??
+            context.read<PaymentNationalExportProvider>().errorMessage ??
                 'Unable to complete wallet payment',
           ),
         ),
@@ -54,7 +54,7 @@ class PaymentWalletScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = context.watch<PaymentProvider>().isLoading;
+    final isLoading = context.watch<PaymentNationalExportProvider>().isLoading;
     final balanceAfterPayment = currentBalance - amount;
 
     return Scaffold(

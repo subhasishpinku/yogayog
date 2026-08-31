@@ -10,6 +10,7 @@ class ApiEndpoints {
   static const String staticServices = "static-services";
   static const String trackOrder = "track-order";
   static const String customerWalletLedger = "customer-wallet-ledger";
+  static const String customerWalletPay = "customer-wallet-pay";
   static const String bookings = "bookings";
   static const String locations = "locations";
   static const String rates = "rates";

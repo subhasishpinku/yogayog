@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:yogayog/Payment/payment_national_export_wallet_screen.dart';
 import 'package:yogayog/Payment/payment_national_export_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/core/services/viewledger_service.dart';
 
 class ConfirmOrderExport extends StatefulWidget {
   const ConfirmOrderExport({
@@ -40,6 +42,7 @@ class ConfirmOrderExport extends StatefulWidget {
 
 class _ConfirmOrderState extends State<ConfirmOrderExport> {
   final instructionController = TextEditingController();
+  bool _isCheckingWallet = false;
 
   Map<String, dynamic> get _pickup {
     final value = widget.orderPayload['pickup'];
@@ -78,6 +81,60 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
   void dispose() {
     instructionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _proceedToPayment() async {
+    if (_isCheckingWallet) return;
+    setState(() => _isCheckingWallet = true);
+
+    final orderPayload = <String, dynamic>{
+      ...widget.orderPayload,
+      'price': widget.total,
+    };
+
+    try {
+      final ledger = await ViewledgerService().getLedger();
+      if (!mounted) return;
+      if (ledger.currentBalance >= widget.total) {
+        orderPayload['payment_method'] = 'WALLET';
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PaymentWalletNationalExportWalletScreen(
+              amount: widget.total,
+              currentBalance: ledger.currentBalance,
+              orderPayload: orderPayload,
+            ),
+          ),
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PaymentNationalScreenExport(
+              amount: widget.total,
+              orderPayload: orderPayload,
+            ),
+          ),
+        );
+      }
+    } on ViewledgerException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${error.message}. Opening payment.')),
+      );
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentNationalScreenExport(
+            amount: widget.total,
+            orderPayload: orderPayload,
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isCheckingWallet = false);
+    }
   }
 
   @override
@@ -405,25 +462,7 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
                   child: SizedBox(
                     height: 60,
                     child: ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Order confirmed successfully'),
-                          ),
-                        );
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PaymentNationalScreenExport(
-                              amount: widget.total,
-                              orderPayload: {
-                                ...widget.orderPayload,
-                                'price': widget.total,
-                              },
-                            ),
-                          ),
-                        );
-                      },
+                      onPressed: _isCheckingWallet ? null : _proceedToPayment,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFFC400),
                         foregroundColor: Colors.black,
@@ -432,14 +471,20 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
                           borderRadius: BorderRadius.circular(15),
                         ),
                       ),
-                      child: const Text(
-                        'Confirm Booking',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                      child: _isCheckingWallet
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'Confirm Booking',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                     ),
                   ),
                 ),

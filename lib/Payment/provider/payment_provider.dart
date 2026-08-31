@@ -11,6 +11,26 @@ class PaymentProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  Future<bool> payFromWallet({required double amount}) async {
+    if (_isLoading) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      await _service.payFromWallet(amount: amount);
+      return true;
+    } on PaymentException catch (error) {
+      _errorMessage = error.message;
+      return false;
+    } catch (_) {
+      _errorMessage = 'Something went wrong while debiting wallet.';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<PaymentOrderResponse?> createOrder({
     required Map<String, dynamic> payload,
   }) async {
