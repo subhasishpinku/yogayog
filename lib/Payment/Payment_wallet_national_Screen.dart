@@ -17,11 +17,23 @@ class PaymentWalletNationalScreen extends StatelessWidget {
   final Map<String, dynamic> orderPayload;
 
   Future<void> _payFromWallet(BuildContext context) async {
+    final provider = context.read<PaymentNationalProvider>();
+    final walletPaid = await provider.payFromWallet(amount: amount);
+    if (!context.mounted) return;
+    if (!walletPaid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            provider.errorMessage ?? 'Unable to debit wallet balance',
+          ),
+        ),
+      );
+      return;
+    }
+
     final payload = Map<String, dynamic>.from(orderPayload)
       ..['payment_method'] = 'WALLET';
-    final order = await context.read<PaymentNationalProvider>().createOrder(
-      payload: payload,
-    );
+    final order = await provider.createOrder(payload: payload);
     if (!context.mounted) return;
     if (order == null) {
       ScaffoldMessenger.of(context).showSnackBar(

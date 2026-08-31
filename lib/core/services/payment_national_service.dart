@@ -8,6 +8,32 @@ class PaymentNationalService {
 
   final Dio _dio;
 
+  Future<void> payFromWallet({required double amount}) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.customerWalletPay,
+        queryParameters: {'amount': amount},
+      );
+      final data = response.data;
+      if (response.statusCode == null ||
+          response.statusCode! >= 400 ||
+          (data is Map && data['success'] == false)) {
+        throw PaymentNationalException(
+          data is Map
+              ? data['message']?.toString() ?? 'Unable to debit wallet'
+              : 'Unable to debit wallet',
+        );
+      }
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      throw PaymentNationalException(
+        data is Map && data['message'] != null
+            ? data['message'].toString()
+            : error.message ?? 'Network error while debiting wallet',
+      );
+    }
+  }
+
   Future<PaymentOrderResponse> createOrder({
     required Map<String, dynamic> payload,
   }) async {
