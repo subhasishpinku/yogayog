@@ -214,10 +214,10 @@ class _ContactHeader extends StatelessWidget {
                         child: Container(
                           width: 36,
                           height: 36,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: .15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                          // decoration: BoxDecoration(
+                          //   color: Colors.white.withValues(alpha: .15),
+                          //   borderRadius: BorderRadius.circular(10),
+                          // ),
                           child: const Icon(
                             Icons.arrow_back,
                             color: Colors.white,

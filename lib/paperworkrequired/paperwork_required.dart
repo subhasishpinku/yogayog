@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/home_service.dart';
+import 'package:yogayog/paperworkrequired/provider/paperwork_required_provider.dart';
 
 class PaperworkRequired extends StatefulWidget {
   const PaperworkRequired({super.key});
@@ -14,6 +18,8 @@ class PaperworkRequired extends StatefulWidget {
 class _PaperworkRequiredState extends State<PaperworkRequired> {
   static const _green = AppColors.primaryMain;
   String _accountType = 'Individual';
+  final _panController = TextEditingController();
+  XFile? _panImage;
 
   bool get _isBusiness => _accountType.trim().toLowerCase() == 'business';
 
@@ -21,6 +27,136 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
   void initState() {
     super.initState();
     _loadAccountType();
+  }
+
+  @override
+  void dispose() {
+    _panController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _showPanUploadDialog() async {
+    var isSubmitting = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Upload PAN Card'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: _panController,
+                  textCapitalization: TextCapitalization.characters,
+                  maxLength: 10,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9]')),
+                    UpperCaseTextFormatter(),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'PAN Number',
+                    hintText: 'ABCDE1234F',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (_panImage != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.file(
+                      File(_panImage!.path),
+                      height: 150,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                else
+                  Container(
+                    height: 120,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4F4F8),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFD8D8E0)),
+                    ),
+                    child: const Text('No PAN image selected'),
+                  ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final image = await ImagePicker().pickImage(
+                      source: ImageSource.camera,
+                      imageQuality: 85,
+                    );
+                    if (image != null) {
+                      setDialogState(() => _panImage = image);
+                    }
+                  },
+                  icon: const Icon(Icons.upload_file),
+                  label: Text(
+                    _panImage == null ? 'Take PAN Photo' : 'Retake PAN Photo',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                final pan = _panController.text.trim().toUpperCase();
+                if (!RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]$').hasMatch(pan)) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Enter a valid PAN number')),
+                  );
+                  return;
+                }
+                if (_panImage == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please select PAN image')),
+                  );
+                  return;
+                }
+                setDialogState(() => isSubmitting = true);
+                final success = await context
+                    .read<PaperworkRequiredProvider>()
+                    .verifyAndUploadPan(pan: pan, image: _panImage!);
+                if (!mounted) return;
+                if (!success) {
+                  setDialogState(() => isSubmitting = false);
+                  ScaffoldMessenger.of(this.context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        this.context
+                                .read<PaperworkRequiredProvider>()
+                                .errorMessage ??
+                            'Unable to verify or upload PAN',
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(dialogContext);
+                this.setState(() {});
+              },
+              child: isSubmitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Verify & Upload'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _loadAccountType() async {
@@ -148,7 +284,12 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
                         : 'Documents required for individual shipments',
                   ),
                   ..._accountDocuments.map(
-                    (document) => _DocumentRow(document: document),
+                    (document) => _DocumentRow(
+                      document: document,
+                      onUpload: document.title == 'PAN'
+                          ? _showPanUploadDialog
+                          : null,
+                    ),
                   ),
                   const _SectionHeading(
                     title: 'Shipment Documents',
@@ -214,10 +355,10 @@ class _PaperHeader extends StatelessWidget {
                         child: Container(
                           width: 36,
                           height: 36,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: .15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                          // decoration: BoxDecoration(
+                          //   color: Colors.white.withValues(alpha: .15),
+                          //   borderRadius: BorderRadius.circular(10),
+                          // ),
                           child: const Icon(
                             Icons.arrow_back,
                             color: Colors.white,
@@ -312,7 +453,8 @@ class _SectionHeading extends StatelessWidget {
 
 class _DocumentRow extends StatelessWidget {
   final _Document document;
-  const _DocumentRow({required this.document});
+  final VoidCallback? onUpload;
+  const _DocumentRow({required this.document, this.onUpload});
 
   @override
   Widget build(BuildContext context) {
@@ -361,23 +503,37 @@ class _DocumentRow extends StatelessWidget {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: document.required
-                  ? const Color(0xFFFFEAEA)
-                  : const Color(0xFFF0F0F5),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Text(
-              document.required ? 'Must' : 'Optional',
-              style: TextStyle(
-                color: document.required ? Colors.red : const Color(0xFF667085),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
+          if (onUpload != null)
+            ElevatedButton(
+              onPressed: onUpload,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryButton,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                minimumSize: const Size(0, 34),
+              ),
+              child: const Text('Upload'),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: document.required
+                    ? const Color(0xFFFFEAEA)
+                    : const Color(0xFFF0F0F5),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Text(
+                document.required ? 'Must' : 'Optional',
+                style: TextStyle(
+                  color: document.required
+                      ? Colors.red
+                      : const Color(0xFF667085),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -401,4 +557,14 @@ class _Document {
   final String subtitle;
   final bool required;
   const _Document(this.icon, this.title, this.subtitle, this.required);
+}
+
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
+  }
 }

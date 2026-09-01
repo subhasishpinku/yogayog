@@ -2093,9 +2093,21 @@ class _NationalDetailsState extends State<NationalDetails> {
       await _showShipmentDetailsDialog();
       if (!mounted || !_validatePackageFields()) return;
     }
-    if (!await _checkNationalPincode(pickupPinController.text.trim())) return;
-    if (!await _checkNationalPincode(pinController.text.trim())) return;
+    final pickupServiceable = await _checkNationalPincode(
+      pickupPinController.text.trim(),
+    );
+    if (!pickupServiceable || !mounted) return;
+
+    final dropServiceable = await _checkNationalPincode(
+      pinController.text.trim(),
+    );
+    if (!dropServiceable || !mounted) return;
+
     if (await _rejectUnserviceableKolkataRoute()) return;
+    if (!mounted) return;
+
+    // Never open the next page unless both pincode checks succeeded.
+    if (!pickupServiceable || !dropServiceable) return;
 
     Navigator.push(
       context,
@@ -2290,9 +2302,6 @@ class _NationalDetailsState extends State<NationalDetails> {
                           maxLength: 6,
                           onChanged: (value) {
                             pickupPincode = value;
-                            if (value.length == 6) {
-                              _checkNationalPincode(value, showSuccess: true);
-                            }
                           },
                         ),
                       ],
@@ -2314,9 +2323,6 @@ class _NationalDetailsState extends State<NationalDetails> {
                           maxLength: 6,
                           onChanged: (value) {
                             dropPincode = value;
-                            if (value.length == 6) {
-                              _checkNationalPincode(value, showSuccess: true);
-                            }
                           },
                         ),
                       ],

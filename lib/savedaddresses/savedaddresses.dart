@@ -101,9 +101,9 @@ class _SavedaddressesState extends State<Savedaddresses> {
             IconButton(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.arrow_back, color: Colors.white),
-              style: IconButton.styleFrom(
-                backgroundColor: const Color(0xFF4D59A7),
-              ),
+              // style: IconButton.styleFrom(
+              //   backgroundColor: const Color(0xFF4D59A7),
+              // ),
             ),
             const SizedBox(width: 10),
             const Text(

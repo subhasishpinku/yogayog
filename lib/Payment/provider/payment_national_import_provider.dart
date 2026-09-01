@@ -46,4 +46,23 @@ class PaymentNationalImportProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<BillDeskPaymentResponse?> createBillDeskPayment({required Map<String, dynamic> payload}) async {
+    if (_isLoading) return null;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      return await _service.createBillDeskPayment(payload: payload);
+    } on PaymentNationalImportException catch (error) {
+      _errorMessage = error.message;
+      return null;
+    } catch (_) {
+      _errorMessage = 'Something went wrong while initializing payment.';
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 }

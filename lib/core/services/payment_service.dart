@@ -52,6 +52,78 @@ class PaymentService {
       throw PaymentException(error.message ?? 'Network error while creating order');
     }
   }
+
+  Future<BillDeskPaymentResponse> createBillDeskPayment({
+    required Map<String, dynamic> payload,
+  }) async {
+    try {
+      final response = await _dio.post(
+        ApiEndpoints.createPayment,
+        data: payload,
+      );
+      final data = response.data;
+      if (data is! Map || data['success'] != true || data['gatewayResponse'] is! Map) {
+        throw PaymentException(
+          data is Map
+              ? data['message']?.toString() ?? 'Unable to initialize payment'
+              : 'Invalid response from the payment server',
+        );
+      }
+      return BillDeskPaymentResponse.fromJson(Map<String, dynamic>.from(data));
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      throw PaymentException(
+        data is Map && data['message'] != null
+            ? data['message'].toString()
+            : error.message ?? 'Network error while initializing payment',
+      );
+    }
+  }
+}
+
+class BillDeskPaymentResponse {
+  const BillDeskPaymentResponse({
+    required this.orderId,
+    required this.merchantId,
+    required this.billDeskOrderId,
+    required this.authToken,
+  });
+
+  final String orderId;
+  final String merchantId;
+  final String billDeskOrderId;
+  final String authToken;
+
+  factory BillDeskPaymentResponse.fromJson(Map<String, dynamic> json) {
+    final gateway = Map<String, dynamic>.from(json['gatewayResponse'] as Map);
+    final links = gateway['links'] is List ? gateway['links'] as List : const [];
+    Map<String, dynamic> redirect = const <String, dynamic>{};
+    for (final link in links) {
+      if (link is Map && link['rel']?.toString() == 'redirect') {
+        redirect = Map<String, dynamic>.from(link);
+        break;
+      }
+    }
+    final headers = redirect['headers'] is Map
+        ? Map<String, dynamic>.from(redirect['headers'] as Map)
+        : const <String, dynamic>{};
+
+    final authToken = headers['authorization']?.toString() ?? '';
+    final parameters = redirect['parameters'] is Map
+        ? Map<String, dynamic>.from(redirect['parameters'] as Map)
+        : const <String, dynamic>{};
+    final billDeskOrderId = parameters['bdorderid']?.toString() ?? '';
+    final merchantId = gateway['mercid']?.toString() ?? '';
+    if (authToken.isEmpty || billDeskOrderId.isEmpty || merchantId.isEmpty) {
+      throw const PaymentException('Payment gateway details are incomplete');
+    }
+    return BillDeskPaymentResponse(
+      orderId: json['orderId']?.toString() ?? gateway['orderid']?.toString() ?? '',
+      merchantId: merchantId,
+      billDeskOrderId: billDeskOrderId,
+      authToken: authToken,
+    );
+  }
 }
 
 class PaymentOrderResponse {

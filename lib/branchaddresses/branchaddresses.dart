@@ -35,7 +35,8 @@ class _BranchAddressesState extends State<BranchAddresses> {
         permission = await Geolocator.requestPermission();
       }
       if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) return;
+          permission == LocationPermission.deniedForever)
+        return;
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
@@ -213,10 +214,10 @@ class _BranchHeader extends StatelessWidget {
                         child: Container(
                           width: 36,
                           height: 36,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: .15),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
+                          // decoration: BoxDecoration(
+                          //   color: Colors.white.withValues(alpha: .15),
+                          //   borderRadius: BorderRadius.circular(10),
+                          // ),
                           child: const Icon(
                             Icons.arrow_back,
                             color: Colors.white,
@@ -313,7 +314,9 @@ class _BranchCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            branch.phone.isEmpty ? '◷ Contact number unavailable' : '☎ ${branch.phone}',
+            branch.phone.isEmpty
+                ? '◷ Contact number unavailable'
+                : '☎ ${branch.phone}',
             style: const TextStyle(color: Color(0xFF667085), fontSize: 13),
           ),
           const SizedBox(height: 10),

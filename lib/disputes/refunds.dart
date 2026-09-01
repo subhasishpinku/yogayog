@@ -17,6 +17,7 @@ class _RefundsState extends State<Refunds> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _background,
+
       appBar: AppBar(
         backgroundColor: _blue,
         foregroundColor: Colors.white,
@@ -24,7 +25,7 @@ class _RefundsState extends State<Refunds> {
         toolbarHeight: 84,
         leading: IconButton(
           onPressed: () => Navigator.maybePop(context),
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+          icon: const Icon(Icons.arrow_back, size: 18),
         ),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,

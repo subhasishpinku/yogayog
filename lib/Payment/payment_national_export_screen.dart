@@ -3,6 +3,9 @@ import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/bookingsuccess/bookingsuccess.dart';
 import 'package:yogayog/Payment/provider/payment_national_export_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:billdesk_sdk/sdk.dart';
+import 'package:yogayog/core/services/payment_national_service_export.dart';
+import 'package:yogayog/core/services/payment_service.dart';
 
 class PaymentNationalScreenExport extends StatefulWidget {
   const PaymentNationalScreenExport({
@@ -15,10 +18,12 @@ class PaymentNationalScreenExport extends StatefulWidget {
   final Map<String, dynamic> orderPayload;
 
   @override
-  State<PaymentNationalScreenExport> createState() => _PaymentNationalScreenExportState();
+  State<PaymentNationalScreenExport> createState() =>
+      _PaymentNationalScreenExportState();
 }
 
-class _PaymentNationalScreenExportState extends State<PaymentNationalScreenExport> {
+class _PaymentNationalScreenExportState
+    extends State<PaymentNationalScreenExport> {
   String? selectedMethod;
 
   Future<void> _processPayment() async {
@@ -28,20 +33,34 @@ class _PaymentNationalScreenExportState extends State<PaymentNationalScreenExpor
       );
       return;
     }
-    if (widget.orderPayload.isEmpty) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const BookingSuccess()),
-        (route) => false,
-      );
-      return;
-    }
     final payload = Map<String, dynamic>.from(widget.orderPayload)
       ..['payment_method'] = selectedMethod == 'Cash on Delivery'
           ? 'COD'
           : 'ONLINE';
-    final order = await context.read<PaymentNationalExportProvider>().createOrder(
-      payload: payload,
-    );
+    if (selectedMethod != 'Cash on Delivery') {
+      // payload['amount'] = widget.amount;
+      payload['amount'] = 1;
+      final payment = await context
+          .read<PaymentNationalExportProvider>()
+          .createBillDeskPayment(payload: payload);
+      if (!mounted) return;
+      if (payment == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.read<PaymentNationalExportProvider>().errorMessage ??
+                  'Unable to initialize BillDesk payment',
+            ),
+          ),
+        );
+        return;
+      }
+      _openBillDesk(payment, orderPayload: payload);
+      return;
+    }
+    final order = await context
+        .read<PaymentNationalExportProvider>()
+        .createOrder(payload: payload);
     if (!mounted) return;
     if (order == null) {
       final message =
@@ -50,6 +69,61 @@ class _PaymentNationalScreenExportState extends State<PaymentNationalScreenExpor
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => BookingSuccess(order: order)),
+      (route) => false,
+    );
+  }
+
+  void _openBillDesk(
+    BillDeskPaymentResponse payment, {
+    required Map<String, dynamic> orderPayload,
+  }) {
+    final config = SdkConfig(
+      sdkConfigJson: SdkConfiguration(
+        {
+          'authToken': payment.authToken,
+          'merchantId': payment.merchantId,
+          'bdOrderId': payment.billDeskOrderId,
+          'childWindow': false,
+        },
+        FlowType.payments,
+        '',
+        null,
+      ),
+      responseHandler: _BillDeskResponseHandler(
+        onSuccess: () => _createOrderAfterPayment(orderPayload),
+        onFailure: () {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('BillDesk payment was cancelled')),
+          );
+        },
+      ),
+      isUATEnv: false,
+    );
+    SdkWebView.openSdkWebView(config, context);
+  }
+
+  Future<void> _createOrderAfterPayment(
+    Map<String, dynamic> orderPayload,
+  ) async {
+    if (!mounted) return;
+    final order = await context
+        .read<PaymentNationalExportProvider>()
+        .createOrder(payload: orderPayload);
+    if (!mounted) return;
+    if (order == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.read<PaymentNationalExportProvider>().errorMessage ??
+                'Payment succeeded, but order creation failed',
+          ),
+        ),
+      );
       return;
     }
     Navigator.of(context).pushAndRemoveUntil(
@@ -91,7 +165,8 @@ class _PaymentNationalScreenExportState extends State<PaymentNationalScreenExpor
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: context.watch<PaymentNationalExportProvider>().isLoading
+              onPressed:
+                  context.watch<PaymentNationalExportProvider>().isLoading
                   ? null
                   : _processPayment,
               style: ElevatedButton.styleFrom(
@@ -270,14 +345,14 @@ class _PaymentNationalScreenExportState extends State<PaymentNationalScreenExpor
             subtitle: 'GPay, PhonePe, Paytm, any UPI ID',
             method: 'UPI',
           ),
-          _divider(),
-          _paymentTile(
-            icon: Icons.credit_card,
-            iconColor: Colors.orange,
-            title: 'Wallet',
-            subtitle: 'Visa, Mastercard, RuPay',
-            method: 'Card',
-          ),
+          // _divider(),
+          // _paymentTile(
+          //   icon: Icons.credit_card,
+          //   iconColor: Colors.orange,
+          //   title: 'Wallet',
+          //   subtitle: 'Visa, Mastercard, RuPay',
+          //   method: 'Card',
+          // ),
           // _divider(),
           // _paymentTile(
           //   icon: Icons.account_balance,
@@ -370,4 +445,23 @@ class _PaymentNationalScreenExportState extends State<PaymentNationalScreenExpor
       endIndent: 16,
     );
   }
+}
+
+class _BillDeskResponseHandler extends ResponseHandler {
+  _BillDeskResponseHandler({required this.onSuccess, required this.onFailure});
+
+  final Future<void> Function() onSuccess;
+  final VoidCallback onFailure;
+
+  @override
+  void onTransactionResponse(TxnInfo txnInfo) {
+    if (txnInfo.txnInfoMap['isCancelledByUser'] == true) {
+      onFailure();
+    } else {
+      onSuccess();
+    }
+  }
+
+  @override
+  void onError(SdkError sdkError) => onFailure();
 }

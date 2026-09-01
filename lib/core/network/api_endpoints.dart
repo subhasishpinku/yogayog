@@ -15,6 +15,9 @@ class ApiEndpoints {
   static const String locations = "locations";
   static const String rates = "rates";
   static const String createOrder = "order/create";
+  static const String createPayment = "payment/create";
+  static const String verifyPan = "kyc/verify-pan";
+  static const String uploadKycDocument = "kyc/documents";
   static const String createPostpaidOrder = "order/create-postpaid";
   static const String pickupLocation = "locations/pickup";
   static const String nearbyBranches = "nearby-branches";

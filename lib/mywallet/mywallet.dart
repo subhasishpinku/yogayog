@@ -62,10 +62,10 @@ class _MyWalletState extends State<MyWallet> {
               IconButton(
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.arrow_back, color: Colors.white),
-                style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF4D59A7),
-                  padding: const EdgeInsets.all(8),
-                ),
+                // style: IconButton.styleFrom(
+                //   backgroundColor: const Color(0xFF4D59A7),
+                //   padding: const EdgeInsets.all(8),
+                // ),
               ),
               const SizedBox(width: 10),
               const Text(
