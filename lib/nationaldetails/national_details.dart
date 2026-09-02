@@ -345,8 +345,6 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
               type: TextInputType.number,
             ),
             _field(_stateController, 'State'),
-            _field(_latitudeController, 'Latitude', readOnly: true),
-            _field(_longitudeController, 'Longitude', readOnly: true),
           ],
         ),
       ),
@@ -448,6 +446,7 @@ class _NationalDetailsState extends State<NationalDetails> {
   final pickupHouseNumberController = TextEditingController();
   String pickupCity = '';
   String pickupPincode = '';
+  String? pickupPincodeError;
   String pickupState = '';
   double? pickupLatitude;
   double? pickupLongitude;
@@ -456,6 +455,7 @@ class _NationalDetailsState extends State<NationalDetails> {
   String dropHouseNumber = '';
   String dropCity = '';
   String dropPincode = '';
+  String? dropPincodeError;
   String dropState = '';
   double? dropLatitude;
   double? dropLongitude;
@@ -576,6 +576,145 @@ class _NationalDetailsState extends State<NationalDetails> {
       latitude: location is Map ? coordinate(location['lat']) : null,
       longitude: location is Map ? coordinate(location['lng']) : null,
     );
+  }
+
+  Future<void> _loadAddressFromPincode(
+    String value, {
+    required bool pickup,
+  }) async {
+    final pincode = value.trim();
+    if (mounted) {
+      setState(() {
+        if (pickup) {
+          pickupPincode = pincode;
+          pickupPincodeError = null;
+          if (pincode.isEmpty) {
+            pickupAddress = 'Tap to add pickup location';
+            pickupCity = '';
+            pickupState = '';
+            pickupLatitude = null;
+            pickupLongitude = null;
+          }
+        } else {
+          dropPincode = pincode;
+          dropPincodeError = null;
+          if (pincode.isEmpty) {
+            dropAddress = 'Tap to add destination';
+            dropCity = '';
+            dropState = '';
+            dropLatitude = null;
+            dropLongitude = null;
+          }
+        }
+      });
+    }
+    if (!RegExp(r'^\d{6}$').hasMatch(pincode)) return;
+    if (placesKey.isEmpty) {
+      _setPincodeError(pickup, 'Google Maps API key is not configured');
+      return;
+    }
+
+    try {
+      final response = await Dio().get(
+        'https://maps.googleapis.com/maps/api/geocode/json',
+        queryParameters: {
+          'address': '$pincode, India',
+          'components': 'postal_code:$pincode|country:IN',
+          'key': placesKey,
+        },
+      );
+      final data = response.data;
+      final results = data is Map ? data['results'] : null;
+      if (data is! Map ||
+          data['status'] != 'OK' ||
+          results is! List ||
+          results.isEmpty) {
+        _setPincodeError(pickup, 'This PIN must be a valid India PIN');
+        return;
+      }
+
+      final result = results.first;
+      if (result is! Map) return;
+      String component(String type) {
+        final components = result['address_components'];
+        if (components is! List) return '';
+        for (final item in components.whereType<Map>()) {
+          final types = item['types'];
+          if (types is List && types.contains(type)) {
+            return item['long_name']?.toString() ?? '';
+          }
+        }
+        return '';
+      }
+
+      final geometry = result['geometry'];
+      final location = geometry is Map ? geometry['location'] : null;
+      double? coordinate(Object? coordinate) {
+        if (coordinate is num) return coordinate.toDouble();
+        return double.tryParse(coordinate?.toString() ?? '');
+      }
+
+      final address = result['formatted_address']?.toString() ?? '';
+      final country = component('country').toUpperCase();
+      if (country != 'IN' && country != 'INDIA') {
+        _setPincodeError(pickup, 'PIN must be within India');
+        return;
+      }
+      final city = component('locality').isNotEmpty
+          ? component('locality')
+          : component('administrative_area_level_2');
+      final state = component('administrative_area_level_1');
+      final latitude = location is Map ? coordinate(location['lat']) : null;
+      final longitude = location is Map ? coordinate(location['lng']) : null;
+
+      if (!mounted) return;
+      setState(() {
+        if (pickup) {
+          pickupPincode = pincode;
+          pickupAddress = address;
+          pickupCity = city;
+          pickupState = state;
+          pickupLatitude = latitude;
+          pickupLongitude = longitude;
+          pickupPincodeError = null;
+        } else {
+          dropPincode = pincode;
+          dropAddress = address;
+          dropCity = city;
+          dropState = state;
+          dropLatitude = latitude;
+          dropLongitude = longitude;
+          dropPincodeError = null;
+        }
+      });
+    } catch (_) {
+      _setPincodeError(pickup, 'Unable to load address from Google Maps');
+    }
+  }
+
+  void _setPincodeError(bool pickup, String message) {
+    if (!mounted) return;
+    setState(() {
+      if (pickup) {
+        pickupPincodeError = message;
+        pickupPincode = '';
+        pickupPinController.clear();
+        pickupAddress = 'Tap to add pickup location';
+        pickupCity = '';
+        pickupState = '';
+        pickupLatitude = null;
+        pickupLongitude = null;
+      } else {
+        dropPincodeError = message;
+        dropPincode = '';
+        pinController.clear();
+        dropAddress = 'Tap to add destination';
+        dropCity = '';
+        dropState = '';
+        dropLatitude = null;
+        dropLongitude = null;
+      }
+    });
   }
 
   // ==================== Pickup Location ====================
@@ -1024,6 +1163,8 @@ class _NationalDetailsState extends State<NationalDetails> {
     required String hintText,
     TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
+    ValueChanged<String>? onSubmitted,
+    String? errorText,
     bool readOnly = false,
     List<TextInputFormatter>? inputFormatters,
     int? maxLength,
@@ -1033,6 +1174,7 @@ class _NationalDetailsState extends State<NationalDetails> {
       readOnly: readOnly,
       keyboardType: keyboardType,
       onChanged: onChanged,
+      onSubmitted: onSubmitted,
       inputFormatters: inputFormatters,
       maxLength: maxLength,
       style: const TextStyle(color: Color(0xFF536078), fontSize: 16),
@@ -1041,9 +1183,10 @@ class _NationalDetailsState extends State<NationalDetails> {
         hintStyle: const TextStyle(color: Color(0xFF536078), fontSize: 16),
         filled: true,
         fillColor: Colors.white,
+        errorText: errorText,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: 15,
+          vertical: 10,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
@@ -1069,7 +1212,7 @@ class _NationalDetailsState extends State<NationalDetails> {
 
   Widget _nationalLocationCard({required bool pickup}) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
@@ -1080,7 +1223,9 @@ class _NationalDetailsState extends State<NationalDetails> {
       child: Column(
         children: [
           _nationalLocationHeader(pickup: pickup),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
+          _pincodeRow(pickup: pickup),
+          const SizedBox(height: 4),
           _contactRow(
             nameController: pickup
                 ? pickupNameController
@@ -1091,7 +1236,7 @@ class _NationalDetailsState extends State<NationalDetails> {
             nameHint: pickup ? 'Pickup name' : 'Drop name',
             phoneHint: pickup ? 'Pickup phone' : 'Drop phone',
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           _locationRow(
             pickup ? 'PICKUP' : 'DROP',
             pickup ? pickupAddress : dropAddress,
@@ -1102,6 +1247,35 @@ class _NationalDetailsState extends State<NationalDetails> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _pincodeRow({required bool pickup}) {
+    final controller = pickup ? pickupPinController : pinController;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _label(pickup ? 'PICKUP PIN' : 'DROP PIN'),
+              _textField(
+                controller: controller,
+                hintText: pickup ? 'Pickup PIN' : 'Drop PIN',
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                maxLength: 6,
+                onChanged: (value) =>
+                    _loadAddressFromPincode(value, pickup: pickup),
+                onSubmitted: (value) =>
+                    _loadAddressFromPincode(value, pickup: pickup),
+                errorText: pickup ? pickupPincodeError : dropPincodeError,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1287,7 +1461,7 @@ class _NationalDetailsState extends State<NationalDetails> {
     required String phoneHint,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.only(top: 2),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1300,7 +1474,7 @@ class _NationalDetailsState extends State<NationalDetails> {
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2316,7 +2490,7 @@ class _NationalDetailsState extends State<NationalDetails> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _label('PICKUP PIN'),
+                        _label('PICKUP PIN1'),
                         _textField(
                           controller: pickupPinController,
                           hintText: 'Pickup PIN',
@@ -2332,7 +2506,7 @@ class _NationalDetailsState extends State<NationalDetails> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 2),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

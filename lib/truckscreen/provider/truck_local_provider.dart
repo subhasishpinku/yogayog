@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:yogayog/core/services/truck_local_service.dart';
+import 'package:yogayog/core/services/pincodecheck_service.dart';
 
 class TruckLocalProvider extends ChangeNotifier {
   TruckLocalProvider({TruckLocalService? service}) : _service = service ?? TruckLocalService();
@@ -11,6 +12,16 @@ class TruckLocalProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   TruckRateResponse? get rates => _rates;
+
+  Future<PincodeServiceability?> checkPincode({required String pincode}) async {
+    try {
+      return await _service.checkPincode(pincode: pincode);
+    } on PincodeCheckException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+      return null;
+    }
+  }
 
   Future<TruckRateResponse?> loadRates({required Map<String, dynamic> payload}) async {
     if (_isLoading) return null;
