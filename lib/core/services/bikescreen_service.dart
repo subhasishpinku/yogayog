@@ -1,11 +1,16 @@
 import 'package:dio/dio.dart';
 import 'package:yogayog/core/network/api_client.dart';
 import 'package:yogayog/core/network/api_endpoints.dart';
+import 'package:yogayog/core/services/pincodecheck_service.dart';
 
 class BikescreenService {
   BikescreenService({Dio? dio}) : _dio = dio ?? ApiClient.dio;
 
   final Dio _dio;
+
+  Future<PincodeServiceability> checkPincode({required String pincode}) async {
+    return PincodeCheckService(dio: _dio).checkPincode(pincode);
+  }
 
   Future<List<SavedLocation>> getLocations({required int serviceId}) async {
     try {

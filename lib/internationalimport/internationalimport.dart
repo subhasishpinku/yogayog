@@ -1151,7 +1151,7 @@ class _InternationalImportState extends State<InternationalImport> {
     );
   }
 
-  Future<void> _openImportAddress() async {
+  Future<bool> _openImportAddress() async {
     final result = await Navigator.push<Map<String, String>>(
       context,
       MaterialPageRoute(
@@ -1169,7 +1169,7 @@ class _InternationalImportState extends State<InternationalImport> {
         ),
       ),
     );
-    if (!mounted || result == null) return;
+    if (!mounted || result == null) return false;
     setState(() {
       addressController.text = result['address'] ?? addressController.text;
       pickupHouseNumberController.text =
@@ -1186,9 +1186,15 @@ class _InternationalImportState extends State<InternationalImport> {
       pickupHouseNumber = pickupHouseNumberController.text;
       dropHouseNumber = dropHouseNumberController.text;
     });
+    return true;
   }
 
-  Future<void> _openImportPackage() async {
+  Future<void> _openImportAddressAndPackage() async {
+    if (!await _openImportAddress() || !mounted) return;
+    await _openImportPackage(reviewOnSave: true);
+  }
+
+  Future<void> _openImportPackage({bool reviewOnSave = false}) async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
@@ -1208,10 +1214,20 @@ class _InternationalImportState extends State<InternationalImport> {
                 )
                 .toList(),
           },
+          onReviewAndConfirm: reviewOnSave
+              ? (result, packageContext) async {
+                  _applyImportPackageResult(result);
+                  await _reviewAndConfirm(reviewContext: packageContext);
+                }
+              : null,
         ),
       ),
     );
     if (!mounted || result == null) return;
+    _applyImportPackageResult(result);
+  }
+
+  void _applyImportPackageResult(Map<String, dynamic> result) {
     setState(() {
       selectedPackageType =
           result['packageType']?.toString() ?? selectedPackageType;
@@ -1844,7 +1860,7 @@ class _InternationalImportState extends State<InternationalImport> {
     return true;
   }
 
-  Future<void> _reviewAndConfirm() async {
+  Future<void> _reviewAndConfirm({BuildContext? reviewContext}) async {
     if (!await _validateBeforeReview()) return;
     FocusScope.of(context).unfocus();
     final approximateWeight =
@@ -1974,7 +1990,7 @@ class _InternationalImportState extends State<InternationalImport> {
         'Payment: $paymentModeLabel\n\n'
         '${isPrepaid ? 'Available rates\n$rateSummary' : ''}';
     final confirmed = await showDialog<bool>(
-      context: context,
+      context: reviewContext ?? context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirm Shipment'),
         content: SingleChildScrollView(child: Text(confirmationText)),
@@ -2329,7 +2345,7 @@ class _InternationalImportState extends State<InternationalImport> {
         child: SizedBox(
           height: 57,
           child: ElevatedButton(
-            onPressed: _reviewAndConfirm,
+            onPressed: _openImportAddressAndPackage,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFC400),
               foregroundColor: const Color(0xFF101B8F),
@@ -2339,7 +2355,7 @@ class _InternationalImportState extends State<InternationalImport> {
               ),
             ),
             child: const Text(
-              'Review & Confirm →',
+              'Next →',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),

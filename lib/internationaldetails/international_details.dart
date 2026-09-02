@@ -1131,7 +1131,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     });
   }
 
-  Future<void> _openPackageDetails() async {
+  Future<bool> _openPackageDetails({bool reviewOnSave = false}) async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
@@ -1149,10 +1149,21 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                 },
               )
               .toList(),
+          onReviewAndConfirm: reviewOnSave
+              ? (result, packageContext) async {
+                  _applyPackageResult(result);
+                  await _reviewAndConfirm(reviewContext: packageContext);
+                }
+              : null,
         ),
       ),
     );
-    if (!mounted || result == null) return;
+    if (!mounted || result == null) return false;
+    _applyPackageResult(result);
+    return true;
+  }
+
+  void _applyPackageResult(Map<String, dynamic> result) {
     setState(() {
       selectedPackageType = result['packageType'] ?? selectedPackageType;
       selectedPackageSize = result['packageSize'] ?? selectedPackageSize;
@@ -1180,7 +1191,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     });
   }
 
-  Future<void> _openAddressDetails() async {
+  Future<bool> _openAddressDetails() async {
     final result = await Navigator.push<Map<String, String>>(
       context,
       MaterialPageRoute(
@@ -1196,7 +1207,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         ),
       ),
     );
-    if (!mounted || result == null) return;
+    if (!mounted || result == null) return false;
     setState(() {
       addressController.text = result['address'] ?? addressController.text;
       pickupHouseNumberController.text =
@@ -1213,6 +1224,12 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       pickupHouseNumber = pickupHouseNumberController.text;
       dropHouseNumber = deliveryHouseNumberController.text;
     });
+    return true;
+  }
+
+  Future<void> _openAddressDetailsAndPackage() async {
+    if (!await _openAddressDetails() || !mounted) return;
+    await _openPackageDetails(reviewOnSave: true);
   }
 
   void _syncPackageBoxes(int count) {
@@ -1905,7 +1922,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     return true;
   }
 
-  Future<void> _reviewAndConfirm() async {
+  Future<void> _reviewAndConfirm({BuildContext? reviewContext}) async {
     if (!await _validateBeforeReview()) return;
     FocusScope.of(context).unfocus();
     final approximateWeight =
@@ -2038,7 +2055,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         'Rate type: Forward\n\n'
         '${isPrepaid ? 'Available rates\n$rateSummary' : ''}';
     final confirmed = await showDialog<bool>(
-      context: context,
+      context: reviewContext ?? context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirm Shipment'),
         content: SingleChildScrollView(child: Text(confirmationText)),
@@ -2112,23 +2129,23 @@ class _InternationalDetailsState extends State<InternationalDetails> {
             _locationCard(),
             SizedBox(height: 10),
 
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _openAddressDetails,
-                icon: const Icon(Icons.location_on_outlined),
-                label: const Text('Delivery Address'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF17249B),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Color(0xFF17249B)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: 10),
+            // SizedBox(
+            //   width: double.infinity,
+            //   child: OutlinedButton.icon(
+            //     onPressed: _openAddressDetails,
+            //     icon: const Icon(Icons.location_on_outlined),
+            //     label: const Text('Delivery Address'),
+            //     style: OutlinedButton.styleFrom(
+            //       foregroundColor: const Color(0xFF17249B),
+            //       padding: const EdgeInsets.symmetric(vertical: 14),
+            //       side: const BorderSide(color: Color(0xFF17249B)),
+            //       shape: RoundedRectangleBorder(
+            //         borderRadius: BorderRadius.circular(14),
+            //       ),
+            //     ),
+            //   ),
+            // ),
+            // SizedBox(height: 10),
             // ignore: dead_code
             if (false) ...[
               _label('DELIVERY ADDRESS'),
@@ -2237,22 +2254,22 @@ class _InternationalDetailsState extends State<InternationalDetails> {
               ),
             ],
 
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _openPackageDetails,
-                icon: const Icon(Icons.inventory_2_outlined),
-                label: const Text('Select Your Package'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF17249B),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Color(0xFF17249B)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-            ),
+            // SizedBox(
+            //   width: double.infinity,
+            //   child: OutlinedButton.icon(
+            //     onPressed: _openPackageDetails,
+            //     icon: const Icon(Icons.inventory_2_outlined),
+            //     label: const Text('Select Your Package'),
+            //     style: OutlinedButton.styleFrom(
+            //       foregroundColor: const Color(0xFF17249B),
+            //       padding: const EdgeInsets.symmetric(vertical: 14),
+            //       side: const BorderSide(color: Color(0xFF17249B)),
+            //       shape: RoundedRectangleBorder(
+            //         borderRadius: BorderRadius.circular(14),
+            //       ),
+            //     ),
+            //   ),
+            // ),
 
             // ignore: dead_code
             if (false) ...[
@@ -2401,7 +2418,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         child: SizedBox(
           height: 57,
           child: ElevatedButton(
-            onPressed: _reviewAndConfirm,
+            onPressed: _openAddressDetailsAndPackage,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFC400),
               foregroundColor: const Color(0xFF101B8F),
@@ -2411,7 +2428,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
               ),
             ),
             child: const Text(
-              'Review & Confirm →',
+              'Next →',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),

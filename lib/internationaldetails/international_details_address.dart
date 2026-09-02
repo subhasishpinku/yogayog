@@ -56,6 +56,14 @@ class _InternationalDetailsAddressState
   }
 
   void _save() {
+    if (pickupHouse.text.trim().isEmpty) {
+      _showValidationMessage('Please enter pickup housing no.');
+      return;
+    }
+    if (dropHouse.text.trim().isEmpty) {
+      _showValidationMessage('Please enter drop housing no.');
+      return;
+    }
     Navigator.pop(context, <String, String>{
       'address': address.text.trim(),
       'pickupHouse': pickupHouse.text.trim(),
@@ -68,6 +76,12 @@ class _InternationalDetailsAddressState
     });
   }
 
+  void _showValidationMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -77,7 +91,7 @@ class _InternationalDetailsAddressState
         elevation: 0,
         foregroundColor: Colors.black,
         title: const Text(
-          'Delivery Address',
+          'Full Address Details',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ),
@@ -86,7 +100,7 @@ class _InternationalDetailsAddressState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _label('DELIVERY ADDRESS'),
+            _label('ADDRESS DETAILS'),
             _field(address, 'Full address'),
             const SizedBox(height: 8),
             Row(
@@ -167,7 +181,7 @@ class _InternationalDetailsAddressState
               ),
             ),
             child: const Text(
-              'Save',
+              'Next',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),

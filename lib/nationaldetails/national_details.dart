@@ -17,6 +17,7 @@ import 'package:yogayog/core/services/national_service.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/nationaldetails/national_details_next.dart';
+import 'package:yogayog/nationaldetails/shipment_details.dart';
 
 class _PlaceSuggestion {
   const _PlaceSuggestion({required this.placeId, required this.description});
@@ -2087,12 +2088,40 @@ class _NationalDetailsState extends State<NationalDetails> {
     );
   }
 
+  Future<void> _openShipmentDetails() async {
+    FocusScope.of(context).unfocus();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ShipmentDetails(
+          addressController: addressController,
+          pickupHouseNumberController: pickupHouseNumberController,
+          dropHouseNumberController: houseNumberController,
+          cityController: cityController,
+          pickupPinController: pickupPinController,
+          dropPinController: pinController,
+          approximateWeightController: approximateWeightController,
+          onAddressChanged: (_) {},
+          onPickupHouseNumberChanged: (value) => pickupHouseNumber = value,
+          onDropHouseNumberChanged: (value) => dropHouseNumber = value,
+          onCityChanged: (_) {},
+          onPickupPincodeChanged: (value) => pickupPincode = value,
+          onDropPincodeChanged: (value) => dropPincode = value,
+          onNext: _openPackageSelection,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openPackageSelection() async {
     FocusScope.of(context).unfocus();
     if (!_validatePackageFields()) {
-      await _showShipmentDetailsDialog();
+      // await _showShipmentDetailsDialog();
       if (!mounted || !_validatePackageFields()) return;
     }
+
+    // ShipmentDetails is the editable step. Validate again here so changes
+    // made on that screen cannot bypass the existing checks.
     final pickupServiceable = await _checkNationalPincode(
       pickupPinController.text.trim(),
     );
@@ -2105,9 +2134,6 @@ class _NationalDetailsState extends State<NationalDetails> {
 
     if (await _rejectUnserviceableKolkataRoute()) return;
     if (!mounted) return;
-
-    // Never open the next page unless both pincode checks succeeded.
-    if (!pickupServiceable || !dropServiceable) return;
 
     Navigator.push(
       context,
@@ -2205,15 +2231,14 @@ class _NationalDetailsState extends State<NationalDetails> {
             _locationCard(),
             const SizedBox(height: 10),
 
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _showShipmentDetailsDialog,
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Enter shipment details'),
-              ),
-            ),
-
+            // SizedBox(
+            //   width: double.infinity,
+            //   child: OutlinedButton.icon(
+            //     onPressed: _openShipmentDetails,
+            //     icon: const Icon(Icons.edit_outlined),
+            //     label: const Text('Enter shipment details'),
+            //   ),
+            // ),
             if (_showInlineShipmentFields) ...[
               _label('DELIVERY ADDRESS'),
               _textField(
@@ -2368,7 +2393,7 @@ class _NationalDetailsState extends State<NationalDetails> {
               width: double.infinity,
               height: 57,
               child: ElevatedButton(
-                onPressed: _openPackageSelection,
+                onPressed: _openShipmentDetails,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFFC400),
                   foregroundColor: const Color(0xFF101B8F),
@@ -2378,7 +2403,7 @@ class _NationalDetailsState extends State<NationalDetails> {
                   ),
                 ),
                 child: const Text(
-                  'Select Package →',
+                  'Next →',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),

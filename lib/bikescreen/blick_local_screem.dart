@@ -76,6 +76,7 @@ class _PickupEditDialog extends StatefulWidget {
     required this.initialLongitude,
     required this.searchPlaces,
     required this.getPlaceDetails,
+    required this.getPincodeDetails,
   });
 
   final String title;
@@ -87,6 +88,7 @@ class _PickupEditDialog extends StatefulWidget {
   final double? initialLongitude;
   final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
   final Future<_DropLocation> Function(String) getPlaceDetails;
+  final Future<_DropLocation?> Function(String) getPincodeDetails;
 
   @override
   State<_PickupEditDialog> createState() => _PickupEditDialogState();
@@ -179,6 +181,69 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     }
   }
 
+  Future<void> _lookupPincode(String value) async {
+    final pincode = value.trim();
+    if (pincode.length != 6) return;
+    final location = await widget.getPincodeDetails(pincode);
+    if (!mounted ||
+        location == null ||
+        _pincodeController.text.trim() != pincode) {
+      return;
+    }
+    final isKolkata =
+        location.city.toLowerCase().contains('kolkata') ||
+        location.address.toLowerCase().contains('kolkata');
+    if (!isKolkata) {
+      setState(() {
+        _pincodeController.clear();
+        _addressController.clear();
+        _cityController.clear();
+        _stateController.clear();
+        _latitude = null;
+        _longitude = null;
+        _error = 'Please enter a Kolkata pincode';
+      });
+      return;
+    }
+    setState(() {
+      _addressController.text = location.address;
+      _cityController.text = location.city;
+      _stateController.text = location.state;
+      _latitude = location.latitude;
+      _longitude = location.longitude;
+      _error = null;
+    });
+  }
+
+  void _saveLocation() {
+    final isKolkata =
+        _cityController.text.toLowerCase().contains('kolkata') ||
+        _addressController.text.toLowerCase().contains('kolkata');
+    if (_pincodeController.text.trim().length != 6 || !isKolkata) {
+      setState(() {
+        _pincodeController.clear();
+        _addressController.clear();
+        _cityController.clear();
+        _stateController.clear();
+        _latitude = null;
+        _longitude = null;
+        _error = 'Pickup and drop pincode must be in Kolkata';
+      });
+      return;
+    }
+    Navigator.pop(
+      context,
+      _PickupLocation(
+        address: _addressController.text.trim(),
+        city: _cityController.text.trim(),
+        pincode: _pincodeController.text.trim(),
+        state: _stateController.text.trim(),
+        latitude: _latitude,
+        longitude: _longitude,
+      ),
+    );
+  }
+
   Widget _field(
     TextEditingController controller,
     String label, {
@@ -224,10 +289,13 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
                 }).toList(),
               ),
             _field(_cityController, 'City'),
-            _field(_pincodeController, 'Pincode', type: TextInputType.number),
+            _field(
+              _pincodeController,
+              'Pincode',
+              type: TextInputType.number,
+              onChanged: _lookupPincode,
+            ),
             _field(_stateController, 'State'),
-            _field(_latitudeController, 'Latitude', readOnly: true),
-            _field(_longitudeController, 'Longitude', readOnly: true),
           ],
         ),
       ),
@@ -251,20 +319,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(
-            context,
-            _PickupLocation(
-              address: _addressController.text.trim(),
-              city: _cityController.text.trim(),
-              pincode: _pincodeController.text.trim(),
-              state: _stateController.text.trim(),
-              latitude: _latitude,
-              longitude: _longitude,
-            ),
-          ),
-          child: const Text('Save'),
-        ),
+        ElevatedButton(onPressed: _saveLocation, child: const Text('Save')),
       ],
     );
   }
@@ -434,12 +489,14 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   String _pickupCity = '';
   String _pickupPincode = '';
   String _pickupState = '';
+  String? _pickupPincodeError;
   double? _pickupLatitude;
   double? _pickupLongitude;
   String _dropAddress = 'Tap to add destination';
   String _dropCity = '';
   String _dropPincode = '';
   String _dropState = '';
+  String? _dropPincodeError;
   double? _dropLatitude;
   double? _dropLongitude;
   bool _isLoadingRates = false;
@@ -579,6 +636,56 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     );
   }
 
+  Future<_DropLocation?> _getGoogleLocationFromPincode(String pincode) async {
+    if (_googlePlacesApiKey.isEmpty) return null;
+    final response = await Dio().get(
+      'https://maps.googleapis.com/maps/api/geocode/json',
+      queryParameters: {
+        'address': '$pincode, India',
+        'components': 'country:IN|postal_code:$pincode',
+        'key': _googlePlacesApiKey,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['status'] != 'OK') return null;
+    final results = data['results'];
+    if (results is! List || results.isEmpty || results.first is! Map) {
+      return null;
+    }
+    final result = Map<String, dynamic>.from(results.first as Map);
+    String component(String type) {
+      final components = result['address_components'];
+      if (components is! List) return '';
+      for (final item in components.whereType<Map>()) {
+        final types = item['types'];
+        if (types is List && types.contains(type)) {
+          return item['long_name']?.toString() ?? '';
+        }
+      }
+      return '';
+    }
+
+    final geometry = result['geometry'];
+    final location = geometry is Map ? geometry['location'] : null;
+    double? coordinate(Object? value) {
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '');
+    }
+
+    return _DropLocation(
+      address: result['formatted_address']?.toString() ?? '$pincode, India',
+      city: component('locality').isNotEmpty
+          ? component('locality')
+          : component('administrative_area_level_2'),
+      pincode: component('postal_code').isEmpty
+          ? pincode
+          : component('postal_code'),
+      state: component('administrative_area_level_1'),
+      latitude: location is Map ? coordinate(location['lat']) : null,
+      longitude: location is Map ? coordinate(location['lng']) : null,
+    );
+  }
+
   Future<void> _openDropSearchDialog() async {
     if (!_validateDropContact()) return;
     if (_googlePlacesApiKey.isEmpty) {
@@ -629,8 +736,61 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     );
   }
 
+  Future<void> _openPickupSearchDialog() async {
+    if (_googlePlacesApiKey.isEmpty) {
+      _showMessage('Google Places API key is not configured');
+      return;
+    }
+    final selected = await showDialog<_DropLocation>(
+      context: context,
+      builder: (_) => _PlaceSearchDialog(
+        title: 'Choose Pickup Location',
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _pickupAddress = selected.address;
+      _pickupCity = selected.city;
+      _pickupPincode = selected.pincode;
+      pickupPincodeController.text = selected.pincode;
+      _pickupState = selected.state;
+      _pickupLatitude = selected.latitude;
+      _pickupLongitude = selected.longitude;
+    });
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': pickupNameController.text.trim(),
+        'mobile': pickupPhoneController.text.trim(),
+        'service_id': 1,
+        'house_numb': '',
+        'street': selected.address,
+        'city': selected.city,
+        'district': selected.city,
+        'state': selected.state,
+        'pin': selected.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'lat': selected.latitude,
+        'lon': selected.longitude,
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? 'Pickup location saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save pickup location',
+    );
+  }
+
   Future<void> _editDrop() async {
     if (!_validateDropContact()) return;
+    if (pincodeController.text.trim().length != 6) {
+      _showMessage('Please enter drop PIN first');
+      return;
+    }
     if (_googlePlacesApiKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -649,6 +809,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         initialLongitude: _dropLongitude,
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
+        getPincodeDetails: _getGoogleLocationFromPincode,
       ),
     );
     if (result == null || !mounted) return;
@@ -704,6 +865,123 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _updateAddressFromPincode({
+    required bool pickup,
+    required String pincode,
+  }) async {
+    if (pincode.length != 6) return;
+    setState(() {
+      if (pickup) {
+        _pickupAddress = 'Checking pickup pincode...';
+      } else {
+        _dropAddress = 'Checking drop pincode...';
+      }
+    });
+    _DropLocation? result;
+    try {
+      result = await _getGoogleLocationFromPincode(pincode);
+    } catch (_) {
+      result = null;
+    }
+    if (!mounted || result == null) {
+      if (mounted) {
+        if (pickup) {
+          pickupPincodeController.clear();
+        } else {
+          pincodeController.clear();
+        }
+        _clearPincodeLocation(pickup);
+        _setPincodeError(pickup, 'Please enter a valid Kolkata pincode');
+      }
+      return;
+    }
+    final currentPincode = pickup
+        ? pickupPincodeController.text
+        : pincodeController.text;
+    if (currentPincode != pincode) return;
+
+    final isKolkata =
+        result.city.toLowerCase().contains('kolkata') ||
+        result.address.toLowerCase().contains('kolkata');
+    if (!isKolkata) {
+      if (pickup) {
+        pickupPincodeController.clear();
+      } else {
+        pincodeController.clear();
+      }
+      setState(() {
+        if (pickup) {
+          _pickupAddress = 'Tap to add pickup location';
+          _pickupCity = '';
+          _pickupState = '';
+          _pickupLatitude = null;
+          _pickupLongitude = null;
+        } else {
+          _dropAddress = 'Tap to add destination';
+          _dropCity = '';
+          _dropState = '';
+          _dropLatitude = null;
+          _dropLongitude = null;
+        }
+      });
+      _setPincodeError(pickup, 'Pincode must be within Kolkata');
+      return;
+    }
+
+    final address = result.address.trim().isEmpty
+        ? 'Pincode: ${result.pincode.isEmpty ? pincode : result.pincode}'
+        : result.address;
+
+    setState(() {
+      if (pickup) {
+        _pickupPincodeError = null;
+        _pickupPincode = pincode;
+        _pickupCity = result!.city;
+        _pickupPincode = result.pincode;
+        _pickupState = result.state;
+        _pickupAddress = address;
+        _pickupLatitude = result.latitude;
+        _pickupLongitude = result.longitude;
+      } else {
+        _dropPincodeError = null;
+        _dropPincode = pincode;
+        _dropCity = result!.city;
+        _dropState = result.state;
+        _dropAddress = address;
+        _dropLatitude = result.latitude;
+        _dropLongitude = result.longitude;
+      }
+    });
+  }
+
+  void _setPincodeError(bool pickup, String message) {
+    setState(() {
+      if (pickup) {
+        _pickupPincodeError = message;
+      } else {
+        _dropPincodeError = message;
+      }
+    });
+  }
+
+  void _clearPincodeLocation(bool pickup) {
+    setState(() {
+      if (pickup) {
+        _pickupAddress = 'Tap to add pickup location';
+        _pickupCity = '';
+        _pickupState = '';
+        _pickupLatitude = null;
+        _pickupLongitude = null;
+      } else {
+        _dropAddress = 'Tap to add destination';
+        _dropCity = '';
+        _dropState = '';
+        _dropLatitude = null;
+        _dropLongitude = null;
+      }
+    });
   }
 
   bool _validateDropContact() {
@@ -821,6 +1099,10 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   }
 
   Future<void> _editPickup() async {
+    if (pickupPincodeController.text.trim().length != 6) {
+      _showMessage('Please enter pickup PIN first');
+      return;
+    }
     final result = await showDialog<_PickupLocation>(
       context: context,
       builder: (_) => _PickupEditDialog(
@@ -832,6 +1114,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         initialLongitude: _pickupLongitude,
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
+        getPincodeDetails: _getGoogleLocationFromPincode,
       ),
     );
     if (result == null || !mounted) return;
@@ -933,12 +1216,44 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       return;
     }
 
+    final distanceInMeters = Geolocator.distanceBetween(
+      _pickupLatitude!,
+      _pickupLongitude!,
+      _dropLatitude!,
+      _dropLongitude!,
+    );
+    const maximumDistanceInMeters = 30 * 1000;
+    if (distanceInMeters > maximumDistanceInMeters) {
+      _showMessage('Pickup and drop distance must be within 30 km');
+      return;
+    }
+
     final weight = double.tryParse(weightController.text.trim());
     if (weight == null || weight <= 0) {
       _showMessage('Please enter a valid weight');
       return;
     }
     final provider = context.read<BikescreenProvider>();
+    final pincodeResults = await Future.wait([
+      provider.checkPincode(pincode: _pickupPincode.trim()),
+      provider.checkPincode(pincode: _dropPincode.trim()),
+    ]);
+    if (!mounted) return;
+    if (pincodeResults.any((result) => result == null)) {
+      _showMessage(
+        provider.errorMessage ?? 'Unable to check pincode serviceability',
+      );
+      return;
+    }
+    final hasAvailableServiceMessage = pincodeResults.any(
+      (result) => result!.message.toLowerCase().contains(
+        'service is available for this pincode',
+      ),
+    );
+    if (hasAvailableServiceMessage) {
+      _showMessage('Bike service is not available for this pincode');
+      return;
+    }
     setState(() => _isLoadingRates = true);
     final payload = <String, dynamic>{
       'service_id': 1,
@@ -1719,7 +2034,13 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   Widget _locationCard({required bool pickup}) {
     final address = pickup ? _pickupAddress : _dropAddress;
     final city = pickup ? _pickupCity : _dropCity;
-    final pincode = pickup ? _pickupPincode : _dropPincode;
+    final pincode = pickup
+        ? pickupPincodeController.text.trim().isEmpty
+              ? ''
+              : _pickupPincode
+        : pincodeController.text.trim().isEmpty
+        ? ''
+        : _dropPincode;
     final state = pickup ? _pickupState : _dropState;
 
     return Container(
@@ -1738,20 +2059,44 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
           Row(
             children: [
               Expanded(
-                child: _pinCodeField(
-                  label: pickup ? 'Pickup PIN' : 'Drop PIN',
-                  controller: pickup
-                      ? pickupPincodeController
-                      : pincodeController,
-                  hint: pickup ? 'Pickup PIN' : 'Drop PIN',
-                  readOnly: pickup,
-                  onChanged: (value) {
-                    if (pickup) {
-                      _pickupPincode = value;
-                    } else if (value.length == 6) {
-                      _dropPincode = value;
-                    }
-                  },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _pinCodeField(
+                      label: pickup ? 'Pickup PIN' : 'Drop PIN',
+                      controller: pickup
+                          ? pickupPincodeController
+                          : pincodeController,
+                      hint: pickup ? 'Pickup PIN' : 'Drop PIN',
+                      readOnly: false,
+                      onChanged: (value) {
+                        if (pickup) {
+                          _pickupPincode = value;
+                          _pickupPincodeError = null;
+                        } else {
+                          _dropPincode = value;
+                          _dropPincodeError = null;
+                        }
+                        if (value.length < 6) {
+                          _clearPincodeLocation(pickup);
+                        }
+                        _updateAddressFromPincode(
+                          pickup: pickup,
+                          pincode: value,
+                        );
+                      },
+                    ),
+                    if ((pickup ? _pickupPincodeError : _dropPincodeError) !=
+                        null)
+                      Text(
+                        pickup ? _pickupPincodeError! : _dropPincodeError!,
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -1782,7 +2127,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
               const SizedBox(width: 14),
               Expanded(
                 child: InkWell(
-                  onTap: pickup ? _editPickup : _openDropSearchDialog,
+                  onTap: pickup
+                      ? _openPickupSearchDialog
+                      : _openDropSearchDialog,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1820,14 +2167,16 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 2),
-                      Text(
-                        '${pincode.isNotEmpty ? pincode : 'Pincode unavailable'}, ${state.isNotEmpty ? state : 'State unavailable'}',
-                        style: const TextStyle(
-                          color: Color(0xFF8A8F9C),
-                          fontSize: 13,
+                      if (!pickup || pincode.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${pincode.isNotEmpty ? pincode : 'Pincode unavailable'}, ${state.isNotEmpty ? state : 'State unavailable'}',
+                          style: const TextStyle(
+                            color: Color(0xFF8A8F9C),
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -2236,7 +2585,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         const SizedBox(height: 5),
         TextField(
           controller: controller,
-          readOnly: readOnly,
+          // readOnly: readOnly,
           keyboardType: TextInputType.number,
           maxLength: 6,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],

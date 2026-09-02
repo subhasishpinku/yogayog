@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:yogayog/core/services/bikescreen_service.dart';
+import 'package:yogayog/core/services/pincodecheck_service.dart';
 
 class BikescreenProvider extends ChangeNotifier {
   BikescreenProvider({BikescreenService? service}) : _service = service ?? BikescreenService();
@@ -17,6 +18,16 @@ class BikescreenProvider extends ChangeNotifier {
   RateResponse? get rateResponse => _rateResponse;
   bool _isRateLoading = false;
   RateResponse? _rateResponse;
+
+  Future<PincodeServiceability?> checkPincode({required String pincode}) async {
+    try {
+      return await _service.checkPincode(pincode: pincode);
+    } on PincodeCheckException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+      return null;
+    }
+  }
 
   Future<void> loadLocations({required int serviceId}) async {
     if (_isLoading) return;
