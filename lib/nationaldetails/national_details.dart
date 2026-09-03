@@ -1673,45 +1673,45 @@ class _NationalDetailsState extends State<NationalDetails> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Color(0xFF8A8F9C),
-                    fontSize: 11,
-                    letterSpacing: .8,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  address,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: pickup ? FontWeight.w700 : FontWeight.normal,
-                    color: pickup ? Colors.black : const Color(0xFF8A8F9C),
-                  ),
-                ),
-                if (city.isNotEmpty) ...[
-                  const SizedBox(height: 2),
                   Text(
-                    city,
+                    label,
                     style: const TextStyle(
                       color: Color(0xFF8A8F9C),
-                      fontSize: 13,
+                      fontSize: 11,
+                      letterSpacing: .8,
                     ),
                   ),
-                ],
-                if (pincode.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
-                    'PIN: $pincode',
-                    style: const TextStyle(
-                      color: Color(0xFF8A8F9C),
-                      fontSize: 13,
+                    address,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: pickup ? FontWeight.w700 : FontWeight.normal,
+                      color: pickup ? Colors.black : const Color(0xFF8A8F9C),
                     ),
                   ),
-                ],
+                  if (city.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      city,
+                      style: const TextStyle(
+                        color: Color(0xFF8A8F9C),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                  if (pincode.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'PIN: $pincode',
+                      style: const TextStyle(
+                        color: Color(0xFF8A8F9C),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -2456,6 +2456,11 @@ class _NationalDetailsState extends State<NationalDetails> {
 
   Future<void> _openPackageSelection() async {
     FocusScope.of(context).unfocus();
+    if (pickupHouseNumberController.text.trim().isEmpty ||
+        houseNumberController.text.trim().isEmpty) {
+      await _openShipmentDetails();
+      return;
+    }
     if (!_validatePackageFields()) {
       // await _showShipmentDetailsDialog();
       if (!mounted || !_validatePackageFields()) return;

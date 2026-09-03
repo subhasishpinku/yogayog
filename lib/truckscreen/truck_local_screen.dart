@@ -461,6 +461,8 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
   final weightController = TextEditingController(text: '20');
   final approximateWeightController = TextEditingController(text: '0.5');
   final pickupPincodeController = TextEditingController();
+  final pickupHouseNumberController = TextEditingController();
+  final dropHouseNumberController = TextEditingController();
   final pincodeController = TextEditingController();
   final piecesController = TextEditingController(text: '1');
   final pickupNameController = TextEditingController();
@@ -521,6 +523,8 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     weightController.dispose();
     approximateWeightController.dispose();
     pickupPincodeController.dispose();
+    pickupHouseNumberController.dispose();
+    dropHouseNumberController.dispose();
     pincodeController.dispose();
     piecesController.dispose();
     pickupNameController.dispose();
@@ -1096,6 +1100,14 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
 
   Future<void> _chooseVehicle() async {
     if (_isLoadingRates) return;
+    if (pickupHouseNumberController.text.trim().isEmpty) {
+      _showMessage('Please enter pickup house number');
+      return;
+    }
+    if (dropHouseNumberController.text.trim().isEmpty) {
+      _showMessage('Please enter drop house number');
+      return;
+    }
     // if (packageController.text.trim().isEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
     //     const SnackBar(content: Text('Please enter package description')),
@@ -1216,7 +1228,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
             'name': pickupNameController.text.trim(),
             'mobile': pickupPhoneController.text.trim(),
             'address': _pickupAddress,
-            'house_no': '',
+            'house_no': pickupHouseNumberController.text.trim(),
             'city': _pickupCity,
             'state': _pickupState,
             'pincode': _pickupPincode,
@@ -1228,7 +1240,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
             'name': dropNameController.text.trim(),
             'mobile': dropPhoneController.text.trim(),
             'address': _dropAddress,
-            'house_no': '',
+            'house_no': dropHouseNumberController.text.trim(),
             'city': _dropCity,
             'state': _dropState,
             'pincode': _dropPincode,
@@ -1892,54 +1904,150 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         children: [
           _truckLocationHeader(pickup: pickup),
           const SizedBox(height: 5),
-          Column(
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _pinCodeField(
-                label: pickup ? 'Pickup PIN' : 'Drop PIN',
-                controller: pickup
-                    ? pickupPincodeController
-                    : pincodeController,
-                hint: pickup ? 'Pickup PIN' : 'Drop PIN',
-                readOnly: false,
-                onChanged: (value) {
-                  if (pickup) {
-                    _pickupPincode = value;
-                    _pickupPincodeError = null;
-                    if (value.trim().isEmpty) {
-                      setState(() {
-                        _pickupAddress = 'Tap to add pickup location';
-                        _pickupCity = '';
-                        _pickupState = '';
-                        _pickupLatitude = null;
-                        _pickupLongitude = null;
-                      });
-                    }
-                  } else {
-                    _dropPincode = value;
-                    _dropPincodeError = null;
-                    if (value.trim().isEmpty) {
-                      setState(() {
-                        _dropAddress = 'Tap to add destination';
-                        _dropCity = '';
-                        _dropState = '';
-                        _dropLatitude = null;
-                        _dropLongitude = null;
-                      });
-                    }
-                  }
-                  _updateAddressFromPincode(pickup: pickup, pincode: value);
-                },
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _pinCodeField(
+                      label: pickup ? 'Pickup PIN' : 'Drop PIN',
+                      controller: pickup
+                          ? pickupPincodeController
+                          : pincodeController,
+                      hint: pickup ? 'Pickup PIN' : 'Drop PIN',
+                      readOnly: false,
+                      onChanged: (value) {
+                        if (pickup) {
+                          _pickupPincode = value;
+                          _pickupPincodeError = null;
+                          if (value.trim().isEmpty) {
+                            setState(() {
+                              _pickupAddress = 'Tap to add pickup location';
+                              _pickupCity = '';
+                              _pickupState = '';
+                              _pickupLatitude = null;
+                              _pickupLongitude = null;
+                            });
+                          }
+                        } else {
+                          _dropPincode = value;
+                          _dropPincodeError = null;
+                          if (value.trim().isEmpty) {
+                            setState(() {
+                              _dropAddress = 'Tap to add destination';
+                              _dropCity = '';
+                              _dropState = '';
+                              _dropLatitude = null;
+                              _dropLongitude = null;
+                            });
+                          }
+                        }
+                        _updateAddressFromPincode(
+                          pickup: pickup,
+                          pincode: value,
+                        );
+                      },
+                    ),
+                    if ((pickup ? _pickupPincodeError : _dropPincodeError) !=
+                        null)
+                      Text(
+                        pickup ? _pickupPincodeError! : _dropPincodeError!,
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-              if ((pickup ? _pickupPincodeError : _dropPincodeError) != null)
-                Text(
-                  pickup ? _pickupPincodeError! : _dropPincodeError!,
-                  style: const TextStyle(
-                    color: Colors.red,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+              if (pickup) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'PICKUP HOUSE NO',
+                        style: TextStyle(
+                          color: Color(0xFF667085),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      TextField(
+                        controller: pickupHouseNumberController,
+                        decoration: InputDecoration(
+                          hintText: 'Pickup House No',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE0E2E8),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE0E2E8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+              ] else ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'DROP HOUSE NO',
+                        style: TextStyle(
+                          color: Color(0xFF667085),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      TextField(
+                        controller: dropHouseNumberController,
+                        decoration: InputDecoration(
+                          hintText: 'Drop House No',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE0E2E8),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE0E2E8),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
           Row(

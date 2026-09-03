@@ -476,7 +476,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   final weightController = TextEditingController(text: '20');
   final approximateWeightController = TextEditingController(text: '0.5');
   final pickupPincodeController = TextEditingController();
+  final pickupHouseNumberController = TextEditingController();
   final pincodeController = TextEditingController();
+  final dropHouseNumberController = TextEditingController();
   final piecesController = TextEditingController(text: '1');
   final pickupNameController = TextEditingController();
   final pickupPhoneController = TextEditingController();
@@ -536,7 +538,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     weightController.dispose();
     approximateWeightController.dispose();
     pickupPincodeController.dispose();
+    pickupHouseNumberController.dispose();
     pincodeController.dispose();
+    dropHouseNumberController.dispose();
     piecesController.dispose();
     pickupNameController.dispose();
     pickupPhoneController.dispose();
@@ -1187,6 +1191,14 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
 
   Future<void> _chooseVehicle() async {
     if (_isLoadingRates) return;
+    if (pickupHouseNumberController.text.trim().isEmpty) {
+      _showMessage('Please enter pickup house number');
+      return;
+    }
+    if (dropHouseNumberController.text.trim().isEmpty) {
+      _showMessage('Please enter drop house number');
+      return;
+    }
     // if (packageController.text.trim().isEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
     //     const SnackBar(content: Text('Please enter package description')),
@@ -1296,7 +1308,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
             'name': pickupNameController.text.trim(),
             'mobile': pickupPhoneController.text.trim(),
             'address': _pickupAddress,
-            'house_no': '',
+            'house_no': pickupHouseNumberController.text.trim(),
             'city': _pickupCity,
             'state': _pickupState,
             'pincode': _pickupPincode,
@@ -1308,7 +1320,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
             'name': dropNameController.text.trim(),
             'mobile': dropPhoneController.text.trim(),
             'address': _dropAddress,
-            'house_no': '',
+            'house_no': dropHouseNumberController.text.trim(),
             'city': _dropCity,
             'state': _dropState,
             'pincode': _dropPincode,
@@ -1339,7 +1351,18 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
           horizontal: 16,
           vertical: 15,
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFFE1E1E6)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFFE1E1E6)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Color(0xFF17249B), width: 1.5),
+        ),
       ),
     );
   }
@@ -2060,6 +2083,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
           _locationHeader(pickup: pickup),
           const SizedBox(height: 6),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
@@ -2102,6 +2126,49 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                   ],
                 ),
               ),
+              if (pickup) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'PICKUP HOUSE NO',
+                        style: TextStyle(
+                          color: Color(0xFF667085),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      _textField(
+                        controller: pickupHouseNumberController,
+                        hintText: 'Pickup House No',
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'DROP HOUSE NO',
+                        style: TextStyle(
+                          color: Color(0xFF667085),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      _textField(
+                        controller: dropHouseNumberController,
+                        hintText: 'Drop House No',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
           Row(
