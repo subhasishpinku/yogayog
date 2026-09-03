@@ -1238,22 +1238,25 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       provider.checkPincode(pincode: _pickupPincode.trim()),
       provider.checkPincode(pincode: _dropPincode.trim()),
     ]);
-    if (!mounted) return;
-    if (pincodeResults.any((result) => result == null)) {
-      _showMessage(
-        provider.errorMessage ?? 'Unable to check pincode serviceability',
-      );
-      return;
-    }
-    final hasAvailableServiceMessage = pincodeResults.any(
-      (result) => result!.message.toLowerCase().contains(
-        'service is available for this pincode',
-      ),
-    );
-    if (hasAvailableServiceMessage) {
-      _showMessage('Bike service is not available for this pincode');
-      return;
-    }
+    // if (!mounted) return;
+    // if (pincodeResults.any((result) => result == null)) {
+    //   _showMessage(
+    //     provider.errorMessage ?? 'Unable to check pincode serviceability',
+    //   );
+    //   return;
+    // }
+    // final hasUnserviceablePincode = pincodeResults.any(
+    //   (result) => result!.serviceable == false,
+    // );
+    // if (hasUnserviceablePincode) {
+    //   _showMessage(
+    //     pincodeResults
+    //             .firstWhere((result) => result!.serviceable == false)
+    //             ?.message ??
+    //         'Bike service is not available for this pincode',
+    //   );
+    //   return;
+    // }
     setState(() => _isLoadingRates = true);
     final payload = <String, dynamic>{
       'service_id': 1,

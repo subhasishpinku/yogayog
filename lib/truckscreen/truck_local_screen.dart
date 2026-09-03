@@ -1163,22 +1163,22 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       provider.checkPincode(pincode: _pickupPincode.trim()),
       provider.checkPincode(pincode: _dropPincode.trim()),
     ]);
-    if (!mounted) return;
-    if (pincodeResults.any((result) => result == null)) {
-      _showMessage(
-        provider.errorMessage ?? 'Unable to check pincode serviceability',
-      );
-      return;
-    }
-    final hasAvailableServiceMessage = pincodeResults.any(
-      (result) => result!.message.toLowerCase().contains(
-        'service is available for this pincode',
-      ),
-    );
-    if (hasAvailableServiceMessage) {
-      _showMessage('Truck service is not available for this pincode');
-      return;
-    }
+    // if (!mounted) return;
+    // if (pincodeResults.any((result) => result == null)) {
+    //   _showMessage(
+    //     provider.errorMessage ?? 'Unable to check pincode serviceability',
+    //   );
+    //   return;
+    // }
+    // final hasAvailableServiceMessage = pincodeResults.any(
+    //   (result) => result!.message.toLowerCase().contains(
+    //     'service is available for this pincode',
+    //   ),
+    // );
+    // if (hasAvailableServiceMessage) {
+    //   _showMessage('Truck service is not available for this pincode');
+    //   return;
+    // }
     setState(() => _isLoadingRates = true);
     final rates = await provider.loadRates(
       payload: {
@@ -1969,10 +1969,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
               Expanded(
                 child: InkWell(
                   onTap: pickup
-                      ? ((_pickupAddress == 'Tap to add pickup location' ||
-                                _pickupPincode.trim().isEmpty)
-                            ? _openPickupSearchDialog
-                            : _editPickup)
+                      ? _openPickupSearchDialog
                       : _openDropSearchDialog,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
