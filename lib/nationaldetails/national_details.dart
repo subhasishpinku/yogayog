@@ -48,7 +48,7 @@ class _GeoLocation {
 
 class _PlaceSearchDialog extends StatefulWidget {
   const _PlaceSearchDialog({
-    this.title = 'Choose Drop Location',
+    this.title = 'Choose Pickup Location',
     required this.searchPlaces,
     required this.getPlaceDetails,
   });
@@ -184,6 +184,7 @@ class _PickupEditDialog extends StatefulWidget {
     required this.initialLongitude,
     required this.searchPlaces,
     required this.getPlaceDetails,
+    required this.getPincodeLocation,
   });
 
   final String title;
@@ -196,6 +197,7 @@ class _PickupEditDialog extends StatefulWidget {
   final double? initialLongitude;
   final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
   final Future<_GeoLocation> Function(String) getPlaceDetails;
+  final Future<_GeoLocation> Function(String) getPincodeLocation;
 
   @override
   State<_PickupEditDialog> createState() => _PickupEditDialogState();
@@ -214,6 +216,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
   String? _error;
   double? _latitude;
   double? _longitude;
+  bool _pincodeLoading = false;
 
   @override
   void initState() {
@@ -293,6 +296,42 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     }
   }
 
+  Future<void> _onPincodeChanged(String value) async {
+    if (!RegExp(r'^\d{6}$').hasMatch(value.trim())) return;
+    setState(() {
+      _pincodeLoading = true;
+      _error = null;
+    });
+    try {
+      final location = await widget.getPincodeLocation(value.trim());
+      if (!mounted) return;
+      setState(() {
+        _addressController.text = location.address;
+        _cityController.text = location.city;
+        _stateController.text = location.state;
+        _latitude = location.latitude;
+        _longitude = location.longitude;
+        _latitudeController.text = _latitude?.toString() ?? '';
+        _longitudeController.text = _longitude?.toString() ?? '';
+        _pincodeLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _addressController.clear();
+        _houseNumberController.clear();
+        _cityController.clear();
+        _stateController.clear();
+        _latitude = null;
+        _longitude = null;
+        _latitudeController.clear();
+        _longitudeController.clear();
+        _error = error.toString().replaceFirst('Exception: ', '');
+        _pincodeLoading = false;
+      });
+    }
+  }
+
   Widget _field(
     TextEditingController controller,
     String label, {
@@ -341,9 +380,11 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
             _field(_cityController, 'City'),
             _field(
               _pincodeController,
-              'Pickup PIN',
+              widget.title == 'Edit Drop Location' ? 'Drop PIN' : 'Pickup PIN',
               type: TextInputType.number,
+              onChanged: _onPincodeChanged,
             ),
+            if (_pincodeLoading) const LinearProgressIndicator(),
             _field(_stateController, 'State'),
           ],
         ),
@@ -568,6 +609,7 @@ class _NationalDetailsState extends State<NationalDetails> {
 
     return _GeoLocation(
       address: result['formatted_address']?.toString() ?? '',
+      houseNumber: component('street_number'),
       city: component('locality').isNotEmpty
           ? component('locality')
           : component('administrative_area_level_2'),
@@ -692,6 +734,61 @@ class _NationalDetailsState extends State<NationalDetails> {
     }
   }
 
+  Future<_GeoLocation> _lookupPincodeLocation(String pincode) async {
+    if (placesKey.isEmpty) {
+      throw Exception('Google Maps API key is not configured');
+    }
+    final response = await Dio().get(
+      'https://maps.googleapis.com/maps/api/geocode/json',
+      queryParameters: {
+        'address': '$pincode, India',
+        'components': 'postal_code:$pincode|country:IN',
+        'key': placesKey,
+      },
+    );
+    final data = response.data;
+    final results = data is Map ? data['results'] : null;
+    if (data is! Map ||
+        data['status'] != 'OK' ||
+        results is! List ||
+        results.isEmpty) {
+      throw Exception('This PIN must be a valid India PIN');
+    }
+    final result = results.first;
+    if (result is! Map) throw Exception('Unable to load address from PIN');
+    String component(String type) {
+      final components = result['address_components'];
+      if (components is! List) return '';
+      for (final item in components.whereType<Map>()) {
+        final types = item['types'];
+        if (types is List && types.contains(type)) {
+          return item['long_name']?.toString() ?? '';
+        }
+      }
+      return '';
+    }
+
+    final geometry = result['geometry'];
+    final location = geometry is Map ? geometry['location'] : null;
+    double? coordinate(Object? value) => value is num
+        ? value.toDouble()
+        : double.tryParse(value?.toString() ?? '');
+    final country = component('country').toUpperCase();
+    if (country != 'IN' && country != 'INDIA') {
+      throw Exception('PIN must be within India');
+    }
+    return _GeoLocation(
+      address: result['formatted_address']?.toString() ?? '',
+      city: component('locality').isNotEmpty
+          ? component('locality')
+          : component('administrative_area_level_2'),
+      pincode: pincode,
+      state: component('administrative_area_level_1'),
+      latitude: location is Map ? coordinate(location['lat']) : null,
+      longitude: location is Map ? coordinate(location['lng']) : null,
+    );
+  }
+
   void _setPincodeError(bool pickup, String message) {
     if (!mounted) return;
     setState(() {
@@ -765,6 +862,10 @@ class _NationalDetailsState extends State<NationalDetails> {
   }
 
   Future<void> _editPickup() async {
+    if (!RegExp(r'^\d{6}$').hasMatch(pickupPinController.text.trim())) {
+      _showMessage('Please enter a valid pickup PIN first');
+      return;
+    }
     final result = await showDialog<_GeoLocation>(
       context: context,
       builder: (_) => _PickupEditDialog(
@@ -777,6 +878,7 @@ class _NationalDetailsState extends State<NationalDetails> {
         initialLongitude: pickupLongitude,
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
+        getPincodeLocation: _lookupPincodeLocation,
       ),
     );
     if (result == null || !mounted) return;
@@ -831,6 +933,31 @@ class _NationalDetailsState extends State<NationalDetails> {
           : context.read<BikescreenProvider>().errorMessage ??
                 'Unable to save pickup location',
     );
+  }
+
+  Future<void> _openPickupSearchDialog() async {
+    final selected = await showDialog<_GeoLocation>(
+      context: context,
+      builder: (_) => _PlaceSearchDialog(
+        title: 'Choose Pickup Location',
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (selected == null || !mounted) return;
+
+    setState(() {
+      pickupAddress = selected.address;
+      pickupHouseNumber = selected.houseNumber;
+      pickupHouseNumberController.text = selected.houseNumber;
+      pickupCity = selected.city;
+      pickupPincode = selected.pincode;
+      pickupPinController.text = selected.pincode;
+      pickupState = selected.state;
+      pickupLatitude = selected.latitude;
+      pickupLongitude = selected.longitude;
+    });
+    await _openShipmentDetailsIfReady();
   }
 
   Future<void> _openSavedLocations() async {
@@ -948,7 +1075,6 @@ class _NationalDetailsState extends State<NationalDetails> {
   // ==================== Drop Location ====================
 
   Future<void> _openDropSearchDialog() async {
-    if (!_validateDropContact()) return;
     if (placesKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -974,6 +1100,7 @@ class _NationalDetailsState extends State<NationalDetails> {
       cityController.text = dropCity;
       pinController.text = dropPincode;
     });
+    await _openShipmentDetailsIfReady();
     if (!await _checkNationalPincode(selected.pincode)) return;
     if (await _rejectUnserviceableKolkataRoute()) return;
     final saved = await context.read<BikescreenProvider>().savePickupLocation(
@@ -1012,6 +1139,10 @@ class _NationalDetailsState extends State<NationalDetails> {
   }
 
   Future<void> _editDrop() async {
+    if (!RegExp(r'^\d{6}$').hasMatch(pinController.text.trim())) {
+      _showMessage('Please enter a valid drop PIN first');
+      return;
+    }
     if (!_validateDropContact()) return;
     if (placesKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
@@ -1030,6 +1161,7 @@ class _NationalDetailsState extends State<NationalDetails> {
         initialLongitude: dropLongitude,
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
+        getPincodeLocation: _lookupPincodeLocation,
       ),
     );
     if (selected == null || !mounted) return;
@@ -1243,7 +1375,8 @@ class _NationalDetailsState extends State<NationalDetails> {
             pickup ? pickupCity : dropCity,
             pickup ? pickupPincode : dropPincode,
             pickup,
-            pickup ? _editPickup : _dropLocationAction,
+            pickup ? _openPickupSearchDialog : _openDropSearchDialog,
+            onEdit: pickup ? _editPickup : _editDrop,
           ),
         ],
       ),
@@ -1501,8 +1634,10 @@ class _NationalDetailsState extends State<NationalDetails> {
     String city,
     String pincode,
     bool pickup,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    VoidCallback? onEdit,
+  }) {
+    final editAction = onEdit ?? onTap;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -1578,7 +1713,7 @@ class _NationalDetailsState extends State<NationalDetails> {
             ),
           ),
           TextButton(
-            onPressed: onTap,
+            onPressed: editAction,
             child: const Text(
               'Edit',
               style: TextStyle(
@@ -1902,7 +2037,7 @@ class _NationalDetailsState extends State<NationalDetails> {
       _showMessage(
         provider.errorMessage ??
             provider.result?.message ??
-            'This pincode is not serviceable',
+            'Sorry, this pincode is not serviceable.',
       );
       return false;
     }
@@ -2262,8 +2397,29 @@ class _NationalDetailsState extends State<NationalDetails> {
     );
   }
 
+  Future<void> _openShipmentDetailsIfReady() async {
+    if (pickupAddress.trim().isEmpty ||
+        pickupAddress == 'Fetching current location...' ||
+        pickupAddress == 'Tap to add pickup location' ||
+        dropAddress.trim().isEmpty ||
+        dropAddress == 'Tap to add destination') {
+      return;
+    }
+    await _openShipmentDetails();
+  }
+
   Future<void> _openShipmentDetails() async {
     FocusScope.of(context).unfocus();
+    if (pickupAddress.trim().isEmpty ||
+        pickupAddress == 'Fetching current location...' ||
+        pickupAddress == 'Tap to add pickup location') {
+      _showMessage('Please enter pickup full address first');
+      return;
+    }
+    if (dropAddress.trim().isEmpty || dropAddress == 'Tap to add destination') {
+      _showMessage('Please enter drop full address first');
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -2275,13 +2431,20 @@ class _NationalDetailsState extends State<NationalDetails> {
           pickupPinController: pickupPinController,
           dropPinController: pinController,
           approximateWeightController: approximateWeightController,
-          onAddressChanged: (_) {},
+          onAddressChanged: (value) => setState(() {
+            dropAddress = value;
+          }),
           onPickupHouseNumberChanged: (value) => pickupHouseNumber = value,
           onDropHouseNumberChanged: (value) => dropHouseNumber = value,
-          onCityChanged: (_) {},
+          onCityChanged: (value) => setState(() {
+            dropCity = value;
+          }),
           onPickupPincodeChanged: (value) => pickupPincode = value,
-          onDropPincodeChanged: (value) => dropPincode = value,
-          onNext: _openPackageSelection,
+          onDropPincodeChanged: (value) => setState(() {
+            dropPincode = value;
+            pinController.text = value;
+          }),
+          onNext: () async => Navigator.of(context).pop(),
         ),
       ),
     );
@@ -2345,6 +2508,8 @@ class _NationalDetailsState extends State<NationalDetails> {
     final city = cityController.text.trim();
     final pickupPin = pickupPinController.text.trim();
     final dropPin = pinController.text.trim();
+    final dropName = receiverNameController.text.trim();
+    final dropPhone = mobileController.text.trim();
 
     if (pickupAddress.trim().isEmpty ||
         pickupAddress == 'Fetching current location...') {
@@ -2379,6 +2544,14 @@ class _NationalDetailsState extends State<NationalDetails> {
     }
     if (!RegExp(r'^\d{6}$').hasMatch(dropPin)) {
       _showMessage('Please enter a valid 6-digit drop PIN');
+      return false;
+    }
+    if (dropName.isEmpty) {
+      _showMessage('Please enter drop name');
+      return false;
+    }
+    if (!RegExp(r'^\d{10}$').hasMatch(dropPhone)) {
+      _showMessage('Please enter a valid 10-digit drop phone number');
       return false;
     }
     return true;
@@ -2533,6 +2706,26 @@ class _NationalDetailsState extends State<NationalDetails> {
 
             const SizedBox(height: 14),
 
+            SizedBox(
+              width: double.infinity,
+              height: 57,
+              child: ElevatedButton(
+                onPressed: _openPackageSelection,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFC400),
+                  foregroundColor: const Color(0xFF101B8F),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: const Text(
+                  'NEXT →',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+
             if (_showLegacyPackageSection) ...[
               const Text(
                 'Select Your Package',
@@ -2561,27 +2754,6 @@ class _NationalDetailsState extends State<NationalDetails> {
                 ],
               ),
             ],
-
-            const SizedBox(height: 22),
-            SizedBox(
-              width: double.infinity,
-              height: 57,
-              child: ElevatedButton(
-                onPressed: _openShipmentDetails,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFC400),
-                  foregroundColor: const Color(0xFF101B8F),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text(
-                  'Next →',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
 
             if (_showLegacyPackageSection) ...[
               const SizedBox(height: 22),
