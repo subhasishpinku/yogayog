@@ -1667,9 +1667,12 @@ class _NationalDetailsState extends State<NationalDetails> {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 Text(
                   label,
                   style: const TextStyle(
@@ -1709,7 +1712,8 @@ class _NationalDetailsState extends State<NationalDetails> {
                     ),
                   ),
                 ],
-              ],
+                ],
+              ),
             ),
           ),
           TextButton(

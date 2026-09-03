@@ -420,7 +420,7 @@ class _InternationalImportState extends State<InternationalImport> {
 
   final List<PackageBox> packageBoxes = [];
 
-  String pickupAddress = 'Tap to add destination';
+  String pickupAddress = 'Tap to add pickup location';
   String pickupCity = '';
   String pickupPincode = '';
   String pickupState = '';
@@ -600,6 +600,7 @@ class _InternationalImportState extends State<InternationalImport> {
         fallback: selected.country,
       );
     });
+    await _openImportAddressIfReady();
     await _savePickupLocation(
       address: selected.address,
       city: selected.city,
@@ -648,6 +649,7 @@ class _InternationalImportState extends State<InternationalImport> {
         dropState = place?.administrativeArea ?? '';
         if (dropAddress.isEmpty) dropAddress = 'Current location';
       });
+      await _openImportAddressIfReady();
     } catch (error) {
       if (!mounted) return;
       setState(
@@ -692,6 +694,7 @@ class _InternationalImportState extends State<InternationalImport> {
         fallback: result.country,
       );
     });
+    await _openImportAddressIfReady();
     await _savePickupLocation(
       address: result.address,
       city: result.city,
@@ -742,6 +745,7 @@ class _InternationalImportState extends State<InternationalImport> {
         fallback: selected.country,
       );
     });
+    await _openImportAddressIfReady();
     await _savePickupLocation(
       address: selected.address,
       city: selected.city,
@@ -802,6 +806,7 @@ class _InternationalImportState extends State<InternationalImport> {
       cityController.text = dropCity;
       pinController.text = dropPincode;
     });
+    await _openImportAddressIfReady();
     await _saveDropLocation(
       address: selected.address,
       city: selected.city,
@@ -814,6 +819,45 @@ class _InternationalImportState extends State<InternationalImport> {
   }
 
   // ==================== Drop Location ====================
+
+  Future<void> _openDropSearch() async {
+    if (placesKey.isEmpty) {
+      _showMessage('Google Places API key is not configured');
+      return;
+    }
+    final selected = await showDialog<_GeoLocation>(
+      context: context,
+      builder: (_) => _PlaceSearchDialog(
+        title: 'Choose Drop Location',
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      dropAddress = selected.address;
+      dropCity = selected.city;
+      dropPincode = selected.pincode;
+      dropState = selected.state;
+      dropLatitude = selected.latitude;
+      dropLongitude = selected.longitude;
+      dropHouseNumber = selected.houseNumber;
+      dropHouseNumberController.text = dropHouseNumber;
+      addressController.text = selected.address;
+      cityController.text = selected.city;
+      pinController.text = selected.pincode;
+    });
+    await _openImportAddressIfReady();
+    await _saveDropLocation(
+      address: selected.address,
+      city: selected.city,
+      pincode: selected.pincode,
+      state: selected.state,
+      latitude: selected.latitude,
+      longitude: selected.longitude,
+      houseNumber: selected.houseNumber,
+    );
+  }
 
   Future<void> _editDrop() async {
     if (dropAddress == 'Tap to add destination') {
@@ -1152,6 +1196,18 @@ class _InternationalImportState extends State<InternationalImport> {
   }
 
   Future<bool> _openImportAddress() async {
+    final pickupReady =
+        pickupAddress.trim().isNotEmpty &&
+        pickupAddress != 'Fetching current location...' &&
+        pickupAddress != 'Tap to add pickup location';
+    final dropReady =
+        dropAddress.trim().isNotEmpty &&
+        dropAddress != 'Fetching current location...' &&
+        dropAddress != 'Tap to add destination';
+    if (!pickupReady || !dropReady) {
+      _showMessage('Please set both pickup and drop addresses first');
+      return false;
+    }
     final result = await Navigator.push<Map<String, String>>(
       context,
       MaterialPageRoute(
@@ -1189,12 +1245,35 @@ class _InternationalImportState extends State<InternationalImport> {
     return true;
   }
 
+  Future<void> _openImportAddressIfReady() async {
+    if (pickupAddress.trim().isEmpty ||
+        pickupAddress == 'Fetching current location...' ||
+        dropAddress.trim().isEmpty ||
+        dropAddress == 'Tap to add destination') {
+      return;
+    }
+    await _openImportAddress();
+  }
+
   Future<void> _openImportAddressAndPackage() async {
     if (!await _openImportAddress() || !mounted) return;
     await _openImportPackage(reviewOnSave: true);
   }
 
   Future<void> _openImportPackage({bool reviewOnSave = false}) async {
+    final pickupHouseMissing = pickupHouseNumberController.text.trim().isEmpty;
+    final dropHouseMissing = dropHouseNumberController.text.trim().isEmpty;
+    if (pickupHouseMissing || dropHouseMissing) {
+      _showMessage(
+        pickupHouseMissing && dropHouseMissing
+            ? 'Please enter pickup and drop house numbers first'
+            : pickupHouseMissing
+            ? 'Please enter pickup house number first'
+            : 'Please enter drop house number first',
+      );
+      await _openImportAddress();
+      return;
+    }
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
@@ -1289,7 +1368,7 @@ class _InternationalImportState extends State<InternationalImport> {
             pickup ? pickupCity : dropCity,
             pickup ? pickupPincode : dropPincode,
             pickup,
-            pickup ? _openPickupSearch : _editDrop,
+            pickup ? _openPickupSearch : _openDropSearch,
             editOnTap: pickup ? _editPickup : _editDrop,
             showContactFields: false,
           ),
@@ -2064,27 +2143,27 @@ class _InternationalImportState extends State<InternationalImport> {
             const SizedBox(height: 14),
             _locationCard(),
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _openImportAddress,
-                icon: const Icon(Icons.location_on_outlined),
-                label: const Text('Delivery Address'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(58),
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  foregroundColor: const Color(0xFF17249B),
-                  side: const BorderSide(color: Color(0xFF17249B)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
+            // SizedBox(
+            //   width: double.infinity,
+            //   child: OutlinedButton.icon(
+            //     onPressed: _openImportAddress,
+            //     icon: const Icon(Icons.location_on_outlined),
+            //     label: const Text('Delivery Address'),
+            //     style: OutlinedButton.styleFrom(
+            //       minimumSize: const Size.fromHeight(58),
+            //       padding: const EdgeInsets.symmetric(vertical: 15),
+            //       foregroundColor: const Color(0xFF17249B),
+            //       side: const BorderSide(color: Color(0xFF17249B)),
+            //       shape: RoundedRectangleBorder(
+            //         borderRadius: BorderRadius.circular(14),
+            //       ),
+            //       textStyle: const TextStyle(
+            //         fontSize: 16,
+            //         fontWeight: FontWeight.bold,
+            //       ),
+            //     ),
+            //   ),
+            // ),
             // ignore: dead_code
             if (false) ...[
               _label('DELIVERY ADDRESS'),
@@ -2188,27 +2267,27 @@ class _InternationalImportState extends State<InternationalImport> {
 
             const SizedBox(height: 8),
 
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _openImportPackage,
-                icon: const Icon(Icons.inventory_2_outlined),
-                label: const Text('Select Your Package'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(58),
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  foregroundColor: const Color(0xFF17249B),
-                  side: const BorderSide(color: Color(0xFF17249B)),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
+            // SizedBox(
+            //   width: double.infinity,
+            //   child: OutlinedButton.icon(
+            //     onPressed: _openImportPackage,
+            //     icon: const Icon(Icons.inventory_2_outlined),
+            //     label: const Text('Select Your Package'),
+            //     style: OutlinedButton.styleFrom(
+            //       minimumSize: const Size.fromHeight(58),
+            //       padding: const EdgeInsets.symmetric(vertical: 15),
+            //       foregroundColor: const Color(0xFF17249B),
+            //       side: const BorderSide(color: Color(0xFF17249B)),
+            //       shape: RoundedRectangleBorder(
+            //         borderRadius: BorderRadius.circular(14),
+            //       ),
+            //       textStyle: const TextStyle(
+            //         fontSize: 16,
+            //         fontWeight: FontWeight.bold,
+            //       ),
+            //     ),
+            //   ),
+            // ),
             // ignore: dead_code
             if (false) ...[
               const Text(
@@ -2345,7 +2424,7 @@ class _InternationalImportState extends State<InternationalImport> {
         child: SizedBox(
           height: 57,
           child: ElevatedButton(
-            onPressed: _openImportAddressAndPackage,
+            onPressed: () => _openImportPackage(reviewOnSave: true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFC400),
               foregroundColor: const Color(0xFF101B8F),

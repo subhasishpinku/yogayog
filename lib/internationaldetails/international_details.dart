@@ -715,6 +715,34 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     );
   }
 
+  Future<void> _openPickupSearchDialog() async {
+    if (placesKey.isEmpty) {
+      _showMessage('Google Places API key is not configured');
+      return;
+    }
+    final selected = await showDialog<_GeoLocation>(
+      context: context,
+      builder: (_) => _PlaceSearchDialog(
+        title: 'Choose Pickup Location',
+        searchPlaces: _searchPickupPlaces,
+        getPlaceDetails: _getPlaceDetails,
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      pickupAddress = selected.address;
+      pickupCity = selected.city;
+      pickupPincode = selected.pincode;
+      pickupPinController.text = selected.pincode;
+      pickupState = selected.state;
+      pickupHouseNumber = selected.houseNumber;
+      pickupHouseNumberController.text = selected.houseNumber;
+      pickupLatitude = selected.latitude;
+      pickupLongitude = selected.longitude;
+    });
+    await _openAddressDetailsIfReady();
+  }
+
   Future<void> _openSavedLocations() async {
     final provider = context.read<BikescreenProvider>();
     await provider.loadLocations(serviceId: 7);
@@ -912,6 +940,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         selected.address,
       );
     });
+    await _openAddressDetailsIfReady();
     await _saveLocation(
       name: receiverNameController.text.trim(),
       mobile: mobileController.text.trim(),
@@ -959,6 +988,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         selected.address,
       );
     });
+    await _openAddressDetailsIfReady();
     await _saveLocation(
       name: receiverNameController.text.trim(),
       mobile: mobileController.text.trim(),
@@ -1227,6 +1257,16 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     return true;
   }
 
+  Future<void> _openAddressDetailsIfReady() async {
+    if (pickupAddress.trim().isEmpty ||
+        pickupAddress == 'Fetching current location...' ||
+        dropAddress.trim().isEmpty ||
+        dropAddress == 'Tap to add destination') {
+      return;
+    }
+    await _openAddressDetails();
+  }
+
   Future<void> _openAddressDetailsAndPackage() async {
     if (!await _openAddressDetails() || !mounted) return;
     await _openPackageDetails(reviewOnSave: true);
@@ -1336,7 +1376,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
             pickup ? pickupCity : dropCity,
             pickup ? pickupPincode : dropPincode,
             pickup,
-            pickup ? _editPickup : _openDropSearchDialog,
+            pickup ? _openPickupSearchDialog : _openDropSearchDialog,
             onEdit: pickup ? _editPickup : _editDrop,
           ),
         ],
@@ -2418,7 +2458,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         child: SizedBox(
           height: 57,
           child: ElevatedButton(
-            onPressed: _openAddressDetailsAndPackage,
+            onPressed: () => _openPackageDetails(reviewOnSave: true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFC400),
               foregroundColor: const Color(0xFF101B8F),

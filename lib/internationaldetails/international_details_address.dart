@@ -37,6 +37,14 @@ class _InternationalDetailsAddressState
   late final city = TextEditingController(text: widget.city);
   late final pickupPin = TextEditingController(text: widget.pickupPin);
   late final dropPin = TextEditingController(text: widget.dropPin);
+  String? _addressError;
+  String? _pickupHouseError;
+  String? _dropHouseError;
+  String? _weightError;
+  String? _countryError;
+  String? _cityError;
+  String? _pickupPinError;
+  String? _dropPinError;
 
   @override
   void dispose() {
@@ -56,12 +64,39 @@ class _InternationalDetailsAddressState
   }
 
   void _save() {
-    if (pickupHouse.text.trim().isEmpty) {
-      _showValidationMessage('Please enter pickup housing no.');
-      return;
-    }
-    if (dropHouse.text.trim().isEmpty) {
-      _showValidationMessage('Please enter drop housing no.');
+    final parsedWeight = double.tryParse(weight.text.trim());
+    setState(() {
+      _addressError = address.text.trim().isEmpty
+          ? 'Please enter full address'
+          : null;
+      _pickupHouseError = pickupHouse.text.trim().isEmpty
+          ? 'Please enter pickup house number'
+          : null;
+      _dropHouseError = dropHouse.text.trim().isEmpty
+          ? 'Please enter drop house number'
+          : null;
+      _weightError = parsedWeight == null || parsedWeight <= 0
+          ? 'Please enter a valid weight'
+          : null;
+      _countryError = country.text.trim().isEmpty
+          ? 'Please enter country'
+          : null;
+      _cityError = city.text.trim().isEmpty ? 'Please enter city' : null;
+      _pickupPinError = RegExp(r'^\d{4,10}$').hasMatch(pickupPin.text.trim())
+          ? null
+          : 'Please enter a valid pickup PIN';
+      _dropPinError = RegExp(r'^\d{4,10}$').hasMatch(dropPin.text.trim())
+          ? null
+          : 'Please enter a valid drop PIN';
+    });
+    if (_addressError != null ||
+        _pickupHouseError != null ||
+        _dropHouseError != null ||
+        _weightError != null ||
+        _countryError != null ||
+        _cityError != null ||
+        _pickupPinError != null ||
+        _dropPinError != null) {
       return;
     }
     Navigator.pop(context, <String, String>{
@@ -101,17 +136,34 @@ class _InternationalDetailsAddressState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _label('ADDRESS DETAILS'),
-            _field(address, 'Full address'),
+            _field(address, 'Full address', errorText: _addressError),
             const SizedBox(height: 8),
             Row(
               children: [
-                Expanded(child: _field(pickupHouse, 'Pickup housing no.')),
+                Expanded(
+                  child: _field(
+                    pickupHouse,
+                    'Pickup housing no.',
+                    errorText: _pickupHouseError,
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: _field(dropHouse, 'Drop housing no.')),
+                Expanded(
+                  child: _field(
+                    dropHouse,
+                    'Drop housing no.',
+                    errorText: _dropHouseError,
+                  ),
+                ),
               ],
             ),
             _label('APPROX. WEIGHT (KG)'),
-            _field(weight, 'e.g. 2.5', keyboardType: TextInputType.number),
+            _field(
+              weight,
+              'e.g. 2.5',
+              keyboardType: TextInputType.number,
+              errorText: _weightError,
+            ),
             Row(
               children: [
                 Expanded(
@@ -119,7 +171,7 @@ class _InternationalDetailsAddressState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _label('DROP COUNTRY'),
-                      _field(country, 'Country'),
+                      _field(country, 'Country', errorText: _countryError),
                     ],
                   ),
                 ),
@@ -127,7 +179,10 @@ class _InternationalDetailsAddressState
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [_label('DROP CITY'), _field(city, 'City')],
+                    children: [
+                      _label('DROP CITY'),
+                      _field(city, 'City', errorText: _cityError),
+                    ],
                   ),
                 ),
               ],
@@ -143,6 +198,7 @@ class _InternationalDetailsAddressState
                         pickupPin,
                         'Pickup PIN',
                         keyboardType: TextInputType.number,
+                        errorText: _pickupPinError,
                       ),
                     ],
                   ),
@@ -157,6 +213,7 @@ class _InternationalDetailsAddressState
                         dropPin,
                         'Drop PIN',
                         keyboardType: TextInputType.number,
+                        errorText: _dropPinError,
                       ),
                     ],
                   ),
@@ -181,7 +238,7 @@ class _InternationalDetailsAddressState
               ),
             ),
             child: const Text(
-              'Next',
+              'Save',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
@@ -207,13 +264,15 @@ class _InternationalDetailsAddressState
     TextEditingController controller,
     String hint, {
     TextInputType? keyboardType,
+    String? errorText,
   }) => TextField(
     controller: controller,
     keyboardType: keyboardType,
     decoration: InputDecoration(
       hintText: hint,
+      errorText: errorText,
       filled: true,
-      fillColor: Colors.white,
+      fillColor: errorText == null ? Colors.white : const Color(0xFFFFEBEE),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(15),
