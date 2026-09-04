@@ -691,7 +691,6 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   }
 
   Future<void> _openDropSearchDialog() async {
-    if (!_validateDropContact()) return;
     if (_googlePlacesApiKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -706,6 +705,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     if (selected == null || !mounted) return;
     setState(() {
       _dropAddress = selected.address;
+      dropHouseNumberController.text = _houseNumberFromAddress(
+        selected.address,
+      );
       _dropCity = selected.city;
       _dropPincode = selected.pincode;
       pincodeController.text = selected.pincode;
@@ -756,6 +758,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     if (selected == null || !mounted) return;
     setState(() {
       _pickupAddress = selected.address;
+      pickupHouseNumberController.text = _houseNumberFromAddress(
+        selected.address,
+      );
       _pickupCity = selected.city;
       _pickupPincode = selected.pincode;
       pickupPincodeController.text = selected.pincode;
@@ -790,11 +795,6 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   }
 
   Future<void> _editDrop() async {
-    if (!_validateDropContact()) return;
-    if (pincodeController.text.trim().length != 6) {
-      _showMessage('Please enter drop PIN first');
-      return;
-    }
     if (_googlePlacesApiKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -823,6 +823,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         _dropCity = '';
         _dropPincode = '';
         pincodeController.clear();
+        dropHouseNumberController.clear();
         _dropState = '';
         _dropLatitude = null;
         _dropLongitude = null;
@@ -831,6 +832,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     }
     setState(() {
       _dropAddress = result.address;
+      dropHouseNumberController.text = _houseNumberFromAddress(result.address);
       _dropCity = result.city;
       _dropPincode = result.pincode;
       pincodeController.text = result.pincode;
@@ -869,6 +871,15 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _houseNumberFromAddress(String address) {
+    final firstPart = address.split(',').first.trim();
+    final match = RegExp(
+      r'^(?:house\s*no\.?|h\.?\s*no\.?|flat|plot|#)?\s*([A-Za-z]?\d+[A-Za-z]?(?:[-/]\w+)?)',
+      caseSensitive: false,
+    ).firstMatch(firstPart);
+    return match?.group(1) ?? '';
   }
 
   Future<void> _updateAddressFromPincode({
@@ -926,6 +937,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
           _dropAddress = 'Tap to add destination';
           _dropCity = '';
           _dropState = '';
+          dropHouseNumberController.clear();
           _dropLatitude = null;
           _dropLongitude = null;
         }
@@ -946,6 +958,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         _pickupPincode = result.pincode;
         _pickupState = result.state;
         _pickupAddress = address;
+        pickupHouseNumberController.text = _houseNumberFromAddress(address);
         _pickupLatitude = result.latitude;
         _pickupLongitude = result.longitude;
       } else {
@@ -954,6 +967,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         _dropCity = result!.city;
         _dropState = result.state;
         _dropAddress = address;
+        dropHouseNumberController.text = _houseNumberFromAddress(address);
         _dropLatitude = result.latitude;
         _dropLongitude = result.longitude;
       }
@@ -976,27 +990,37 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         _pickupAddress = 'Tap to add pickup location';
         _pickupCity = '';
         _pickupState = '';
+        pickupHouseNumberController.clear();
         _pickupLatitude = null;
         _pickupLongitude = null;
       } else {
         _dropAddress = 'Tap to add destination';
         _dropCity = '';
         _dropState = '';
+        dropHouseNumberController.clear();
         _dropLatitude = null;
         _dropLongitude = null;
       }
     });
   }
 
-  bool _validateDropContact() {
+  bool _validateDropContact({bool openBottomSheetOnError = true}) {
     final name = dropNameController.text.trim();
     final phone = dropPhoneController.text.trim();
     if (name.isEmpty) {
-      _showMessage('Please enter drop name first');
+      if (openBottomSheetOnError) {
+        unawaited(_showDropBottomSheet());
+      } else {
+        _showMessage('Please enter drop name first');
+      }
       return false;
     }
     if (phone.length != 10) {
-      _showMessage('Please enter a valid 10-digit drop phone number first');
+      if (openBottomSheetOnError) {
+        unawaited(_showDropBottomSheet());
+      } else {
+        _showMessage('Please enter a valid 10-digit drop phone number first');
+      }
       return false;
     }
     return true;
@@ -1020,6 +1044,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     if (selected == null || !mounted) return;
     setState(() {
       _pickupAddress = selected.address;
+      pickupHouseNumberController.text = _houseNumberFromAddress(
+        selected.address,
+      );
       _pickupCity = selected.city;
       _pickupPincode = selected.pincode;
       pickupPincodeController.text = selected.pincode;
@@ -1030,7 +1057,6 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   }
 
   Future<void> _openSavedDropLocations() async {
-    if (!_validateDropContact()) return;
     final provider = context.read<BikescreenProvider>();
     await provider.loadLocations(serviceId: 1);
     if (!mounted) return;
@@ -1048,6 +1074,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     if (selected == null || !mounted) return;
     setState(() {
       _dropAddress = selected.address;
+      dropHouseNumberController.text = _houseNumberFromAddress(
+        selected.address,
+      );
       _dropCity = selected.city;
       _dropPincode = selected.pincode;
       pincodeController.text = selected.pincode;
@@ -1093,6 +1122,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         pickupPincodeController.text = _pickupPincode;
         _pickupState = place?.administrativeArea ?? '';
         if (_pickupAddress.isEmpty) _pickupAddress = 'Current location';
+        pickupHouseNumberController.text = _houseNumberFromAddress(
+          _pickupAddress,
+        );
       });
     } catch (error) {
       if (!mounted) return;
@@ -1128,6 +1160,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         _pickupCity = '';
         _pickupPincode = '';
         pickupPincodeController.clear();
+        pickupHouseNumberController.clear();
         _pickupState = '';
         _pickupLatitude = null;
         _pickupLongitude = null;
@@ -1136,6 +1169,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     }
     setState(() {
       _pickupAddress = result.address;
+      pickupHouseNumberController.text = _houseNumberFromAddress(
+        result.address,
+      );
       _pickupCity = result.city;
       _pickupPincode = result.pincode;
       pickupPincodeController.text = result.pincode;
@@ -1169,6 +1205,292 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     );
   }
 
+  Future<void> _showPickupBottomSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              12,
+              16,
+              16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * .9,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD9DCE5),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Pickup details',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _pinCodeField(
+                            label: 'Pickup PIN',
+                            controller: pickupPincodeController,
+                            hint: 'Pickup PIN',
+                            readOnly: false,
+                            onChanged: (value) {
+                              _pickupPincode = value;
+                              _pickupPincodeError = null;
+                              if (value.length < 6) _clearPincodeLocation(true);
+                              _updateAddressFromPincode(
+                                pickup: true,
+                                pincode: value,
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _textField(
+                            controller: pickupHouseNumberController,
+                            hintText: 'Pickup House No',
+                          ),
+                        ),
+                      ],
+                    ),
+                    _contactField(pickupNameController, 'Pickup name'),
+                    const SizedBox(height: 10),
+                    _contactField(
+                      pickupPhoneController,
+                      'Pickup phone',
+                      phone: true,
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          if (pickupPincodeController.text.trim().length != 6) {
+                            _showMessage('Please enter pickup PIN first');
+                            return;
+                          }
+                          final saved = await context
+                              .read<BikescreenProvider>()
+                              .savePickupLocation(
+                                payload: {
+                                  'name': pickupNameController.text.trim(),
+                                  'mobile': pickupPhoneController.text.trim(),
+                                  'service_id': 1,
+                                  'house_numb': pickupHouseNumberController.text
+                                      .trim(),
+                                  'street': _pickupAddress,
+                                  'city': _pickupCity,
+                                  'district': _pickupCity,
+                                  'state': _pickupState,
+                                  'pin': pickupPincodeController.text.trim(),
+                                  'country': 'India',
+                                  'country_cde': 'IN',
+                                  'lat': _pickupLatitude,
+                                  'lon': _pickupLongitude,
+                                },
+                              );
+                          if (!mounted) return;
+                          Navigator.pop(sheetContext);
+                          _showMessage(
+                            saved
+                                ? 'Pickup location saved successfully'
+                                : context
+                                          .read<BikescreenProvider>()
+                                          .errorMessage ??
+                                      'Unable to save pickup location',
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Confirm Pickup & Continue →',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showDropBottomSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            12,
+            16,
+            16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * .9,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD9DCE5),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Drop details',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _pinCodeField(
+                          label: 'Drop PIN',
+                          controller: pincodeController,
+                          hint: 'Drop PIN',
+                          onChanged: (value) {
+                            _dropPincode = value;
+                            _dropPincodeError = null;
+                            if (value.length < 6) _clearPincodeLocation(false);
+                            _updateAddressFromPincode(
+                              pickup: false,
+                              pincode: value,
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _textField(
+                          controller: dropHouseNumberController,
+                          hintText: 'Drop House No',
+                        ),
+                      ),
+                    ],
+                  ),
+                  _contactField(dropNameController, 'Drop name'),
+                  const SizedBox(height: 10),
+                  _contactField(dropPhoneController, 'Drop phone', phone: true),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        if (!_validateDropContact(
+                              openBottomSheetOnError: false,
+                            ) ||
+                            pincodeController.text.trim().length != 6) {
+                          if (pincodeController.text.trim().length != 6) {
+                            _showMessage('Please enter drop PIN first');
+                          }
+                          return;
+                        }
+                        final saved = await context
+                            .read<BikescreenProvider>()
+                            .savePickupLocation(
+                              payload: {
+                                'name': dropNameController.text.trim(),
+                                'mobile': dropPhoneController.text.trim(),
+                                'service_id': 1,
+                                'house_numb': dropHouseNumberController.text
+                                    .trim(),
+                                'street': _dropAddress,
+                                'city': _dropCity,
+                                'district': _dropCity,
+                                'state': _dropState,
+                                'pin': pincodeController.text.trim(),
+                                'country': 'India',
+                                'country_cde': 'IN',
+                                'lat': _dropLatitude,
+                                'lon': _dropLongitude,
+                                'flag': 'drop',
+                              },
+                            );
+                        if (!mounted) return;
+                        Navigator.pop(sheetContext);
+                        _showMessage(
+                          saved
+                              ? 'Drop address saved successfully'
+                              : context
+                                        .read<BikescreenProvider>()
+                                        .errorMessage ??
+                                    'Unable to save drop address',
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: blue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 15),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Text(
+                        'Confirm Drop & Continue →',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _dialogField(
     TextEditingController controller,
     String label, {
@@ -1192,11 +1514,11 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   Future<void> _chooseVehicle() async {
     if (_isLoadingRates) return;
     if (pickupHouseNumberController.text.trim().isEmpty) {
-      _showMessage('Please enter pickup house number');
+      unawaited(_showPickupBottomSheet());
       return;
     }
     if (dropHouseNumberController.text.trim().isEmpty) {
-      _showMessage('Please enter drop house number');
+      unawaited(_showDropBottomSheet());
       return;
     }
     // if (packageController.text.trim().isEmpty) {
@@ -1210,12 +1532,13 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       return;
     }
     if (pickupNameController.text.trim().isEmpty ||
-        pickupPhoneController.text.trim().length != 10 ||
-        dropNameController.text.trim().isEmpty ||
+        pickupPhoneController.text.trim().length != 10) {
+      unawaited(_showPickupBottomSheet());
+      return;
+    }
+    if (dropNameController.text.trim().isEmpty ||
         dropPhoneController.text.trim().length != 10) {
-      _showMessage(
-        'Please enter pickup and drop name with valid 10-digit phone number',
-      );
+      unawaited(_showDropBottomSheet());
       return;
     }
     if (_pickupLatitude == null ||
@@ -1615,8 +1938,38 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     );
   }
 
+  Widget _chooseVehicleButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: ElevatedButton(
+        onPressed: _isLoadingRates ? null : _chooseVehicle,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: yellow,
+          foregroundColor: blue,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: _isLoadingRates
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text(
+                'Choose Vehicle →',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    const showWeightField = false;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
       body: SafeArea(
@@ -1625,16 +1978,12 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
             _buildHeader(context),
 
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 4),
-
                     _buildLocationCard(),
-
-                    const SizedBox(height: 8),
 
                     // const Text(
                     //   'Select Your Package',
@@ -1790,89 +2139,62 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                     //     'e.g. Documents, parcel, spare parts...',
                     //   ),
                     // ),
-                    const SizedBox(height: 6),
-
                     // const SizedBox(height: 16),
-                    const Text(
-                      'APPROX. WEIGHT',
-                      style: TextStyle(
-                        color: Color(0xFF667085),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: .6,
+                    if (showWeightField) ...[
+                      const Text(
+                        'APPROX. WEIGHT',
+                        style: TextStyle(
+                          color: Color(0xFF667085),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: .6,
+                        ),
                       ),
-                    ),
-
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: weightController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            enabled: false,
-                            readOnly: false,
-                            decoration: _inputDecoration('2 kg'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Container(
-                          width: 90,
-                          height: 42,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFE0E2E8)),
-                          ),
-                          child: const Text(
-                            'kg',
-                            style: TextStyle(
-                              color: Color(0xFF667085),
-                              fontSize: 14,
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: weightController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              enabled: false,
+                              readOnly: false,
+                              decoration: _inputDecoration('2 kg'),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: _isLoadingRates ? null : _chooseVehicle,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: yellow,
-                          foregroundColor: blue,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: _isLoadingRates
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text(
-                                'Choose Vehicle →',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                          const SizedBox(width: 10),
+                          Container(
+                            width: 90,
+                            height: 42,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFE0E2E8),
                               ),
+                            ),
+                            child: const Text(
+                              'kg',
+                              style: TextStyle(
+                                color: Color(0xFF667085),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
+              child: _chooseVehicleButton(),
             ),
           ],
         ),
@@ -2068,6 +2390,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         ? ''
         : _dropPincode;
     final state = pickup ? _pickupState : _dropState;
+    const showInlineFields = false;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
@@ -2081,73 +2404,43 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       child: Column(
         children: [
           _locationHeader(pickup: pickup),
-          const SizedBox(height: 6),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _pinCodeField(
-                      label: pickup ? 'Pickup PIN' : 'Drop PIN',
-                      controller: pickup
-                          ? pickupPincodeController
-                          : pincodeController,
-                      hint: pickup ? 'Pickup PIN' : 'Drop PIN',
-                      readOnly: false,
-                      onChanged: (value) {
-                        if (pickup) {
-                          _pickupPincode = value;
-                          _pickupPincodeError = null;
-                        } else {
-                          _dropPincode = value;
-                          _dropPincodeError = null;
-                        }
-                        if (value.length < 6) {
-                          _clearPincodeLocation(pickup);
-                        }
-                        _updateAddressFromPincode(
-                          pickup: pickup,
-                          pincode: value,
-                        );
-                      },
-                    ),
-                    if ((pickup ? _pickupPincodeError : _dropPincodeError) !=
-                        null)
-                      Text(
-                        pickup ? _pickupPincodeError! : _dropPincodeError!,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (pickup) ...[
-                const SizedBox(width: 10),
+          // ignore: dead_code
+          if (showInlineFields) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'PICKUP HOUSE NO',
-                        style: TextStyle(
-                          color: Color(0xFF667085),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
+                      _pinCodeField(
+                        label: 'Drop PIN',
+                        controller: pincodeController,
+                        hint: 'Drop PIN',
+                        readOnly: false,
+                        onChanged: (value) {
+                          _dropPincode = value;
+                          _dropPincodeError = null;
+                          if (value.length < 6) _clearPincodeLocation(false);
+                          _updateAddressFromPincode(
+                            pickup: false,
+                            pincode: value,
+                          );
+                        },
+                      ),
+                      if (_dropPincodeError != null)
+                        Text(
+                          _dropPincodeError!,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      _textField(
-                        controller: pickupHouseNumberController,
-                        hintText: 'Pickup House No',
-                      ),
                     ],
                   ),
                 ),
-              ] else ...[
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -2169,26 +2462,21 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                   ),
                 ),
               ],
-            ],
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: _contactField(
-                  pickup ? pickupNameController : dropNameController,
-                  pickup ? 'Pickup name' : 'Drop name',
+            ),
+            Row(
+              children: [
+                Expanded(child: _contactField(dropNameController, 'Drop name')),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _contactField(
+                    dropPhoneController,
+                    'Drop phone',
+                    phone: true,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _contactField(
-                  pickup ? pickupPhoneController : dropPhoneController,
-                  pickup ? 'Pickup phone' : 'Drop phone',
-                  phone: true,
-                ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2253,15 +2541,30 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
               ),
               Column(
                 children: [
-                  TextButton(
-                    onPressed: pickup ? _editPickup : _editDrop,
-                    child: const Text(
-                      'Edit',
-                      style: TextStyle(
-                        color: blue,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton.icon(
+                        onPressed: pickup ? _editPickup : _editDrop,
+                        icon: const Icon(Icons.edit, color: blue, size: 16),
+                        label: const Text(
+                          'Edit',
+                          style: TextStyle(
+                            color: blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
+                      IconButton(
+                        onPressed: pickup
+                            ? _showPickupBottomSheet
+                            : _showDropBottomSheet,
+                        icon: const Icon(Icons.add, color: blue),
+                        tooltip: pickup
+                            ? 'Add pickup details'
+                            : 'Add drop details',
+                      ),
+                    ],
                   ),
                   // TextButton(
                   //   onPressed: pickup
@@ -2393,14 +2696,22 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
 
               Column(
                 children: [
-                  TextButton(
+                  TextButton.icon(
                     onPressed: _editPickup,
-                    child: const Text(
-                      'Edit',
-                      style: TextStyle(
-                        color: blue,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    icon: const Icon(Icons.edit, color: blue, size: 16),
+                    label: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Edit',
+                          style: TextStyle(
+                            color: blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.add, color: blue, size: 16),
+                      ],
                     ),
                   ),
                   Padding(
@@ -2517,14 +2828,22 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
               ),
               Column(
                 children: [
-                  TextButton(
+                  TextButton.icon(
                     onPressed: _editDrop,
-                    child: const Text(
-                      'Edit',
-                      style: TextStyle(
-                        color: blue,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    icon: const Icon(Icons.edit, color: blue, size: 16),
+                    label: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Edit',
+                          style: TextStyle(
+                            color: blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.add, color: blue, size: 16),
+                      ],
                     ),
                   ),
                   Padding(
