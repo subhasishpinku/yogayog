@@ -78,6 +78,10 @@ class _PickupEditDialog extends StatefulWidget {
     required this.searchPlaces,
     required this.getPlaceDetails,
     required this.getPincodeDetails,
+    this.nameController,
+    this.phoneController,
+    this.nameLabel = 'Pickup Name',
+    this.phoneLabel = 'Pickup Phone',
   });
 
   final String title;
@@ -90,6 +94,10 @@ class _PickupEditDialog extends StatefulWidget {
   final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
   final Future<_DropLocation> Function(String) getPlaceDetails;
   final Future<_DropLocation?> Function(String) getPincodeDetails;
+  final TextEditingController? nameController;
+  final TextEditingController? phoneController;
+  final String nameLabel;
+  final String phoneLabel;
 
   @override
   State<_PickupEditDialog> createState() => _PickupEditDialogState();
@@ -102,6 +110,8 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
   late final TextEditingController _stateController;
   late final TextEditingController _latitudeController;
   late final TextEditingController _longitudeController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
   Timer? _debounce;
   List<_PlaceSuggestion> _suggestions = [];
   String? _error;
@@ -123,6 +133,8 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     _longitudeController = TextEditingController(
       text: _longitude?.toString() ?? '',
     );
+    _nameController = widget.nameController ?? TextEditingController();
+    _phoneController = widget.phoneController ?? TextEditingController();
   }
 
   @override
@@ -134,6 +146,8 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     _stateController.dispose();
     _latitudeController.dispose();
     _longitudeController.dispose();
+    if (widget.nameController == null) _nameController.dispose();
+    if (widget.phoneController == null) _phoneController.dispose();
     super.dispose();
   }
 
@@ -275,6 +289,14 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (widget.nameController != null) ...[
+              _field(_nameController, widget.nameLabel),
+              _field(
+                _phoneController,
+                widget.phoneLabel,
+                type: TextInputType.phone,
+              ),
+            ],
             _field(_addressController, 'Address', onChanged: _searchAddress),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.red)),
@@ -818,6 +840,10 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
         getPincodeDetails: _getGoogleLocationFromPincode,
+        nameController: dropNameController,
+        phoneController: dropPhoneController,
+        nameLabel: 'Drop Name',
+        phoneLabel: 'Drop Phone',
       ),
     );
     if (result == null || !mounted) return;
@@ -1426,6 +1452,8 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
         getPincodeDetails: _getGoogleLocationFromPincode,
+        nameController: pickupNameController,
+        phoneController: pickupPhoneController,
       ),
     );
     if (result == null || !mounted) return;
@@ -1861,14 +1889,14 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
 
   Future<void> _chooseVehicle() async {
     if (_isLoadingRates) return;
-    if (pickupHouseNumberController.text.trim().isEmpty) {
-      unawaited(_showPickupBottomSheet());
-      return;
-    }
-    if (dropHouseNumberController.text.trim().isEmpty) {
-      unawaited(_showDropBottomSheet());
-      return;
-    }
+    // if (pickupHouseNumberController.text.trim().isEmpty) {
+    //   unawaited(_showPickupBottomSheet());
+    //   return;
+    // }
+    // if (dropHouseNumberController.text.trim().isEmpty) {
+    //   unawaited(_showDropBottomSheet());
+    //   return;
+    // }
     // if (packageController.text.trim().isEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
     //     const SnackBar(content: Text('Please enter package description')),
@@ -1884,11 +1912,11 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       unawaited(_showPickupBottomSheet());
       return;
     }
-    if (dropNameController.text.trim().isEmpty ||
-        dropPhoneController.text.trim().length != 10) {
-      unawaited(_showDropBottomSheet());
-      return;
-    }
+    // if (dropNameController.text.trim().isEmpty ||
+    //     dropPhoneController.text.trim().length != 10) {
+    //   unawaited(_showDropBottomSheet());
+    //   return;
+    // }
     if (_pickupLatitude == null ||
         _pickupLongitude == null ||
         _dropLatitude == null ||
