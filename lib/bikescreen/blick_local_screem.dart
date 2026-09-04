@@ -969,6 +969,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                         gmaps.Marker(
                           markerId: const gmaps.MarkerId('selected_location'),
                           position: marker!,
+                          draggable: true,
+                          onDragEnd: (value) =>
+                              setDialogState(() => marker = value),
                         ),
                       },
                 onTap: (value) {
@@ -1051,6 +1054,62 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       });
     } catch (_) {
       _showMessage('Unable to read address from selected map location');
+    }
+  }
+
+  Future<void> _updateLocationFromDraggedMarker({
+    required bool pickup,
+    required gmaps.LatLng location,
+  }) async {
+    if (!await _isKolkataMapLocation(location)) {
+      _showMessage(
+        pickup
+            ? 'Pickup location must be within Kolkata'
+            : 'Drop location must be within Kolkata',
+      );
+      if (mounted) setState(() {});
+      return;
+    }
+    try {
+      final places = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+      if (!mounted) return;
+      final place = places.isNotEmpty ? places.first : null;
+      final address = [
+        place?.name,
+        place?.street,
+        place?.subLocality,
+        place?.locality,
+      ].where((value) => value?.trim().isNotEmpty == true).join(', ');
+      final fullAddress = address.isEmpty ? 'Selected map location' : address;
+      final pincode = place?.postalCode ?? '';
+      setState(() {
+        if (pickup) {
+          _pickupAddress = fullAddress;
+          _pickupCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          _pickupState = place?.administrativeArea ?? '';
+          _pickupPincode = pincode;
+          pickupPincodeController.text = pincode;
+          pickupHouseNumberController.text = _houseNumberFromAddress(
+            fullAddress,
+          );
+          _pickupLatitude = location.latitude;
+          _pickupLongitude = location.longitude;
+        } else {
+          _dropAddress = fullAddress;
+          _dropCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          _dropState = place?.administrativeArea ?? '';
+          _dropPincode = pincode;
+          pincodeController.text = pincode;
+          dropHouseNumberController.text = _houseNumberFromAddress(fullAddress);
+          _dropLatitude = location.latitude;
+          _dropLongitude = location.longitude;
+        }
+      });
+    } catch (_) {
+      _showMessage('Unable to update address from map marker');
     }
   }
 
@@ -2461,9 +2520,16 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                             markers: {
                               gmaps.Marker(
                                 markerId: const gmaps.MarkerId('pickup'),
+                                draggable: true,
                                 position: gmaps.LatLng(
                                   _pickupLatitude!,
                                   _pickupLongitude!,
+                                ),
+                                onDragEnd: (location) => unawaited(
+                                  _updateLocationFromDraggedMarker(
+                                    pickup: true,
+                                    location: location,
+                                  ),
                                 ),
                                 icon:
                                     gmaps.BitmapDescriptor.defaultMarkerWithHue(
@@ -2475,9 +2541,16 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                               ),
                               gmaps.Marker(
                                 markerId: const gmaps.MarkerId('drop'),
+                                draggable: true,
                                 position: gmaps.LatLng(
                                   _dropLatitude!,
                                   _dropLongitude!,
+                                ),
+                                onDragEnd: (location) => unawaited(
+                                  _updateLocationFromDraggedMarker(
+                                    pickup: false,
+                                    location: location,
+                                  ),
                                 ),
                                 icon:
                                     gmaps.BitmapDescriptor.defaultMarkerWithHue(
@@ -2569,9 +2642,12 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
-              child: _chooseVehicleButton(),
+            Transform.translate(
+              offset: const Offset(0, -24),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 10, 4),
+                child: _chooseVehicleButton(),
+              ),
             ),
           ],
         ),
@@ -2581,7 +2657,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return SizedBox(
-      height: 130,
+      height: 80,
       width: double.infinity,
       child: Container(
         color: blue,
@@ -2622,7 +2698,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
               style: TextStyle(color: Colors.white60, fontSize: 13),
             ),
             const SizedBox(height: 3),
-            _buildSteps(),
+            // _buildSteps(),
           ],
         ),
       ),
