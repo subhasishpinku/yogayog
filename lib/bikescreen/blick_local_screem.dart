@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
@@ -873,6 +874,101 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _pickLocationFromMap({required bool pickup}) async {
+    final initial = gmaps.LatLng(
+      pickup ? (_pickupLatitude ?? 22.5726) : (_dropLatitude ?? 22.5726),
+      pickup ? (_pickupLongitude ?? 88.3639) : (_dropLongitude ?? 88.3639),
+    );
+    final selected = await showDialog<gmaps.LatLng>(
+      context: context,
+      builder: (dialogContext) {
+        gmaps.LatLng? marker = initial;
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: Text(
+              pickup ? 'Choose Pickup Location' : 'Choose Drop Location',
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 420,
+              child: gmaps.GoogleMap(
+                initialCameraPosition: gmaps.CameraPosition(
+                  target: initial,
+                  zoom: 15,
+                ),
+                myLocationButtonEnabled: true,
+                zoomControlsEnabled: true,
+                markers: marker == null
+                    ? {}
+                    : {
+                        gmaps.Marker(
+                          markerId: const gmaps.MarkerId('selected_location'),
+                          position: marker!,
+                        ),
+                      },
+                onTap: (value) => setDialogState(() => marker = value),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: marker == null
+                    ? null
+                    : () => Navigator.pop(dialogContext, marker),
+                child: const Text('Confirm'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+    try {
+      final places = await placemarkFromCoordinates(
+        selected.latitude,
+        selected.longitude,
+      );
+      if (!mounted) return;
+      final place = places.isNotEmpty ? places.first : null;
+      final address = [
+        place?.name,
+        place?.street,
+        place?.subLocality,
+        place?.locality,
+      ].where((value) => value?.trim().isNotEmpty == true).join(', ');
+      final fullAddress = address.isEmpty ? 'Selected map location' : address;
+      final pincode = place?.postalCode ?? '';
+      setState(() {
+        if (pickup) {
+          _pickupAddress = fullAddress;
+          _pickupCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          _pickupState = place?.administrativeArea ?? '';
+          _pickupPincode = pincode;
+          pickupPincodeController.text = pincode;
+          pickupHouseNumberController.text = _houseNumberFromAddress(
+            fullAddress,
+          );
+          _pickupLatitude = selected.latitude;
+          _pickupLongitude = selected.longitude;
+        } else {
+          _dropAddress = fullAddress;
+          _dropCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          _dropState = place?.administrativeArea ?? '';
+          _dropPincode = pincode;
+          pincodeController.text = pincode;
+          dropHouseNumberController.text = _houseNumberFromAddress(fullAddress);
+          _dropLatitude = selected.latitude;
+          _dropLongitude = selected.longitude;
+        }
+      });
+    } catch (_) {
+      _showMessage('Unable to read address from selected map location');
+    }
+  }
+
   String _houseNumberFromAddress(String address) {
     final firstPart = address.split(',').first.trim();
     final match = RegExp(
@@ -1251,6 +1347,41 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
+                    InkWell(
+                      onTap: _openPickupSearchDialog,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFE0E2E8)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _pickupAddress.isEmpty
+                                    ? 'Search pickup location'
+                                    : _pickupAddress,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: _pickupAddress.isEmpty
+                                      ? const Color(0xFF667085)
+                                      : Colors.black,
+                                ),
+                              ),
+                            ),
+                            const Icon(Icons.search, color: blue),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                     Row(
                       children: [
                         Expanded(
@@ -1390,6 +1521,44 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                   const Text(
                     'Drop details',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 14),
+                  InkWell(
+                    onTap: _openDropSearchDialog,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFE0E2E8)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _dropAddress == 'Tap to add destination' ||
+                                      _dropAddress.isEmpty
+                                  ? 'Search drop location'
+                                  : _dropAddress,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color:
+                                    _dropAddress == 'Tap to add destination' ||
+                                        _dropAddress.isEmpty
+                                    ? const Color(0xFF667085)
+                                    : Colors.black,
+                              ),
+                            ),
+                          ),
+                          const Icon(Icons.search, color: blue),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 14),
                   Row(
@@ -2140,6 +2309,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                     //   ),
                     // ),
                     // const SizedBox(height: 16),
+                    // ignore: dead_code
                     if (showWeightField) ...[
                       const Text(
                         'APPROX. WEIGHT',
@@ -2481,13 +2651,24 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _locationIndicator(pickup ? yellow : blue),
+              IconButton(
+                onPressed: () => _pickLocationFromMap(pickup: pickup),
+                icon: Icon(
+                  Icons.map_outlined,
+                  color: pickup ? yellow : Colors.black,
+                  size: 22,
+                ),
+                tooltip: pickup ? 'Choose pickup on map' : 'Choose drop on map',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: InkWell(
-                  onTap: pickup
-                      ? _openPickupSearchDialog
-                      : _openDropSearchDialog,
+                  // onTap: pickup
+                  //     ? _openPickupSearchDialog
+                  //     : _openDropSearchDialog,
+                  onTap: pickup ? _showPickupBottomSheet : _showDropBottomSheet,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -2555,15 +2736,15 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                           ),
                         ),
                       ),
-                      IconButton(
-                        onPressed: pickup
-                            ? _showPickupBottomSheet
-                            : _showDropBottomSheet,
-                        icon: const Icon(Icons.add, color: blue),
-                        tooltip: pickup
-                            ? 'Add pickup details'
-                            : 'Add drop details',
-                      ),
+                      // IconButton(
+                      //   onPressed: pickup
+                      //       ? _showPickupBottomSheet
+                      //       : _showDropBottomSheet,
+                      //   icon: const Icon(Icons.add, color: blue),
+                      //   tooltip: pickup
+                      //       ? 'Add pickup details'
+                      //       : 'Add drop details',
+                      // ),
                     ],
                   ),
                   // TextButton(
