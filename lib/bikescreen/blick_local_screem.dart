@@ -503,6 +503,9 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   double? _dropLatitude;
   double? _dropLongitude;
   bool _isLoadingRates = false;
+  List<gmaps.LatLng> _routePoints = [];
+  String? _routeKey;
+  bool _routeLoading = false;
 
   static const _googlePlacesApiKey = String.fromEnvironment(
     'GOOGLE_MAPS_API_KEY',
@@ -874,11 +877,67 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _loadRoutePolyline({required String routeKey}) async {
+    if (_routeLoading || _googlePlacesApiKey.isEmpty) return;
+    _routeLoading = true;
+    try {
+      final response = await Dio().get(
+        'https://maps.googleapis.com/maps/api/directions/json',
+        queryParameters: {
+          'origin': '${_pickupLatitude!},${_pickupLongitude!}',
+          'destination': '${_dropLatitude!},${_dropLongitude!}',
+          'mode': 'driving',
+          'key': _googlePlacesApiKey,
+        },
+      );
+      final data = response.data;
+      final routes = data is Map ? data['routes'] : null;
+      final overview = routes is List && routes.isNotEmpty
+          ? routes.first['overview_polyline']
+          : null;
+      final encoded = overview is Map ? overview['points']?.toString() : null;
+      if (encoded != null && encoded.isNotEmpty && mounted) {
+        setState(() {
+          if (_routeKey == routeKey) _routePoints = _decodePolyline(encoded);
+        });
+      }
+    } catch (_) {
+      // Keep the existing straight fallback line if directions are unavailable.
+    } finally {
+      _routeLoading = false;
+    }
+  }
+
+  List<gmaps.LatLng> _decodePolyline(String encoded) {
+    final points = <gmaps.LatLng>[];
+    var index = 0;
+    var latitude = 0;
+    var longitude = 0;
+    while (index < encoded.length) {
+      var result = 0;
+      var shift = 0;
+      int value;
+      do {
+        value = encoded.codeUnitAt(index++) - 63;
+        result |= (value & 0x1f) << shift;
+        shift += 5;
+      } while (value >= 0x20 && index < encoded.length);
+      latitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+      result = 0;
+      shift = 0;
+      do {
+        value = encoded.codeUnitAt(index++) - 63;
+        result |= (value & 0x1f) << shift;
+        shift += 5;
+      } while (value >= 0x20 && index < encoded.length);
+      longitude += (result & 1) != 0 ? ~(result >> 1) : result >> 1;
+      points.add(gmaps.LatLng(latitude / 1e5, longitude / 1e5));
+    }
+    return points;
+  }
+
   Future<void> _pickLocationFromMap({required bool pickup}) async {
-    final initial = gmaps.LatLng(
-      pickup ? (_pickupLatitude ?? 22.5726) : (_dropLatitude ?? 22.5726),
-      pickup ? (_pickupLongitude ?? 88.3639) : (_dropLongitude ?? 88.3639),
-    );
+    const initial = gmaps.LatLng(22.5726, 88.3639);
     final selected = await showDialog<gmaps.LatLng>(
       context: context,
       builder: (dialogContext) {
@@ -896,6 +955,12 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                   target: initial,
                   zoom: 15,
                 ),
+                cameraTargetBounds: gmaps.CameraTargetBounds(
+                  gmaps.LatLngBounds(
+                    southwest: const gmaps.LatLng(22.45, 88.28),
+                    northeast: const gmaps.LatLng(22.62, 88.45),
+                  ),
+                ),
                 myLocationButtonEnabled: true,
                 zoomControlsEnabled: true,
                 markers: marker == null
@@ -906,7 +971,17 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                           position: marker!,
                         ),
                       },
-                onTap: (value) => setDialogState(() => marker = value),
+                onTap: (value) {
+                  if (!_isWithinKolkata(value)) {
+                    _showMessage(
+                      pickup
+                          ? 'Pickup location must be within Kolkata'
+                          : 'Drop location must be within Kolkata',
+                    );
+                    return;
+                  }
+                  setDialogState(() => marker = value);
+                },
               ),
             ),
             actions: [
@@ -917,7 +992,17 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
               ElevatedButton(
                 onPressed: marker == null
                     ? null
-                    : () => Navigator.pop(dialogContext, marker),
+                    : () async {
+                        if (!await _isKolkataMapLocation(marker!)) {
+                          _showMessage(
+                            pickup
+                                ? 'Pickup location must be within Kolkata'
+                                : 'Drop location must be within Kolkata',
+                          );
+                          return;
+                        }
+                        Navigator.pop(dialogContext, marker);
+                      },
                 child: const Text('Confirm'),
               ),
             ],
@@ -976,6 +1061,41 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       caseSensitive: false,
     ).firstMatch(firstPart);
     return match?.group(1) ?? '';
+  }
+
+  bool _isWithinKolkata(gmaps.LatLng location) {
+    return location.latitude >= 22.45 &&
+        location.latitude <= 22.62 &&
+        location.longitude >= 88.28 &&
+        location.longitude <= 88.45;
+  }
+
+  Future<bool> _isKolkataMapLocation(gmaps.LatLng location) async {
+    if (!_isWithinKolkata(location) || _googlePlacesApiKey.isEmpty) {
+      return false;
+    }
+    try {
+      final response = await Dio().get(
+        'https://maps.googleapis.com/maps/api/geocode/json',
+        queryParameters: {
+          'latlng': '${location.latitude},${location.longitude}',
+          'key': _googlePlacesApiKey,
+        },
+      );
+      final data = response.data;
+      final results = data is Map ? data['results'] : null;
+      if (data is! Map || data['status'] != 'OK' || results is! List) {
+        return false;
+      }
+      final address = results
+          .whereType<Map>()
+          .map((item) => item['formatted_address']?.toString() ?? '')
+          .join(' ')
+          .toLowerCase();
+      return address.contains('kolkata') && !address.contains('howrah');
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _updateAddressFromPincode({
@@ -2138,6 +2258,20 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   @override
   Widget build(BuildContext context) {
     const showWeightField = false;
+    final routeKey =
+        _pickupLatitude == null ||
+            _pickupLongitude == null ||
+            _dropLatitude == null ||
+            _dropLongitude == null
+        ? null
+        : '${_pickupLatitude!},${_pickupLongitude!}|${_dropLatitude!},${_dropLongitude!}';
+    if (routeKey != null && routeKey != _routeKey && !_routeLoading) {
+      _routeKey = routeKey;
+      _routePoints = [];
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_loadRoutePolyline(routeKey: routeKey));
+      });
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF2F2F7),
@@ -2309,6 +2443,79 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                     //   ),
                     // ),
                     // const SizedBox(height: 16),
+                    if (_pickupLatitude != null &&
+                        _pickupLongitude != null &&
+                        _dropLatitude != null &&
+                        _dropLongitude != null) ...[
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 300,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: gmaps.GoogleMap(
+                            initialCameraPosition: gmaps.CameraPosition(
+                              target: const gmaps.LatLng(22.5726, 88.3639),
+                              zoom: 12,
+                            ),
+                            markers: {
+                              gmaps.Marker(
+                                markerId: const gmaps.MarkerId('pickup'),
+                                position: gmaps.LatLng(
+                                  _pickupLatitude!,
+                                  _pickupLongitude!,
+                                ),
+                                icon:
+                                    gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                                      gmaps.BitmapDescriptor.hueYellow,
+                                    ),
+                                infoWindow: const gmaps.InfoWindow(
+                                  title: 'Pickup',
+                                ),
+                              ),
+                              gmaps.Marker(
+                                markerId: const gmaps.MarkerId('drop'),
+                                position: gmaps.LatLng(
+                                  _dropLatitude!,
+                                  _dropLongitude!,
+                                ),
+                                icon:
+                                    gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                                      gmaps.BitmapDescriptor.hueAzure,
+                                    ),
+                                infoWindow: const gmaps.InfoWindow(
+                                  title: 'Drop',
+                                ),
+                              ),
+                            },
+                            polylines: {
+                              gmaps.Polyline(
+                                polylineId: const gmaps.PolylineId(
+                                  'pickup_drop_route',
+                                ),
+                                points: _routePoints.isEmpty
+                                    ? [
+                                        gmaps.LatLng(
+                                          _pickupLatitude!,
+                                          _pickupLongitude!,
+                                        ),
+                                        gmaps.LatLng(
+                                          _dropLatitude!,
+                                          _dropLongitude!,
+                                        ),
+                                      ]
+                                    : _routePoints,
+                                color: blue,
+                                width: 5,
+                              ),
+                            },
+                            zoomControlsEnabled: false,
+                            myLocationButtonEnabled: false,
+                            mapToolbarEnabled: false,
+                          ),
+                        ),
+                      ),
+                    ],
                     // ignore: dead_code
                     if (showWeightField) ...[
                       const Text(
