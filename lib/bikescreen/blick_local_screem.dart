@@ -760,12 +760,12 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       },
     );
     if (!mounted) return;
-    _showMessage(
-      saved
-          ? 'Drop address saved successfully'
-          : context.read<BikescreenProvider>().errorMessage ??
-                'Unable to save drop address',
-    );
+    // _showMessage(
+    //   saved
+    //       ? 'Drop address saved successfully'
+    //       : context.read<BikescreenProvider>().errorMessage ??
+    //             'Unable to save drop address',
+    // );
   }
 
   Future<void> _openPickupSearchDialog() async {
@@ -1803,15 +1803,15 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
-                        if (!_validateDropContact(
-                              openBottomSheetOnError: false,
-                            ) ||
-                            pincodeController.text.trim().length != 6) {
-                          if (pincodeController.text.trim().length != 6) {
-                            _showMessage('Please enter drop PIN first');
-                          }
-                          return;
-                        }
+                        // if (!_validateDropContact(
+                        //       openBottomSheetOnError: false,
+                        //     ) ||
+                        //     pincodeController.text.trim().length != 6) {
+                        //   if (pincodeController.text.trim().length != 6) {
+                        //     _showMessage('Please enter drop PIN first');
+                        //   }
+                        //   return;
+                        // }
                         final saved = await context
                             .read<BikescreenProvider>()
                             .savePickupLocation(
@@ -1835,14 +1835,14 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                             );
                         if (!mounted) return;
                         Navigator.pop(sheetContext);
-                        _showMessage(
-                          saved
-                              ? 'Drop address saved successfully'
-                              : context
-                                        .read<BikescreenProvider>()
-                                        .errorMessage ??
-                                    'Unable to save drop address',
-                        );
+                        // _showMessage(
+                        //   saved
+                        //       ? 'Drop address saved successfully'
+                        //       : context
+                        //                 .read<BikescreenProvider>()
+                        //                 .errorMessage ??
+                        //             'Unable to save drop address',
+                        // );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: blue,
@@ -2838,7 +2838,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
           const Spacer(),
           TextButton.icon(
             onPressed: pickup ? _openSavedLocations : _openSavedDropLocations,
-            icon: const Icon(Icons.folder, size: 13),
+            icon: const Icon(Icons.folder, size: 22),
             label: const Text('SAVED ADDRESS'),
             style: TextButton.styleFrom(
               foregroundColor: accent,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:yogayog/Payment/Payment_wallet_Screen.dart';
 import 'package:yogayog/Payment/payment_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
@@ -31,16 +32,74 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
   static const Color yellow = AppColors.primaryButton;
 
   final instructionController = TextEditingController();
+  late final TextEditingController _dropNameController;
+  late final TextEditingController _dropPhoneController;
+  late final TextEditingController _dropHouseController;
   bool _isCheckingWallet = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _dropNameController = TextEditingController(
+      text: widget.drop['name']?.toString() ?? '',
+    );
+    _dropPhoneController = TextEditingController(
+      text: widget.drop['mobile']?.toString() ?? '',
+    );
+    _dropHouseController = TextEditingController(
+      text: widget.drop['house_no']?.toString() ?? '',
+    );
+  }
 
   @override
   void dispose() {
     instructionController.dispose();
+    _dropNameController.dispose();
+    _dropPhoneController.dispose();
+    _dropHouseController.dispose();
     super.dispose();
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _proceedToPayment() async {
     if (_isCheckingWallet) return;
+    // Validate Drop Details
+    final dropName = _dropNameController.text.trim();
+    final dropPhone = _dropPhoneController.text.trim();
+    final dropHouseNo = _dropHouseController.text.trim();
+
+    if (dropName.isEmpty) {
+      _showMessage('Please enter Drop Name');
+
+      return;
+    }
+
+    if (dropPhone.isEmpty) {
+      _showMessage('Please enter Drop Phone Number');
+      return;
+    }
+
+    if (!RegExp(r'^[0-9]{10}$').hasMatch(dropPhone)) {
+      _showMessage('Please enter a valid 10-digit phone number');
+      return;
+    }
+
+    if (dropHouseNo.isEmpty) {
+      _showMessage('Please enter Drop House No');
+
+      return;
+    }
+
+    // Update drop data before payment
+    widget.drop['name'] = dropName;
+    widget.drop['mobile'] = dropPhone;
+    widget.drop['house_no'] = dropHouseNo;
+
     setState(() => _isCheckingWallet = true);
 
     final orderPayload = {
@@ -126,6 +185,10 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
 
                     const SizedBox(height: 12),
 
+                    _buildDropContactCard(),
+
+                    const SizedBox(height: 12),
+
                     // const Text(
                     //   'DELIVERY INSTRUCTIONS (OPTIONAL)',
                     //   style: TextStyle(
@@ -205,7 +268,7 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      height: 150,
+      height: 100,
       width: double.infinity,
       color: blue,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
@@ -247,7 +310,7 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
             style: TextStyle(color: Colors.white60, fontSize: 12),
           ),
           const SizedBox(height: 6),
-          _buildSteps(),
+          // _buildSteps(),
         ],
       ),
     );
@@ -450,6 +513,140 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
               shape: BoxShape.circle,
             ),
             child: const Text('💰', style: TextStyle(fontSize: 23)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropContactCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 7, offset: Offset(0, 3)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'DROP DETAILS',
+            style: TextStyle(
+              color: blue,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: .6,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _dropContactRow(
+            icon: Icons.person_outline,
+            title: 'Drop Name',
+            controller: _dropNameController,
+            mapKey: 'name',
+          ),
+
+          const SizedBox(height: 8),
+
+          _dropContactRow(
+            icon: Icons.phone_outlined,
+            title: 'Drop Phone Number',
+            controller: _dropPhoneController,
+            mapKey: 'mobile',
+            keyboardType: TextInputType.phone,
+          ),
+
+          const SizedBox(height: 8),
+
+          _dropContactRow(
+            icon: Icons.home_outlined,
+            title: 'Drop House No',
+            controller: _dropHouseController,
+            mapKey: 'house_no',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dropContactRow({
+    required IconData icon,
+    required String title,
+    required TextEditingController controller,
+    required String mapKey,
+    TextInputType? keyboardType,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE8EAF0)),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 2),
+
+          Icon(icon, color: blue, size: 19),
+
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Color(0xFF8A8F9C),
+                    fontSize: 11,
+                  ),
+                ),
+
+                const SizedBox(height: 2),
+
+                TextField(
+                  controller: controller,
+
+                  // Keyboard
+                  keyboardType: keyboardType,
+
+                  // Text select / copy / paste
+                  enableInteractiveSelection: true,
+
+                  // Cursor show করবে
+                  showCursor: true,
+
+                  // Phone হলে শুধু number allow করবে
+                  inputFormatters: keyboardType == TextInputType.phone
+                      ? [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(10),
+                        ]
+                      : null,
+
+                  onChanged: (value) {
+                    widget.drop[mapKey] = value.trim();
+                  },
+
+                  style: const TextStyle(
+                    color: Color(0xFF202020),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
