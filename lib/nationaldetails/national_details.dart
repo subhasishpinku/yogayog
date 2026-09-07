@@ -11,7 +11,6 @@ import 'package:yogayog/choosecourier/choose_courier.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:yogayog/core/services/bikescreen_service.dart';
 import 'package:yogayog/core/services/home_service.dart';
-import 'package:yogayog/dashboard/dashboard_scren.dart';
 import 'package:yogayog/nationaldetails/provider/national_provider.dart';
 import 'package:yogayog/core/services/national_service.dart';
 import 'package:provider/provider.dart';
@@ -44,6 +43,15 @@ class _GeoLocation {
   final double? latitude;
   final double? longitude;
   final bool clear;
+}
+
+String _houseNumberFromAddress(String address) {
+  final firstPart = address.split(',').first.trim();
+  final match = RegExp(
+    r'^(?:house\s*no\.?|h\.?\s*no\.?|flat|plot|#)?\s*([A-Za-z]?\d+[A-Za-z]?(?:[-/]\w+)?)',
+    caseSensitive: false,
+  ).firstMatch(firstPart);
+  return match?.group(1) ?? '';
 }
 
 class _PlaceSearchDialog extends StatefulWidget {
@@ -185,6 +193,8 @@ class _PickupEditDialog extends StatefulWidget {
     required this.searchPlaces,
     required this.getPlaceDetails,
     required this.getPincodeLocation,
+    this.nameController,
+    this.phoneController,
   });
 
   final String title;
@@ -198,6 +208,8 @@ class _PickupEditDialog extends StatefulWidget {
   final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
   final Future<_GeoLocation> Function(String) getPlaceDetails;
   final Future<_GeoLocation> Function(String) getPincodeLocation;
+  final TextEditingController? nameController;
+  final TextEditingController? phoneController;
 
   @override
   State<_PickupEditDialog> createState() => _PickupEditDialogState();
@@ -211,6 +223,8 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
   late final TextEditingController _stateController;
   late final TextEditingController _latitudeController;
   late final TextEditingController _longitudeController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
   Timer? _debounce;
   List<_PlaceSuggestion> _suggestions = [];
   String? _error;
@@ -236,6 +250,8 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     _longitudeController = TextEditingController(
       text: _longitude?.toString() ?? '',
     );
+    _nameController = widget.nameController ?? TextEditingController();
+    _phoneController = widget.phoneController ?? TextEditingController();
   }
 
   @override
@@ -248,6 +264,8 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     _stateController.dispose();
     _latitudeController.dispose();
     _longitudeController.dispose();
+    if (widget.nameController == null) _nameController.dispose();
+    if (widget.phoneController == null) _phoneController.dispose();
     super.dispose();
   }
 
@@ -280,6 +298,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
       if (!mounted) return;
       setState(() {
         _addressController.text = location.address;
+        _houseNumberController.text = _houseNumberFromAddress(location.address);
         _cityController.text = location.city;
         _pincodeController.text = location.pincode;
         _stateController.text = location.state;
@@ -307,6 +326,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
       if (!mounted) return;
       setState(() {
         _addressController.text = location.address;
+        _houseNumberController.text = _houseNumberFromAddress(location.address);
         _cityController.text = location.city;
         _stateController.text = location.state;
         _latitude = location.latitude;
@@ -364,6 +384,21 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
           children: [
             _field(_addressController, 'Address', onChanged: _searchAddress),
             _field(_houseNumberController, 'House Number'),
+            if (widget.nameController != null) ...[
+              _field(
+                _nameController,
+                widget.title == 'Edit Drop Location'
+                    ? 'Drop Name'
+                    : 'Pickup Name',
+              ),
+              _field(
+                _phoneController,
+                widget.title == 'Edit Drop Location'
+                    ? 'Drop Phone'
+                    : 'Pickup Phone',
+                type: TextInputType.phone,
+              ),
+            ],
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.red)),
             if (_suggestions.isNotEmpty)
@@ -714,6 +749,8 @@ class _NationalDetailsState extends State<NationalDetails> {
         if (pickup) {
           pickupPincode = pincode;
           pickupAddress = address;
+          pickupHouseNumber = _houseNumberFromAddress(address);
+          pickupHouseNumberController.text = pickupHouseNumber;
           pickupCity = city;
           pickupState = state;
           pickupLatitude = latitude;
@@ -852,6 +889,8 @@ class _NationalDetailsState extends State<NationalDetails> {
         pickupPinController.text = pickupPincode;
         pickupState = place?.administrativeArea ?? '';
         if (pickupAddress.isEmpty) pickupAddress = 'Current location';
+        pickupHouseNumber = _houseNumberFromAddress(pickupAddress);
+        pickupHouseNumberController.text = pickupHouseNumber;
       });
     } catch (error) {
       if (!mounted) return;
@@ -879,6 +918,8 @@ class _NationalDetailsState extends State<NationalDetails> {
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
         getPincodeLocation: _lookupPincodeLocation,
+        nameController: pickupNameController,
+        phoneController: pickupPhoneController,
       ),
     );
     if (result == null || !mounted) return;
@@ -935,7 +976,7 @@ class _NationalDetailsState extends State<NationalDetails> {
     );
   }
 
-  Future<void> _openPickupSearchDialog() async {
+  Future<_GeoLocation?> _openPickupSearchDialog() async {
     final selected = await showDialog<_GeoLocation>(
       context: context,
       builder: (_) => _PlaceSearchDialog(
@@ -944,12 +985,15 @@ class _NationalDetailsState extends State<NationalDetails> {
         getPlaceDetails: _getPlaceDetails,
       ),
     );
-    if (selected == null || !mounted) return;
+    if (selected == null || !mounted) return selected;
 
+    final houseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
       pickupAddress = selected.address;
-      pickupHouseNumber = selected.houseNumber;
-      pickupHouseNumberController.text = selected.houseNumber;
+      pickupHouseNumber = houseNumber;
+      pickupHouseNumberController.text = houseNumber;
       pickupCity = selected.city;
       pickupPincode = selected.pincode;
       pickupPinController.text = selected.pincode;
@@ -958,6 +1002,283 @@ class _NationalDetailsState extends State<NationalDetails> {
       pickupLongitude = selected.longitude;
     });
     await _openShipmentDetailsIfReady();
+    return selected;
+  }
+
+  Future<void> _showPickupBottomSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              10,
+              8,
+              10,
+              12 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD9DDE5),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Pickup details',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () async {
+                      final selected = await _openPickupSearchDialog();
+                      if (selected != null) setSheetState(() {});
+                    },
+                    borderRadius: BorderRadius.circular(11),
+                    child: Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFE0E2E8)),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              pickupAddress.isEmpty
+                                  ? 'Search pickup location'
+                                  : pickupAddress,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                          const Icon(Icons.search, color: Colors.black),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _textField(
+                          controller: pickupPinController,
+                          hintText: 'Pickup PIN',
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          maxLength: 6,
+                          onChanged: (value) {
+                            pickupPincode = value;
+                            _loadAddressFromPincode(value, pickup: true);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _textField(
+                          controller: pickupHouseNumberController,
+                          hintText: 'House No',
+                          onChanged: (value) => pickupHouseNumber = value,
+                        ),
+                      ),
+                    ],
+                  ),
+                  _textField(
+                    controller: pickupNameController,
+                    hintText: 'Pickup Name',
+                  ),
+                  _textField(
+                    controller: pickupPhoneController,
+                    hintText: 'Pickup Phone',
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 10,
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    height: 45,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                      ),
+                      child: const Text(
+                        'Confirm Pickup & Continue →',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDropBottomSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              10,
+              8,
+              10,
+              12 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD9DDE5),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Drop details',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () async {
+                      await _openDropSearchDialog(validateContact: false);
+                      if (mounted) setSheetState(() {});
+                    },
+                    borderRadius: BorderRadius.circular(11),
+                    child: Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFE0E2E8)),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              dropAddress == 'Tap to add destination' ||
+                                      dropAddress.isEmpty
+                                  ? 'Search drop location'
+                                  : dropAddress,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                          const Icon(Icons.search, color: Colors.black),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _textField(
+                          controller: pinController,
+                          hintText: 'Drop PIN',
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          maxLength: 6,
+                          onChanged: (value) {
+                            dropPincode = value;
+                            _loadAddressFromPincode(value, pickup: false);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _textField(
+                          controller: houseNumberController,
+                          hintText: 'Drop House No',
+                          onChanged: (value) => dropHouseNumber = value,
+                        ),
+                      ),
+                    ],
+                  ),
+                  _textField(
+                    controller: receiverNameController,
+                    hintText: 'Drop name',
+                  ),
+                  _textField(
+                    controller: mobileController,
+                    hintText: 'Drop phone',
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 10,
+                  ),
+                  _textField(
+                    controller: cityController,
+                    hintText: 'Drop city',
+                    onChanged: (value) => dropCity = value,
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    height: 45,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(sheetContext),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                      ),
+                      child: const Text(
+                        'Confirm Drop & Continue →',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openSavedLocations() async {
@@ -1074,7 +1395,8 @@ class _NationalDetailsState extends State<NationalDetails> {
 
   // ==================== Drop Location ====================
 
-  Future<void> _openDropSearchDialog() async {
+  Future<void> _openDropSearchDialog({bool validateContact = true}) async {
+    if (validateContact && !_validateDropContact()) return;
     if (placesKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -1088,9 +1410,13 @@ class _NationalDetailsState extends State<NationalDetails> {
       ),
     );
     if (selected == null || !mounted) return;
+    final selectedHouseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
       dropAddress = selected.address;
-      houseNumberController.text = dropHouseNumber;
+      dropHouseNumber = selectedHouseNumber;
+      houseNumberController.text = selectedHouseNumber;
       dropCity = selected.city;
       dropPincode = selected.pincode;
       dropState = selected.state;
@@ -1100,7 +1426,6 @@ class _NationalDetailsState extends State<NationalDetails> {
       cityController.text = dropCity;
       pinController.text = dropPincode;
     });
-    await _openShipmentDetailsIfReady();
     if (!await _checkNationalPincode(selected.pincode)) return;
     if (await _rejectUnserviceableKolkataRoute()) return;
     final saved = await context.read<BikescreenProvider>().savePickupLocation(
@@ -1162,6 +1487,8 @@ class _NationalDetailsState extends State<NationalDetails> {
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
         getPincodeLocation: _lookupPincodeLocation,
+        nameController: receiverNameController,
+        phoneController: mobileController,
       ),
     );
     if (selected == null || !mounted) return;
@@ -1181,10 +1508,13 @@ class _NationalDetailsState extends State<NationalDetails> {
       });
       return;
     }
-    if (!_requireHouseNumber(selected.houseNumber, 'Drop')) return;
+    final selectedHouseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
+    if (!_requireHouseNumber(selectedHouseNumber, 'Drop')) return;
     setState(() {
       dropAddress = selected.address;
-      dropHouseNumber = selected.houseNumber;
+      dropHouseNumber = selectedHouseNumber;
       houseNumberController.text = dropHouseNumber;
       dropCity = selected.city;
       dropPincode = selected.pincode;
@@ -1235,14 +1565,14 @@ class _NationalDetailsState extends State<NationalDetails> {
   bool _validateDropContact() {
     final name = receiverNameController.text.trim();
     final phone = mobileController.text.trim();
-    if (name.isEmpty) {
-      _showMessage('Please enter drop name first');
-      return false;
-    }
-    if (phone.length != 10) {
-      _showMessage('Please enter a valid 10-digit drop phone number first');
-      return false;
-    }
+    // if (name.isEmpty) {
+    //   _showMessage('Please enter drop name first');
+    //   return false;
+    // }
+    // if (phone.length != 10) {
+    //   _showMessage('Please enter a valid 10-digit drop phone number first');
+    //   return false;
+    // }
     return true;
   }
 
@@ -1343,6 +1673,7 @@ class _NationalDetailsState extends State<NationalDetails> {
   }
 
   Widget _nationalLocationCard({required bool pickup}) {
+    const showInlineLocationFields = false;
     return Container(
       padding: const EdgeInsets.fromLTRB(6, 6, 6, 4),
       decoration: BoxDecoration(
@@ -1355,19 +1686,19 @@ class _NationalDetailsState extends State<NationalDetails> {
       child: Column(
         children: [
           _nationalLocationHeader(pickup: pickup),
-          const SizedBox(height: 4),
-          _pincodeRow(pickup: pickup),
-          const SizedBox(height: 4),
-          _contactRow(
-            nameController: pickup
-                ? pickupNameController
-                : receiverNameController,
-            phoneController: pickup ? pickupPhoneController : mobileController,
-            nameLabel: pickup ? 'PICKUP NAME' : 'DROP NAME',
-            phoneLabel: pickup ? 'PICKUP PHONE' : 'DROP PHONE',
-            nameHint: pickup ? 'Pickup name' : 'Drop name',
-            phoneHint: pickup ? 'Pickup phone' : 'Drop phone',
-          ),
+          if (showInlineLocationFields) ...[
+            const SizedBox(height: 4),
+            _pincodeRow(pickup: false),
+            const SizedBox(height: 4),
+            _contactRow(
+              nameController: receiverNameController,
+              phoneController: mobileController,
+              nameLabel: 'DROP NAME',
+              phoneLabel: 'DROP PHONE',
+              nameHint: 'Drop name',
+              phoneHint: 'Drop phone',
+            ),
+          ],
           const SizedBox(height: 4),
           _locationRow(
             pickup ? 'PICKUP' : 'DROP',
@@ -1375,7 +1706,9 @@ class _NationalDetailsState extends State<NationalDetails> {
             pickup ? pickupCity : dropCity,
             pickup ? pickupPincode : dropPincode,
             pickup,
-            pickup ? _openPickupSearchDialog : _openDropSearchDialog,
+            pickup
+                ? () => _showPickupBottomSheet()
+                : () => _showDropBottomSheet(),
             onEdit: pickup ? _editPickup : _editDrop,
           ),
         ],
@@ -1447,7 +1780,7 @@ class _NationalDetailsState extends State<NationalDetails> {
           const Spacer(),
           TextButton.icon(
             onPressed: pickup ? _openSavedLocations : _openSavedDropLocations,
-            icon: const Icon(Icons.folder, size: 13),
+            icon: const Icon(Icons.folder, size: 22),
             label: const Text('SAVED ADDRESS'),
             style: TextButton.styleFrom(
               foregroundColor: accent,
@@ -1716,9 +2049,14 @@ class _NationalDetailsState extends State<NationalDetails> {
               ),
             ),
           ),
-          TextButton(
+          TextButton.icon(
             onPressed: editAction,
-            child: const Text(
+            icon: const Icon(
+              Icons.edit_outlined,
+              size: 16,
+              color: Colors.black,
+            ),
+            label: const Text(
               'Edit',
               style: TextStyle(
                 color: Colors.black,
@@ -2060,13 +2398,13 @@ class _NationalDetailsState extends State<NationalDetails> {
         pickupPhoneController.text.trim().length != 10 ||
         receiverNameController.text.trim().isEmpty ||
         mobileController.text.trim().length != 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please enter pickup and drop name with valid 10-digit phone number',
-          ),
-        ),
-      );
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   const SnackBar(
+      //     content: Text(
+      //       'Please enter pickup and drop name with valid 10-digit phone number',
+      //     ),
+      //   ),
+      // );
       return;
     }
     final approximateWeight =
@@ -2225,29 +2563,6 @@ class _NationalDetailsState extends State<NationalDetails> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    if (!isPrepaid) {
-      final postpaidPayload = Map<String, dynamic>.from(orderPayload)
-        ..remove('payment_method')
-        ..remove('payment_mode')
-        ..remove('price');
-      final created = await provider.createPostpaidOrder(
-        payload: postpaidPayload,
-      );
-      if (!mounted) return;
-      if (created == null) {
-        _showMessage(
-          provider.errorMessage ?? 'Unable to create post-paid order',
-        );
-        return;
-      }
-      await preferences.setString(
-        'national_order_payload',
-        jsonEncode(postpaidPayload),
-      );
-      Navigator.push(context, MaterialPageRoute(builder: (_) => Dashboard()));
-      _showMessage('Post-paid order created successfully');
-      return;
-    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -2456,11 +2771,6 @@ class _NationalDetailsState extends State<NationalDetails> {
 
   Future<void> _openPackageSelection() async {
     FocusScope.of(context).unfocus();
-    if (pickupHouseNumberController.text.trim().isEmpty ||
-        houseNumberController.text.trim().isEmpty) {
-      await _openShipmentDetails();
-      return;
-    }
     if (!_validatePackageFields()) {
       // await _showShipmentDetailsDialog();
       if (!mounted || !_validatePackageFields()) return;
@@ -2555,14 +2865,14 @@ class _NationalDetailsState extends State<NationalDetails> {
       _showMessage('Please enter a valid 6-digit drop PIN');
       return false;
     }
-    if (dropName.isEmpty) {
-      _showMessage('Please enter drop name');
-      return false;
-    }
-    if (!RegExp(r'^\d{10}$').hasMatch(dropPhone)) {
-      _showMessage('Please enter a valid 10-digit drop phone number');
-      return false;
-    }
+    // if (dropName.isEmpty) {
+    //   _showMessage('Please enter drop name');
+    //   return false;
+    // }
+    // if (!RegExp(r'^\d{10}$').hasMatch(dropPhone)) {
+    //   _showMessage('Please enter a valid 10-digit drop phone number');
+    //   return false;
+    // }
     return true;
   }
 
@@ -2586,7 +2896,6 @@ class _NationalDetailsState extends State<NationalDetails> {
           children: [
             _locationCard(),
             const SizedBox(height: 10),
-
             // SizedBox(
             //   width: double.infinity,
             //   child: OutlinedButton.icon(
@@ -2712,28 +3021,6 @@ class _NationalDetailsState extends State<NationalDetails> {
                 ],
               ),
             ],
-
-            const SizedBox(height: 14),
-
-            SizedBox(
-              width: double.infinity,
-              height: 57,
-              child: ElevatedButton(
-                onPressed: _openPackageSelection,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFC400),
-                  foregroundColor: const Color(0xFF101B8F),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: const Text(
-                  'NEXT →',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
 
             if (_showLegacyPackageSection) ...[
               const Text(
@@ -2887,6 +3174,28 @@ class _NationalDetailsState extends State<NationalDetails> {
               ),
             ],
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: SizedBox(
+          width: double.infinity,
+          height: 57,
+          child: ElevatedButton(
+            onPressed: _openPackageSelection,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFC400),
+              foregroundColor: const Color(0xFF101B8F),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: const Text(
+              'NEXT →',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
         ),
       ),
     );
