@@ -142,7 +142,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
 
   Widget _header(BuildContext context) {
     return Container(
-      height: 150,
+      height: 100,
       width: double.infinity,
       color: blue,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
@@ -187,8 +187,8 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
             'Prices include pickup & drop · ${totalWeight.toStringAsFixed(2)} kg',
             style: const TextStyle(color: Colors.white60, fontSize: 12),
           ),
-          const SizedBox(height: 6),
-          _steps(),
+          // const SizedBox(height: 6),
+          // _steps(),
         ],
       ),
     );

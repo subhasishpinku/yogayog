@@ -36,7 +36,24 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
   static const Color yellow = AppColors.primaryButton;
 
   final instructionController = TextEditingController();
+  late final TextEditingController _dropNameController;
+  late final TextEditingController _dropPhoneController;
+  late final TextEditingController _dropHouseController;
   bool _isCheckingWallet = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _dropNameController = TextEditingController(
+      text: _locationValue(widget.drop, 'name', ''),
+    );
+    _dropPhoneController = TextEditingController(
+      text: _locationValue(widget.drop, 'mobile', ''),
+    );
+    _dropHouseController = TextEditingController(
+      text: _locationValue(widget.drop, 'house_no', ''),
+    );
+  }
 
   double get totalWeight =>
       widget.approximateWeightKg > widget.volumetricWeightKg
@@ -65,11 +82,17 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
   @override
   void dispose() {
     instructionController.dispose();
+    _dropNameController.dispose();
+    _dropPhoneController.dispose();
+    _dropHouseController.dispose();
     super.dispose();
   }
 
   Future<void> _proceedToPayment() async {
     if (_isCheckingWallet) return;
+    widget.drop['name'] = _dropNameController.text.trim();
+    widget.drop['mobile'] = _dropPhoneController.text.trim();
+    widget.drop['house_no'] = _dropHouseController.text.trim();
     setState(() => _isCheckingWallet = true);
 
     final orderPayload = <String, dynamic>{
@@ -151,6 +174,10 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
 
                     _buildSummaryCard(),
 
+                    const SizedBox(height: 10),
+
+                    _buildDropDetailsCard(),
+
                     const SizedBox(height: 5),
 
                     // const Text(
@@ -231,7 +258,7 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return Container(
-      height: 150,
+      height: 100,
       width: double.infinity,
       color: blue,
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
@@ -272,8 +299,8 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
             'Review before paying',
             style: TextStyle(color: Colors.white60, fontSize: 12),
           ),
-          const SizedBox(height: 6),
-          _buildSteps(),
+          // const SizedBox(height: 6),
+          // _buildSteps(),
         ],
       ),
     );
@@ -423,6 +450,93 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
                 ],
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropDetailsCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 7, offset: Offset(0, 3)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'DROP DETAILS',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: .5,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _dropDetailField(
+            icon: Icons.person_outline,
+            label: 'Drop Name',
+            controller: _dropNameController,
+          ),
+          const SizedBox(height: 8),
+          _dropDetailField(
+            icon: Icons.phone_outlined,
+            label: 'Drop Phone Number',
+            controller: _dropPhoneController,
+            keyboardType: TextInputType.phone,
+          ),
+          const SizedBox(height: 8),
+          _dropDetailField(
+            icon: Icons.home_outlined,
+            label: 'Drop House No',
+            controller: _dropHouseController,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dropDetailField({
+    required IconData icon,
+    required String label,
+    required TextEditingController controller,
+    TextInputType? keyboardType,
+  }) {
+    return Container(
+      width: double.infinity,
+      height: 55,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE8EAEE)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.black87),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              keyboardType: keyboardType,
+              decoration: InputDecoration(
+                labelText: label,
+                labelStyle: const TextStyle(
+                  color: Color(0xFF8A8F9C),
+                  fontSize: 10,
+                ),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),

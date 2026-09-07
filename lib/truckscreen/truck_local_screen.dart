@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
@@ -67,18 +69,55 @@ class _DropLocation {
   final double? longitude;
 }
 
-class _PickupEditDialog extends StatefulWidget {
-  const _PickupEditDialog({
-    this.title = 'Edit Pickup Location',
+String _houseNumberFromAddress(String address) {
+  final firstPart = address.split(',').first.trim();
+  final match = RegExp(
+    r'^(?:house\s*no\.?|h\.?\s*no\.?|flat|plot|#)?\s*([A-Za-z]?\d+[A-Za-z]?(?:[-/]\w+)?)',
+    caseSensitive: false,
+  ).firstMatch(firstPart);
+  return match?.group(1) ?? '';
+}
+
+class _LocationDetails {
+  const _LocationDetails({
+    required this.address,
+    required this.city,
+    required this.pincode,
+    required this.state,
+    required this.latitude,
+    required this.longitude,
+    required this.houseNumber,
+    required this.name,
+    required this.mobile,
+  });
+
+  final String address;
+  final String city;
+  final String pincode;
+  final String state;
+  final double? latitude;
+  final double? longitude;
+  final String houseNumber;
+  final String name;
+  final String mobile;
+}
+
+class _LocationDetailsSheet extends StatefulWidget {
+  const _LocationDetailsSheet({
+    required this.title,
     required this.initialAddress,
     required this.initialCity,
     required this.initialPincode,
     required this.initialState,
     required this.initialLatitude,
     required this.initialLongitude,
+    required this.initialHouseNumber,
+    required this.initialName,
+    required this.initialMobile,
     required this.searchPlaces,
     required this.getPlaceDetails,
     required this.getPincodeDetails,
+    required this.openAddressSearch,
   });
 
   final String title;
@@ -88,21 +127,26 @@ class _PickupEditDialog extends StatefulWidget {
   final String initialState;
   final double? initialLatitude;
   final double? initialLongitude;
+  final String initialHouseNumber;
+  final String initialName;
+  final String initialMobile;
   final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
   final Future<_DropLocation> Function(String) getPlaceDetails;
   final Future<_DropLocation?> Function(String) getPincodeDetails;
+  final Future<_DropLocation?> Function() openAddressSearch;
 
   @override
-  State<_PickupEditDialog> createState() => _PickupEditDialogState();
+  State<_LocationDetailsSheet> createState() => _LocationDetailsSheetState();
 }
 
-class _PickupEditDialogState extends State<_PickupEditDialog> {
+class _LocationDetailsSheetState extends State<_LocationDetailsSheet> {
   late final TextEditingController _addressController;
   late final TextEditingController _cityController;
   late final TextEditingController _pincodeController;
   late final TextEditingController _stateController;
-  late final TextEditingController _latitudeController;
-  late final TextEditingController _longitudeController;
+  late final TextEditingController _houseController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _mobileController;
   Timer? _debounce;
   List<_PlaceSuggestion> _suggestions = [];
   String? _error;
@@ -116,14 +160,11 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     _cityController = TextEditingController(text: widget.initialCity);
     _pincodeController = TextEditingController(text: widget.initialPincode);
     _stateController = TextEditingController(text: widget.initialState);
+    _houseController = TextEditingController(text: widget.initialHouseNumber);
+    _nameController = TextEditingController(text: widget.initialName);
+    _mobileController = TextEditingController(text: widget.initialMobile);
     _latitude = widget.initialLatitude;
     _longitude = widget.initialLongitude;
-    _latitudeController = TextEditingController(
-      text: _latitude?.toString() ?? '',
-    );
-    _longitudeController = TextEditingController(
-      text: _longitude?.toString() ?? '',
-    );
   }
 
   @override
@@ -133,8 +174,9 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     _cityController.dispose();
     _pincodeController.dispose();
     _stateController.dispose();
-    _latitudeController.dispose();
-    _longitudeController.dispose();
+    _houseController.dispose();
+    _nameController.dispose();
+    _mobileController.dispose();
     super.dispose();
   }
 
@@ -167,6 +209,350 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
       if (!mounted) return;
       setState(() {
         _addressController.text = location.address;
+        _houseController.text = _houseNumberFromAddress(location.address);
+        _cityController.text = location.city;
+        _pincodeController.text = location.pincode;
+        _stateController.text = location.state;
+        _latitude = location.latitude;
+        _longitude = location.longitude;
+        _suggestions = [];
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _openAddressSearch() async {
+    final location = await widget.openAddressSearch();
+    if (!mounted || location == null) return;
+    setState(() {
+      _addressController.text = location.address;
+      _houseController.text = _houseNumberFromAddress(location.address);
+      _cityController.text = location.city;
+      _pincodeController.text = location.pincode;
+      _stateController.text = location.state;
+      _latitude = location.latitude;
+      _longitude = location.longitude;
+      _suggestions = [];
+      _error = null;
+    });
+  }
+
+  Future<void> _lookupPincode(String value) async {
+    final pincode = value.trim();
+    if (pincode.length != 6) return;
+    final location = await widget.getPincodeDetails(pincode);
+    if (!mounted ||
+        location == null ||
+        _pincodeController.text.trim() != pincode) {
+      return;
+    }
+    final isWestBengal =
+        location.state.toLowerCase().contains('west bengal') ||
+        location.address.toLowerCase().contains('west bengal');
+    if (!isWestBengal) {
+      setState(() => _error = 'Please enter a West Bengal PIN');
+      return;
+    }
+    setState(() {
+      _addressController.text = location.address;
+      _houseController.text = _houseNumberFromAddress(location.address);
+      _cityController.text = location.city;
+      _stateController.text = location.state;
+      _latitude = location.latitude;
+      _longitude = location.longitude;
+      _error = null;
+    });
+  }
+
+  InputDecoration _decoration(String hint, {Widget? suffixIcon}) {
+    return InputDecoration(
+      hintText: hint,
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(11),
+        borderSide: const BorderSide(color: Color(0xFFE0E2E8)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(11),
+        borderSide: const BorderSide(color: Color(0xFFE0E2E8)),
+      ),
+    );
+  }
+
+  Widget _field(
+    TextEditingController controller,
+    String hint, {
+    TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
+    VoidCallback? onTap,
+    bool readOnly = false,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      onChanged: onChanged,
+      onTap: onTap,
+      readOnly: readOnly,
+      decoration: _decoration(hint),
+    );
+  }
+
+  void _confirm() {
+    // if (_addressController.text.trim().isEmpty ||
+    //     _pincodeController.text.trim().length != 6 ||
+    //     _nameController.text.trim().isEmpty ||
+    //     _mobileController.text.trim().length != 10) {
+    //   setState(
+    //     () => _error = 'Please enter address, valid PIN, name and phone',
+    //   );
+    //   return;
+    // }
+    Navigator.pop(
+      context,
+      _LocationDetails(
+        address: _addressController.text.trim(),
+        city: _cityController.text.trim(),
+        pincode: _pincodeController.text.trim(),
+        state: _stateController.text.trim(),
+        latitude: _latitude,
+        longitude: _longitude,
+        houseNumber: _houseController.text.trim().isNotEmpty
+            ? _houseController.text.trim()
+            : _houseNumberFromAddress(_addressController.text.trim()),
+        name: _nameController.text.trim(),
+        mobile: _mobileController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Material(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 34,
+                  height: 4,
+                  color: const Color(0xFFD9DDE5),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                widget.title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _field(
+                _addressController,
+                'Full address',
+                onChanged: _searchAddress,
+                readOnly: true,
+                onTap: _openAddressSearch,
+              ),
+              if (_suggestions.isNotEmpty)
+                ..._suggestions
+                    .take(4)
+                    .map(
+                      (suggestion) => ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.location_on_outlined),
+                        title: Text(suggestion.description),
+                        onTap: () => _selectAddress(suggestion),
+                      ),
+                    ),
+              const SizedBox(height: 9),
+              Row(
+                children: [
+                  Expanded(
+                    child: _field(
+                      _pincodeController,
+                      'Pickup PIN',
+                      keyboardType: TextInputType.number,
+                      onChanged: _lookupPincode,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(child: _field(_houseController, 'House no.')),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _field(_nameController, 'Name'),
+              const SizedBox(height: 8),
+              _field(
+                _mobileController,
+                'Phone number',
+                keyboardType: TextInputType.phone,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 7),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ],
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 43,
+                child: ElevatedButton(
+                  onPressed: _confirm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                  ),
+                  child: Text(
+                    '${widget.title} & Continue →',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PickupEditDialog extends StatefulWidget {
+  const _PickupEditDialog({
+    this.title = 'Edit Pickup Location',
+    required this.initialAddress,
+    required this.initialCity,
+    required this.initialPincode,
+    required this.initialState,
+    required this.initialLatitude,
+    required this.initialLongitude,
+    required this.searchPlaces,
+    required this.getPlaceDetails,
+    required this.getPincodeDetails,
+    this.houseNumberController,
+    this.phoneController,
+    this.nameController,
+  });
+
+  final String title;
+  final String initialAddress;
+  final String initialCity;
+  final String initialPincode;
+  final String initialState;
+  final double? initialLatitude;
+  final double? initialLongitude;
+  final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
+  final Future<_DropLocation> Function(String) getPlaceDetails;
+  final Future<_DropLocation?> Function(String) getPincodeDetails;
+  final TextEditingController? houseNumberController;
+  final TextEditingController? phoneController;
+  final TextEditingController? nameController;
+
+  @override
+  State<_PickupEditDialog> createState() => _PickupEditDialogState();
+}
+
+class _PickupEditDialogState extends State<_PickupEditDialog> {
+  late final TextEditingController _addressController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _pincodeController;
+  late final TextEditingController _stateController;
+  late final TextEditingController _latitudeController;
+  late final TextEditingController _longitudeController;
+  late final TextEditingController _houseController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _nameController;
+  Timer? _debounce;
+  List<_PlaceSuggestion> _suggestions = [];
+  String? _error;
+  double? _latitude;
+  double? _longitude;
+
+  @override
+  void initState() {
+    super.initState();
+    _addressController = TextEditingController(text: widget.initialAddress);
+    _cityController = TextEditingController(text: widget.initialCity);
+    _pincodeController = TextEditingController(text: widget.initialPincode);
+    _stateController = TextEditingController(text: widget.initialState);
+    _latitude = widget.initialLatitude;
+    _longitude = widget.initialLongitude;
+    _latitudeController = TextEditingController(
+      text: _latitude?.toString() ?? '',
+    );
+    _longitudeController = TextEditingController(
+      text: _longitude?.toString() ?? '',
+    );
+    _houseController =
+        widget.houseNumberController ??
+        TextEditingController(
+          text: _houseNumberFromAddress(widget.initialAddress),
+        );
+    _phoneController = widget.phoneController ?? TextEditingController();
+    _nameController = widget.nameController ?? TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _addressController.dispose();
+    _cityController.dispose();
+    _pincodeController.dispose();
+    _stateController.dispose();
+    _latitudeController.dispose();
+    _longitudeController.dispose();
+    if (widget.houseNumberController == null) _houseController.dispose();
+    if (widget.phoneController == null) _phoneController.dispose();
+    if (widget.nameController == null) _nameController.dispose();
+    super.dispose();
+  }
+
+  void _searchAddress(String value) {
+    _debounce?.cancel();
+    if (value.trim().length < 2) {
+      setState(() => _suggestions = []);
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      try {
+        final result = await widget.searchPlaces(value);
+        if (!mounted) return;
+        setState(() {
+          _suggestions = result;
+          _error = null;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(
+          () => _error = error.toString().replaceFirst('Exception: ', ''),
+        );
+      }
+    });
+  }
+
+  Future<void> _selectAddress(_PlaceSuggestion suggestion) async {
+    try {
+      final location = await widget.getPlaceDetails(suggestion.placeId);
+      if (!mounted) return;
+      setState(() {
+        _addressController.text = location.address;
+        _houseController.text = _houseNumberFromAddress(location.address);
         _cityController.text = location.city;
         _pincodeController.text = location.pincode;
         _stateController.text = location.state;
@@ -208,6 +594,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     }
     setState(() {
       _addressController.text = location.address;
+      _houseController.text = _houseNumberFromAddress(location.address);
       _cityController.text = location.city;
       _stateController.text = location.state;
       _latitude = location.latitude;
@@ -247,6 +634,11 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _field(_addressController, 'Address', onChanged: _searchAddress),
+            if (widget.houseNumberController != null) ...[
+              _field(_houseController, 'House No'),
+              _field(_phoneController, 'Phone', type: TextInputType.phone),
+              _field(_nameController, 'Name'),
+            ],
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.red)),
             if (_suggestions.isNotEmpty)
@@ -486,6 +878,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
   String _dropState = '';
   double? _dropLatitude;
   double? _dropLongitude;
+  gmaps.GoogleMapController? _routeMapController;
   bool _isLoadingRates = false;
 
   static const _googlePlacesApiKey = String.fromEnvironment(
@@ -739,6 +1132,9 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         _pickupPincode = pincode;
         _pickupLatitude = location.latitude;
         _pickupLongitude = location.longitude;
+        pickupHouseNumberController.text = _houseNumberFromAddress(
+          location.address,
+        );
       } else {
         _dropPincodeError = null;
         _dropAddress = location.address;
@@ -751,11 +1147,13 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     });
   }
 
-  Future<void> _openDropSearchDialog() async {
-    if (!_validateDropContact()) return;
+  Future<_DropLocation?> _openDropSearchDialog({
+    bool validateContact = true,
+  }) async {
+    if (validateContact && !_validateDropContact()) return null;
     if (_googlePlacesApiKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
-      return;
+      return null;
     }
     final selected = await showDialog<_DropLocation>(
       context: context,
@@ -764,9 +1162,12 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         getPlaceDetails: _getPlaceDetails,
       ),
     );
-    if (selected == null || !mounted) return;
+    if (selected == null || !mounted) return selected;
     setState(() {
       _dropAddress = selected.address;
+      dropHouseNumberController.text = _houseNumberFromAddress(
+        selected.address,
+      );
       _dropCity = selected.city;
       _dropPincode = selected.pincode;
       pincodeController.text = selected.pincode;
@@ -777,19 +1178,86 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     final saved = await context.read<BikescreenProvider>().savePickupLocation(
       payload: _dropLocationPayload(selected),
     );
-    if (!mounted) return;
-    _showMessage(
-      saved
-          ? 'Drop address saved successfully'
-          : context.read<BikescreenProvider>().errorMessage ??
-                'Unable to save drop address',
-    );
+    if (!mounted) return selected;
+    // _showMessage(
+    //   saved
+    //       ? 'Drop address saved successfully'
+    //       : context.read<BikescreenProvider>().errorMessage ??
+    //             'Unable to save drop address',
+    // );
+    return selected;
   }
 
-  Future<void> _openPickupSearchDialog() async {
+  Future<void> _openLocationDetails({required bool pickup}) async {
+    final result = await showModalBottomSheet<_LocationDetails>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _LocationDetailsSheet(
+        title: pickup ? 'Pickup details' : 'Drop details',
+        initialAddress: pickup
+            ? _pickupAddress
+            : _dropAddress == 'Tap to add destination'
+            ? ''
+            : _dropAddress,
+        initialCity: pickup ? _pickupCity : _dropCity,
+        initialPincode: pickup ? _pickupPincode : _dropPincode,
+        initialState: pickup ? _pickupState : _dropState,
+        initialLatitude: pickup ? _pickupLatitude : _dropLatitude,
+        initialLongitude: pickup ? _pickupLongitude : _dropLongitude,
+        initialHouseNumber: pickup
+            ? pickupHouseNumberController.text
+            : dropHouseNumberController.text,
+        initialName: pickup
+            ? pickupNameController.text
+            : dropNameController.text,
+        initialMobile: pickup
+            ? pickupPhoneController.text
+            : dropPhoneController.text,
+        searchPlaces: _searchPlaces,
+        getPlaceDetails: _getPlaceDetails,
+        getPincodeDetails: _getGoogleLocationFromPincode,
+        openAddressSearch: pickup
+            ? _openPickupSearchDialog
+            : () => _openDropSearchDialog(validateContact: false),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      if (pickup) {
+        _pickupAddress = result.address;
+        _pickupCity = result.city;
+        _pickupPincode = result.pincode;
+        pickupPincodeController.text = result.pincode;
+        _pickupState = result.state;
+        _pickupLatitude = result.latitude;
+        _pickupLongitude = result.longitude;
+        pickupHouseNumberController.text = result.houseNumber.isNotEmpty
+            ? result.houseNumber
+            : _houseNumberFromAddress(result.address);
+        pickupNameController.text = result.name;
+        pickupPhoneController.text = result.mobile;
+      } else {
+        _dropAddress = result.address;
+        _dropCity = result.city;
+        _dropPincode = result.pincode;
+        pincodeController.text = result.pincode;
+        _dropState = result.state;
+        _dropLatitude = result.latitude;
+        _dropLongitude = result.longitude;
+        dropHouseNumberController.text = result.houseNumber.isNotEmpty
+            ? result.houseNumber
+            : _houseNumberFromAddress(result.address);
+        dropNameController.text = result.name;
+        dropPhoneController.text = result.mobile;
+      }
+    });
+  }
+
+  Future<_DropLocation?> _openPickupSearchDialog() async {
     if (_googlePlacesApiKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
-      return;
+      return null;
     }
     final selected = await showDialog<_DropLocation>(
       context: context,
@@ -799,9 +1267,12 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         getPlaceDetails: _getPlaceDetails,
       ),
     );
-    if (selected == null || !mounted) return;
+    if (selected == null || !mounted) return selected;
     setState(() {
       _pickupAddress = selected.address;
+      pickupHouseNumberController.text = _houseNumberFromAddress(
+        selected.address,
+      );
       _pickupCity = selected.city;
       _pickupPincode = selected.pincode;
       pickupPincodeController.text = selected.pincode;
@@ -809,14 +1280,15 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       _pickupLatitude = selected.latitude;
       _pickupLongitude = selected.longitude;
     });
+    return selected;
   }
 
   Future<void> _editDrop() async {
     if (!_validateDropContact()) return;
-    if (pincodeController.text.trim().length != 6) {
-      _showMessage('Please enter drop PIN first');
-      return;
-    }
+    // if (pincodeController.text.trim().length != 6) {
+    //   _showMessage('Please enter drop PIN first');
+    //   return;
+    // }
     if (_googlePlacesApiKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -834,6 +1306,9 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
         getPincodeDetails: _getGoogleLocationFromPincode,
+        houseNumberController: dropHouseNumberController,
+        phoneController: dropPhoneController,
+        nameController: dropNameController,
       ),
     );
     if (result == null || !mounted) return;
@@ -906,14 +1381,14 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
   bool _validateDropContact() {
     final name = dropNameController.text.trim();
     final phone = dropPhoneController.text.trim();
-    if (name.isEmpty) {
-      _showMessage('Please enter drop name first');
-      return false;
-    }
-    if (phone.length != 10) {
-      _showMessage('Please enter a valid 10-digit drop phone number first');
-      return false;
-    }
+    // if (name.isEmpty) {
+    //   _showMessage('Please enter drop name first');
+    //   return false;
+    // }
+    // if (phone.length != 10) {
+    //   _showMessage('Please enter a valid 10-digit drop phone number first');
+    //   return false;
+    // }
     return true;
   }
 
@@ -1002,12 +1477,115 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         pickupPincodeController.text = _pickupPincode;
         _pickupState = place?.administrativeArea ?? '';
         if (_pickupAddress.isEmpty) _pickupAddress = 'Current location';
+        pickupHouseNumberController.text = _houseNumberFromAddress(
+          _pickupAddress,
+        );
       });
     } catch (error) {
       if (!mounted) return;
       setState(
         () => _pickupAddress = error.toString().replaceFirst('Exception: ', ''),
       );
+    }
+  }
+
+  Future<void> _pickLocationFromMap({required bool pickup}) async {
+    const initial = gmaps.LatLng(22.5726, 88.3639);
+    final selected = await showDialog<gmaps.LatLng>(
+      context: context,
+      builder: (dialogContext) {
+        gmaps.LatLng? marker = initial;
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: Text(
+              pickup ? 'Choose Pickup Location' : 'Choose Drop Location',
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 420,
+              child: gmaps.GoogleMap(
+                initialCameraPosition: const gmaps.CameraPosition(
+                  target: initial,
+                  zoom: 15,
+                ),
+                myLocationButtonEnabled: true,
+                zoomControlsEnabled: true,
+                markers: marker == null
+                    ? {}
+                    : {
+                        gmaps.Marker(
+                          markerId: const gmaps.MarkerId('selected_location'),
+                          position: marker!,
+                          draggable: true,
+                          onDragEnd: (value) =>
+                              setDialogState(() => marker = value),
+                        ),
+                      },
+                onTap: (value) {
+                  setDialogState(() => marker = value);
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: marker == null
+                    ? null
+                    : () {
+                        Navigator.pop(dialogContext, marker);
+                      },
+                child: const Text('Confirm'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+
+    try {
+      final places = await placemarkFromCoordinates(
+        selected.latitude,
+        selected.longitude,
+      );
+      if (!mounted) return;
+      final place = places.isNotEmpty ? places.first : null;
+      final fullAddress = [
+        place?.name,
+        place?.street,
+        place?.subLocality,
+        place?.locality,
+      ].where((value) => value?.trim().isNotEmpty == true).join(', ');
+      final address = fullAddress.isEmpty
+          ? 'Selected map location'
+          : fullAddress;
+      final pincode = place?.postalCode ?? '';
+      setState(() {
+        if (pickup) {
+          _pickupAddress = address;
+          _pickupCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          _pickupState = place?.administrativeArea ?? '';
+          _pickupPincode = pincode;
+          pickupPincodeController.text = pincode;
+          pickupHouseNumberController.text = _houseNumberFromAddress(address);
+          _pickupLatitude = selected.latitude;
+          _pickupLongitude = selected.longitude;
+        } else {
+          _dropAddress = address;
+          _dropCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          _dropState = place?.administrativeArea ?? '';
+          _dropPincode = pincode;
+          pincodeController.text = pincode;
+          dropHouseNumberController.text = _houseNumberFromAddress(address);
+          _dropLatitude = selected.latitude;
+          _dropLongitude = selected.longitude;
+        }
+      });
+    } catch (_) {
+      _showMessage('Unable to read address from selected map location');
     }
   }
 
@@ -1028,6 +1606,9 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
         getPincodeDetails: _getGoogleLocationFromPincode,
+        houseNumberController: pickupHouseNumberController,
+        phoneController: pickupPhoneController,
+        nameController: pickupNameController,
       ),
     );
     if (result == null || !mounted) return;
@@ -1057,7 +1638,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         'name': pickupNameController.text.trim(),
         'mobile': pickupPhoneController.text.trim(),
         'service_id': 1,
-        'house_numb': '',
+        'house_numb': pickupHouseNumberController.text.trim(),
         'street': result.address,
         'city': result.city,
         'district': result.city,
@@ -1100,14 +1681,14 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
 
   Future<void> _chooseVehicle() async {
     if (_isLoadingRates) return;
-    if (pickupHouseNumberController.text.trim().isEmpty) {
-      _showMessage('Please enter pickup house number');
-      return;
-    }
-    if (dropHouseNumberController.text.trim().isEmpty) {
-      _showMessage('Please enter drop house number');
-      return;
-    }
+    // if (pickupHouseNumberController.text.trim().isEmpty) {
+    //   _showMessage('Please enter pickup house number');
+    //   return;
+    // }
+    // if (dropHouseNumberController.text.trim().isEmpty) {
+    //   _showMessage('Please enter drop house number');
+    //   return;
+    // }
     // if (packageController.text.trim().isEmpty) {
     //   ScaffoldMessenger.of(context).showSnackBar(
     //     const SnackBar(content: Text('Please enter package description')),
@@ -1135,15 +1716,15 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     //       );
     //   return;
     // }
-    if (pickupNameController.text.trim().isEmpty ||
-        pickupPhoneController.text.trim().length != 10 ||
-        dropNameController.text.trim().isEmpty ||
-        dropPhoneController.text.trim().length != 10) {
-      _showMessage(
-        'Please enter pickup and drop name with valid 10-digit phone number',
-      );
-      return;
-    }
+    // if (pickupNameController.text.trim().isEmpty ||
+    //     pickupPhoneController.text.trim().length != 10 ||
+    //     dropNameController.text.trim().isEmpty ||
+    //     dropPhoneController.text.trim().length != 10) {
+    //   _showMessage(
+    //     'Please enter pickup and drop name with valid 10-digit phone number',
+    //   );
+    //   return;
+    // }
     if (!_isWithinWestBengalServiceArea(_pickupLatitude, _pickupLongitude) ||
         !_isWithinWestBengalServiceArea(_dropLatitude, _dropLongitude)) {
       _showMessage(
@@ -1557,6 +2138,14 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                     _buildLocationCard(),
 
                     const SizedBox(height: 22),
+                    if (_pickupAddress.trim().isNotEmpty &&
+                        _dropAddress.trim().isNotEmpty &&
+                        _dropAddress != 'Tap to add destination' &&
+                        _pickupLatitude != null &&
+                        _pickupLongitude != null &&
+                        _dropLatitude != null &&
+                        _dropLongitude != null)
+                      _buildRouteMap(),
 
                     // const Text(
                     //   'Select Your Package',
@@ -1565,7 +2154,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                     //     fontWeight: FontWeight.bold,
                     //   ),
                     // ),
-                    const SizedBox(height: 8),
+                    // const SizedBox(height: 8),
 
                     // Row(
                     //   children: [
@@ -1721,41 +2310,40 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                     //     letterSpacing: .6,
                     //   ),
                     // ),
-                    const SizedBox(height: 6),
-
-                    const SizedBox(height: 10),
-
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _isLoadingRates ? null : _chooseVehicle,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: yellow,
-                          foregroundColor: blue,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                    // const SizedBox(height: 6),
+                  ],
+                ),
+              ),
+            ),
+            SafeArea(
+              top: false,
+              minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isLoadingRates ? null : _chooseVehicle,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: yellow,
+                    foregroundColor: blue,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: _isLoadingRates
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Choose Vehicle →',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        child: _isLoadingRates
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text(
-                                'Choose Vehicle →',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ),
@@ -1767,7 +2355,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
 
   Widget _buildHeader(BuildContext context) {
     return SizedBox(
-      height: 150,
+      height: 110,
       width: double.infinity,
       child: Container(
         color: blue,
@@ -1810,7 +2398,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
               style: TextStyle(color: Colors.white60, fontSize: 13),
             ),
             const SizedBox(height: 6),
-            _buildSteps(),
+            // _buildSteps(),
           ],
         ),
       ),
@@ -1875,6 +2463,251 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     );
   }
 
+  Future<void> _updateRouteMarkerFromDrag({
+    required bool pickup,
+    required gmaps.LatLng location,
+  }) async {
+    final previous = pickup
+        ? gmaps.LatLng(_pickupLatitude!, _pickupLongitude!)
+        : gmaps.LatLng(_dropLatitude!, _dropLongitude!);
+    if (!mounted) return;
+    setState(() {
+      if (pickup) {
+        _pickupLatitude = location.latitude;
+        _pickupLongitude = location.longitude;
+      } else {
+        _dropLatitude = location.latitude;
+        _dropLongitude = location.longitude;
+      }
+    });
+
+    try {
+      final places = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+      final place = places.isNotEmpty ? places.first : null;
+      final state = place?.administrativeArea ?? '';
+      if (!state.toLowerCase().contains('west bengal')) {
+        if (mounted) {
+          setState(() {
+            if (pickup) {
+              _pickupLatitude = previous.latitude;
+              _pickupLongitude = previous.longitude;
+            } else {
+              _dropLatitude = previous.latitude;
+              _dropLongitude = previous.longitude;
+            }
+          });
+          _showMessage(
+            pickup
+                ? 'Pickup marker must stay within West Bengal'
+                : 'Drop marker must stay within West Bengal',
+          );
+        }
+        return;
+      }
+
+      final fullAddress = [
+        place?.name,
+        place?.street,
+        place?.subLocality,
+        place?.locality,
+      ].where((value) => value?.trim().isNotEmpty == true).join(', ');
+      final address = fullAddress.isEmpty
+          ? 'Selected map location'
+          : fullAddress;
+      final pincode = place?.postalCode ?? '';
+      if (!mounted) return;
+      setState(() {
+        if (pickup) {
+          _pickupAddress = address;
+          _pickupCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          _pickupPincode = pincode;
+          pickupPincodeController.text = pincode;
+          _pickupState = state;
+          pickupHouseNumberController.text = _houseNumberFromAddress(address);
+        } else {
+          _dropAddress = address;
+          _dropCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          _dropPincode = pincode;
+          pincodeController.text = pincode;
+          _dropState = state;
+          dropHouseNumberController.text = _houseNumberFromAddress(address);
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (pickup) {
+          _pickupLatitude = previous.latitude;
+          _pickupLongitude = previous.longitude;
+        } else {
+          _dropLatitude = previous.latitude;
+          _dropLongitude = previous.longitude;
+        }
+      });
+      _showMessage('Unable to read address from dragged map marker');
+    }
+  }
+
+  List<gmaps.LatLng> _curvedRoutePoints(
+    gmaps.LatLng pickup,
+    gmaps.LatLng drop,
+  ) {
+    final deltaLatitude = drop.latitude - pickup.latitude;
+    final deltaLongitude = drop.longitude - pickup.longitude;
+    final distance = math.sqrt(
+      deltaLatitude * deltaLatitude + deltaLongitude * deltaLongitude,
+    );
+    if (distance == 0) return [pickup, drop];
+    final curveOffset = (distance * .35).clamp(.01, .08);
+    final control = gmaps.LatLng(
+      (pickup.latitude + drop.latitude) / 2 -
+          deltaLongitude / distance * curveOffset,
+      (pickup.longitude + drop.longitude) / 2 +
+          deltaLatitude / distance * curveOffset,
+    );
+
+    return List<gmaps.LatLng>.generate(20, (index) {
+      final t = index / 19;
+      final inverse = 1 - t;
+      return gmaps.LatLng(
+        inverse * inverse * pickup.latitude +
+            2 * inverse * t * control.latitude +
+            t * t * drop.latitude,
+        inverse * inverse * pickup.longitude +
+            2 * inverse * t * control.longitude +
+            t * t * drop.longitude,
+      );
+    });
+  }
+
+  Widget _buildRouteMap() {
+    const kolkata = gmaps.LatLng(22.5726, 88.3639);
+    final pickup = _pickupLatitude != null && _pickupLongitude != null
+        ? gmaps.LatLng(_pickupLatitude!, _pickupLongitude!)
+        : null;
+    final drop = _dropLatitude != null && _dropLongitude != null
+        ? gmaps.LatLng(_dropLatitude!, _dropLongitude!)
+        : null;
+    final points = [if (pickup != null) pickup, if (drop != null) drop];
+    final center = points.isEmpty
+        ? kolkata
+        : gmaps.LatLng(
+            points.map((point) => point.latitude).reduce((a, b) => a + b) /
+                points.length,
+            points.map((point) => point.longitude).reduce((a, b) => a + b) /
+                points.length,
+          );
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: SizedBox(
+        height: 300,
+        width: double.infinity,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              gmaps.GoogleMap(
+                onMapCreated: (controller) => _routeMapController = controller,
+                initialCameraPosition: gmaps.CameraPosition(
+                  target: center,
+                  zoom: points.length > 1 ? 11.5 : 12.5,
+                ),
+                markers: {
+                  if (pickup != null)
+                    gmaps.Marker(
+                      markerId: const gmaps.MarkerId('pickup_route_marker'),
+                      position: pickup,
+                      draggable: true,
+                      onDragEnd: (location) => _updateRouteMarkerFromDrag(
+                        pickup: true,
+                        location: location,
+                      ),
+                      icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                        gmaps.BitmapDescriptor.hueYellow,
+                      ),
+                      infoWindow: const gmaps.InfoWindow(title: 'Pickup'),
+                    ),
+                  if (drop != null)
+                    gmaps.Marker(
+                      markerId: const gmaps.MarkerId('drop_route_marker'),
+                      position: drop,
+                      draggable: true,
+                      onDragEnd: (location) => _updateRouteMarkerFromDrag(
+                        pickup: false,
+                        location: location,
+                      ),
+                      icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                        gmaps.BitmapDescriptor.hueAzure,
+                      ),
+                      infoWindow: const gmaps.InfoWindow(title: 'Drop'),
+                    ),
+                },
+                polylines: pickup != null && drop != null
+                    ? {
+                        gmaps.Polyline(
+                          polylineId: const gmaps.PolylineId('pickup_to_drop'),
+                          points: _curvedRoutePoints(pickup, drop),
+                          color: Colors.black,
+                          width: 4,
+                        ),
+                      }
+                    : {},
+                zoomControlsEnabled: false,
+                myLocationButtonEnabled: false,
+                compassEnabled: false,
+              ),
+              Positioned(
+                right: 10,
+                bottom: 10,
+                child: Column(
+                  children: [
+                    _routeZoomButton(
+                      icon: Icons.add,
+                      onPressed: () => _routeMapController?.animateCamera(
+                        gmaps.CameraUpdate.zoomIn(),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    _routeZoomButton(
+                      icon: Icons.remove,
+                      onPressed: () => _routeMapController?.animateCamera(
+                        gmaps.CameraUpdate.zoomOut(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _routeZoomButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(6),
+      elevation: 2,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(6),
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Icon(icon, color: Colors.black87),
+        ),
+      ),
+    );
+  }
+
   Widget _buildLocationCard() {
     return Column(
       children: [
@@ -1890,6 +2723,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     final city = pickup ? _pickupCity : _dropCity;
     final pincode = pickup ? _pickupPincode : _dropPincode;
     final state = pickup ? _pickupState : _dropState;
+    const showInlineLocationFields = false;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
@@ -1903,35 +2737,22 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       child: Column(
         children: [
           _truckLocationHeader(pickup: pickup),
-          const SizedBox(height: 5),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _pinCodeField(
-                      label: pickup ? 'Pickup PIN' : 'Drop PIN',
-                      controller: pickup
-                          ? pickupPincodeController
-                          : pincodeController,
-                      hint: pickup ? 'Pickup PIN' : 'Drop PIN',
-                      readOnly: false,
-                      onChanged: (value) {
-                        if (pickup) {
-                          _pickupPincode = value;
-                          _pickupPincodeError = null;
-                          if (value.trim().isEmpty) {
-                            setState(() {
-                              _pickupAddress = 'Tap to add pickup location';
-                              _pickupCity = '';
-                              _pickupState = '';
-                              _pickupLatitude = null;
-                              _pickupLongitude = null;
-                            });
-                          }
-                        } else {
+          // ignore: dead_code
+          if (showInlineLocationFields) ...[
+            const SizedBox(height: 5),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _pinCodeField(
+                        label: 'Drop PIN',
+                        controller: pincodeController,
+                        hint: 'Drop PIN',
+                        readOnly: false,
+                        onChanged: (value) {
                           _dropPincode = value;
                           _dropPincodeError = null;
                           if (value.trim().isEmpty) {
@@ -1943,69 +2764,24 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                               _dropLongitude = null;
                             });
                           }
-                        }
-                        _updateAddressFromPincode(
-                          pickup: pickup,
-                          pincode: value,
-                        );
-                      },
-                    ),
-                    if ((pickup ? _pickupPincodeError : _dropPincodeError) !=
-                        null)
-                      Text(
-                        pickup ? _pickupPincodeError! : _dropPincodeError!,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
+                          _updateAddressFromPincode(
+                            pickup: false,
+                            pincode: value,
+                          );
+                        },
                       ),
-                  ],
-                ),
-              ),
-              if (pickup) ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'PICKUP HOUSE NO',
-                        style: TextStyle(
-                          color: Color(0xFF667085),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      TextField(
-                        controller: pickupHouseNumberController,
-                        decoration: InputDecoration(
-                          hintText: 'Pickup House No',
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE0E2E8),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE0E2E8),
-                            ),
+                      if (_dropPincodeError != null)
+                        Text(
+                          _dropPincodeError!,
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),
-              ] else ...[
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -2048,37 +2824,40 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                   ),
                 ),
               ],
-            ],
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: _contactField(
-                  pickup ? pickupNameController : dropNameController,
-                  pickup ? 'Pickup name' : 'Drop name',
+            ),
+            Row(
+              children: [
+                Expanded(child: _contactField(dropNameController, 'Drop name')),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _contactField(
+                    dropPhoneController,
+                    'Drop phone',
+                    phone: true,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _contactField(
-                  pickup ? pickupPhoneController : dropPhoneController,
-                  pickup ? 'Pickup phone' : 'Drop phone',
-                  phone: true,
-                ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
           const SizedBox(height: 6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _locationIndicator(pickup ? yellow : blue),
+              IconButton(
+                onPressed: () => _pickLocationFromMap(pickup: pickup),
+                icon: Icon(
+                  Icons.map_outlined,
+                  color: pickup ? yellow : Colors.black,
+                  size: 22,
+                ),
+                tooltip: pickup ? 'Choose pickup on map' : 'Choose drop on map',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: InkWell(
-                  onTap: pickup
-                      ? _openPickupSearchDialog
-                      : _openDropSearchDialog,
+                  onTap: () => _openLocationDetails(pickup: pickup),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -2125,9 +2904,10 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                   ),
                 ),
               ),
-              TextButton(
+              TextButton.icon(
                 onPressed: pickup ? _editPickup : _editDrop,
-                child: const Text(
+                icon: const Icon(Icons.edit, color: blue, size: 16),
+                label: const Text(
                   'Edit',
                   style: TextStyle(color: blue, fontWeight: FontWeight.bold),
                 ),
