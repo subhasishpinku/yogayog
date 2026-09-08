@@ -16,6 +16,15 @@ import 'package:yogayog/core/services/national_service_import.dart';
 import 'package:yogayog/dashboard/dashboard_scren.dart';
 import 'package:yogayog/internationalimport/provider/international_import_provider.dart';
 
+String _houseNumberFromAddress(String address) {
+  final firstPart = address.split(',').first.trim();
+  final match = RegExp(
+    r'^(?:house\s*no\.?|h\.?\s*no\.?|flat|plot|#)?\s*([A-Za-z]?\d+[A-Za-z]?(?:[-/]\w+)?)',
+    caseSensitive: false,
+  ).firstMatch(firstPart);
+  return match?.group(1) ?? '';
+}
+
 class _PlaceSuggestion {
   const _PlaceSuggestion({required this.placeId, required this.description});
   final String placeId;
@@ -32,6 +41,7 @@ class _GeoLocation {
     this.country = '',
     this.latitude,
     this.longitude,
+    this.clear = false,
   });
   final String address;
   final String city;
@@ -41,6 +51,7 @@ class _GeoLocation {
   final String country;
   final double? latitude;
   final double? longitude;
+  final bool clear;
 }
 
 class _PlaceSearchDialog extends StatefulWidget {
@@ -181,6 +192,11 @@ class _PickupEditDialog extends StatefulWidget {
     required this.initialLongitude,
     required this.searchPlaces,
     required this.getPlaceDetails,
+    this.nameController,
+    this.phoneController,
+    this.initialCountry = '',
+    this.nameLabel = 'Pickup Name',
+    this.phoneLabel = 'Pickup Phone Number',
   });
 
   final String title;
@@ -193,6 +209,11 @@ class _PickupEditDialog extends StatefulWidget {
   final double? initialLongitude;
   final Future<List<_PlaceSuggestion>> Function(String) searchPlaces;
   final Future<_GeoLocation> Function(String) getPlaceDetails;
+  final TextEditingController? nameController;
+  final TextEditingController? phoneController;
+  final String initialCountry;
+  final String nameLabel;
+  final String phoneLabel;
 
   @override
   State<_PickupEditDialog> createState() => _PickupEditDialogState();
@@ -204,6 +225,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
   late final TextEditingController _pincodeController;
   late final TextEditingController _stateController;
   late final TextEditingController _houseNumberController;
+  late final TextEditingController _countryController;
   late final TextEditingController _latitudeController;
   late final TextEditingController _longitudeController;
   Timer? _debounce;
@@ -222,6 +244,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     _houseNumberController = TextEditingController(
       text: widget.initialHouseNumber,
     );
+    _countryController = TextEditingController(text: widget.initialCountry);
     _latitude = widget.initialLatitude;
     _longitude = widget.initialLongitude;
     _latitudeController = TextEditingController(
@@ -240,6 +263,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
     _pincodeController.dispose();
     _stateController.dispose();
     _houseNumberController.dispose();
+    _countryController.dispose();
     _latitudeController.dispose();
     _longitudeController.dispose();
     super.dispose();
@@ -279,6 +303,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
         _stateController.text = location.state;
         _latitude = location.latitude;
         _longitude = location.longitude;
+        _countryController.text = location.country;
         _latitudeController.text = _latitude?.toString() ?? '';
         _longitudeController.text = _longitude?.toString() ?? '';
         _suggestions = [];
@@ -321,6 +346,14 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _field(_addressController, 'Address', onChanged: _searchAddress),
+            if (widget.nameController != null)
+              _field(widget.nameController!, widget.nameLabel),
+            if (widget.phoneController != null)
+              _field(
+                widget.phoneController!,
+                widget.phoneLabel,
+                type: TextInputType.phone,
+              ),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.red)),
             if (_suggestions.isNotEmpty)
@@ -338,12 +371,24 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
             _field(_houseNumberController, 'House No.'),
             _field(_pincodeController, 'Pincode', type: TextInputType.number),
             _field(_stateController, 'State'),
-            _field(_latitudeController, 'Latitude', readOnly: true),
-            _field(_longitudeController, 'Longitude', readOnly: true),
+            _field(_countryController, 'Country'),
           ],
         ),
       ),
       actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(
+            context,
+            const _GeoLocation(
+              address: '',
+              city: '',
+              pincode: '',
+              state: '',
+              clear: true,
+            ),
+          ),
+          child: const Text('Clear'),
+        ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
@@ -359,6 +404,7 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
               houseNumber: _houseNumberController.text.trim(),
               latitude: _latitude,
               longitude: _longitude,
+              country: _countryController.text.trim(),
             ),
           ),
           child: const Text('Save'),
@@ -432,6 +478,7 @@ class _InternationalImportState extends State<InternationalImport> {
   String dropCity = '';
   String dropPincode = '';
   String dropState = '';
+  String dropCountry = '';
   String dropHouseNumber = '';
   double? dropLatitude;
   double? dropLongitude;
@@ -563,13 +610,13 @@ class _InternationalImportState extends State<InternationalImport> {
   bool _hasPickupContact() {
     final hasName = pickupNameController.text.trim().isNotEmpty;
     final hasMobile = pickupMobileController.text.trim().isNotEmpty;
-    if (hasName && hasMobile) return true;
-    _showMessage('Please enter pickup name and pickup number first');
+    // if (hasName && hasMobile) return true;
+    // _showMessage('Please enter pickup name and pickup number first');
     return false;
   }
 
-  Future<void> _openPickupSearch() async {
-    if (!_hasPickupContact()) return;
+  Future<void> _openPickupSearch({bool validateContact = true}) async {
+    // if (validateContact && !_hasPickupContact()) return;
     if (placesKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -583,6 +630,9 @@ class _InternationalImportState extends State<InternationalImport> {
       ),
     );
     if (selected == null || !mounted) return;
+    final houseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
       pickupAddress = selected.address;
       pickupCity = selected.city;
@@ -591,7 +641,7 @@ class _InternationalImportState extends State<InternationalImport> {
       pickupState = selected.state;
       pickupLatitude = selected.latitude;
       pickupLongitude = selected.longitude;
-      pickupHouseNumber = selected.houseNumber;
+      pickupHouseNumber = houseNumber;
       pickupHouseNumberController.text = pickupHouseNumber;
       addressController.text = selected.address;
       cityController.text = selected.city;
@@ -600,7 +650,7 @@ class _InternationalImportState extends State<InternationalImport> {
         fallback: selected.country,
       );
     });
-    await _openImportAddressIfReady();
+    if (validateContact) await _openImportAddressIfReady();
     await _savePickupLocation(
       address: selected.address,
       city: selected.city,
@@ -609,6 +659,172 @@ class _InternationalImportState extends State<InternationalImport> {
       latitude: selected.latitude,
       longitude: selected.longitude,
       houseNumber: selected.houseNumber,
+    );
+  }
+
+  Future<void> _openPickupDetailsSheet() async {
+    if (pickupHouseNumberController.text.trim().isEmpty &&
+        pickupAddress.trim().isNotEmpty &&
+        pickupAddress != 'Tap to add pickup location') {
+      pickupHouseNumber = _houseNumberFromAddress(pickupAddress);
+      pickupHouseNumberController.text = pickupHouseNumber;
+    }
+    final stateController = TextEditingController(text: pickupState);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              10,
+              12,
+              14 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8F7FC),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD8D8DE),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Pickup details',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: addressController,
+                    readOnly: true,
+                    onTap: () async {
+                      await _openPickupSearch(validateContact: false);
+                      if (!mounted) return;
+                      setSheetState(() {
+                        stateController.text = pickupState;
+                        pickupHouseNumberController.text = pickupHouseNumber;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search pickup location',
+                      suffixIcon: const Icon(Icons.search),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE1E1E6)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _textField(
+                          controller: pickupPinController,
+                          hintText: 'Pickup PIN',
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _textField(
+                          controller: pickupHouseNumberController,
+                          hintText: 'Pickup house no.',
+                          onChanged: (value) => pickupHouseNumber = value,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _textField(
+                    controller: pickupNameController,
+                    hintText: 'Pickup name',
+                  ),
+                  const SizedBox(height: 8),
+                  _textField(
+                    controller: pickupMobileController,
+                    hintText: 'Pickup mobile number',
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _textField(
+                          controller: cityController,
+                          hintText: 'City',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _textField(
+                          controller: stateController,
+                          hintText: 'State',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _textField(
+                    controller: countryController,
+                    hintText: 'Country',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (addressController.text.trim().isEmpty) {
+                          _showMessage('Please select pickup address');
+                          return;
+                        }
+                        // if (pickupHouseNumberController.text.trim().isEmpty) {
+                        //   _showMessage('Please enter pickup house number');
+                        //   return;
+                        // }
+                        setState(() {
+                          pickupAddress = addressController.text.trim();
+                          pickupHouseNumber = pickupHouseNumberController.text
+                              .trim();
+                          pickupCity = cityController.text.trim();
+                          pickupState = stateController.text.trim();
+                          pickupPincode = pickupPinController.text.trim();
+                        });
+                        Navigator.pop(sheetContext);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Confirm Pickup & Continue →',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -659,7 +875,7 @@ class _InternationalImportState extends State<InternationalImport> {
   }
 
   Future<void> _editPickup() async {
-    if (!_hasPickupContact()) return;
+    // if (!_hasPickupContact()) return;
     final result = await showDialog<_GeoLocation>(
       context: context,
       builder: (_) => _PickupEditDialog(
@@ -672,11 +888,31 @@ class _InternationalImportState extends State<InternationalImport> {
         initialHouseNumber: pickupHouseNumber,
         initialLatitude: pickupLatitude,
         initialLongitude: pickupLongitude,
+        initialCountry: countryController.text,
         searchPlaces: (query) => _searchPlaces(query, excludeIndia: true),
         getPlaceDetails: _getPlaceDetails,
+        nameController: pickupNameController,
+        phoneController: pickupMobileController,
       ),
     );
     if (result == null || !mounted) return;
+    if (result.clear) {
+      setState(() {
+        pickupAddress = 'Tap to add pickup location';
+        pickupCity = '';
+        pickupPincode = '';
+        pickupState = '';
+        pickupHouseNumber = '';
+        pickupLatitude = null;
+        pickupLongitude = null;
+        addressController.clear();
+        pickupHouseNumberController.clear();
+        pickupPinController.clear();
+        cityController.clear();
+        countryController.clear();
+      });
+      return;
+    }
     setState(() {
       pickupAddress = result.address;
       pickupCity = result.city;
@@ -707,7 +943,7 @@ class _InternationalImportState extends State<InternationalImport> {
   }
 
   Future<void> _openSavedLocations() async {
-    if (!_hasPickupContact()) return;
+    // if (!_hasPickupContact()) return;
     final provider = context.read<BikescreenProvider>();
     await provider.loadLocations(serviceId: 8);
     if (!mounted) return;
@@ -730,6 +966,9 @@ class _InternationalImportState extends State<InternationalImport> {
       ),
     );
     if (selected == null || !mounted) return;
+    final houseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
       pickupAddress = selected.address;
       pickupCity = selected.city;
@@ -791,14 +1030,18 @@ class _InternationalImportState extends State<InternationalImport> {
       builder: (_) => _SavedLocationDialog(locations: indiaLocations),
     );
     if (selected == null || !mounted) return;
+    final houseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
       dropAddress = selected.address;
       dropCity = selected.city;
       dropPincode = selected.pincode;
       dropState = selected.state;
+      dropCountry = selected.country;
       dropLatitude = selected.latitude;
       dropLongitude = selected.longitude;
-      dropHouseNumber = selected.houseNumber;
+      dropHouseNumber = houseNumber;
       dropHouseNumberController.text = dropHouseNumber;
       dropNameController.text = selected.name;
       dropMobileController.text = selected.mobile;
@@ -820,7 +1063,7 @@ class _InternationalImportState extends State<InternationalImport> {
 
   // ==================== Drop Location ====================
 
-  Future<void> _openDropSearch() async {
+  Future<void> _openDropSearch({bool openImportAddress = true}) async {
     if (placesKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
       return;
@@ -834,20 +1077,24 @@ class _InternationalImportState extends State<InternationalImport> {
       ),
     );
     if (selected == null || !mounted) return;
+    final houseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
       dropAddress = selected.address;
       dropCity = selected.city;
       dropPincode = selected.pincode;
       dropState = selected.state;
+      dropCountry = selected.country;
       dropLatitude = selected.latitude;
       dropLongitude = selected.longitude;
-      dropHouseNumber = selected.houseNumber;
+      dropHouseNumber = houseNumber;
       dropHouseNumberController.text = dropHouseNumber;
       addressController.text = selected.address;
       cityController.text = selected.city;
       pinController.text = selected.pincode;
     });
-    await _openImportAddressIfReady();
+    if (openImportAddress) await _openImportAddressIfReady();
     await _saveDropLocation(
       address: selected.address,
       city: selected.city,
@@ -855,7 +1102,171 @@ class _InternationalImportState extends State<InternationalImport> {
       state: selected.state,
       latitude: selected.latitude,
       longitude: selected.longitude,
-      houseNumber: selected.houseNumber,
+      houseNumber: houseNumber,
+    );
+  }
+
+  Future<void> _openDropDetailsSheet() async {
+    if (dropHouseNumberController.text.trim().isEmpty &&
+        dropAddress.trim().isNotEmpty &&
+        dropAddress != 'Tap to add destination') {
+      dropHouseNumber = _houseNumberFromAddress(dropAddress);
+      dropHouseNumberController.text = dropHouseNumber;
+    }
+    final stateController = TextEditingController(text: dropState);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              10,
+              12,
+              14 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8F7FC),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD8D8DE),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Drop details',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: addressController,
+                    readOnly: true,
+                    onTap: () async {
+                      await _openDropSearch(openImportAddress: false);
+                      if (!mounted) return;
+                      setSheetState(() {
+                        stateController.text = dropState;
+                        dropHouseNumberController.text = dropHouseNumber;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search drop location',
+                      suffixIcon: const Icon(Icons.search),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE1E1E6)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _textField(
+                          controller: pinController,
+                          hintText: 'Drop PIN',
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _textField(
+                          controller: dropHouseNumberController,
+                          hintText: 'Drop House No',
+                          onChanged: (value) => dropHouseNumber = value,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _textField(
+                    controller: dropNameController,
+                    hintText: 'Drop name',
+                  ),
+                  const SizedBox(height: 8),
+                  _textField(
+                    controller: dropMobileController,
+                    hintText: 'Drop phone',
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _textField(
+                          controller: cityController,
+                          hintText: 'City',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _textField(
+                          controller: stateController,
+                          hintText: 'State',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _textField(
+                    controller: countryController,
+                    hintText: 'Country',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (addressController.text.trim().isEmpty ||
+                            addressController.text ==
+                                'Tap to add destination') {
+                          _showMessage('Please select drop address');
+                          return;
+                        }
+                        setState(() {
+                          dropAddress = addressController.text.trim();
+                          dropHouseNumber = dropHouseNumberController.text
+                              .trim();
+                          dropCity = cityController.text.trim();
+                          dropState = stateController.text.trim();
+                          dropPincode = pinController.text.trim();
+                        });
+                        Navigator.pop(sheetContext);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.black,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Confirm Drop & Continue →',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -911,6 +1322,13 @@ class _InternationalImportState extends State<InternationalImport> {
         initialLongitude: dropLongitude,
         searchPlaces: _searchPlaces,
         getPlaceDetails: _getPlaceDetails,
+        nameController: dropNameController,
+        phoneController: dropMobileController,
+        initialCountry: dropCountry.isNotEmpty
+            ? dropCountry
+            : countryController.text,
+        nameLabel: 'Drop Name',
+        phoneLabel: 'Drop Phone Number',
       ),
     );
     if (result == null || !mounted) return;
@@ -919,6 +1337,7 @@ class _InternationalImportState extends State<InternationalImport> {
       dropCity = result.city;
       dropPincode = result.pincode;
       dropState = result.state;
+      dropCountry = result.country;
       dropHouseNumber = result.houseNumber;
       dropHouseNumberController.text = dropHouseNumber;
       dropLatitude = result.latitude;
@@ -1048,10 +1467,10 @@ class _InternationalImportState extends State<InternationalImport> {
     String country = 'India',
     String houseNumber = '',
   }) async {
-    if (houseNumber.trim().isEmpty) {
-      _showMessage('Please enter pickup housing no. first');
-      return;
-    }
+    // if (houseNumber.trim().isEmpty) {
+    //   _showMessage('Please enter pickup housing no. first');
+    //   return;
+    // }
     final provider = context.read<BikescreenProvider>();
     final saved = await provider.savePickupLocation(
       payload: {
@@ -1072,11 +1491,11 @@ class _InternationalImportState extends State<InternationalImport> {
       },
     );
     if (!mounted) return;
-    _showMessage(
-      saved
-          ? 'Pickup location saved successfully'
-          : provider.errorMessage ?? 'Unable to save pickup location',
-    );
+    // _showMessage(
+    //   saved
+    //       ? 'Pickup location saved successfully'
+    //       : provider.errorMessage ?? 'Unable to save pickup location',
+    // );
   }
 
   Future<void> _saveDropLocation({
@@ -1252,7 +1671,7 @@ class _InternationalImportState extends State<InternationalImport> {
         dropAddress == 'Tap to add destination') {
       return;
     }
-    await _openImportAddress();
+    // await _openImportAddress();
   }
 
   Future<void> _openImportAddressAndPackage() async {
@@ -1360,7 +1779,6 @@ class _InternationalImportState extends State<InternationalImport> {
         children: [
           _internationalImportLocationHeader(pickup: pickup),
           const SizedBox(height: 5),
-          _locationContactFields(pickup: pickup),
           const SizedBox(height: 6),
           _locationRow(
             pickup ? 'PICKUP' : 'DROP',
@@ -1368,7 +1786,7 @@ class _InternationalImportState extends State<InternationalImport> {
             pickup ? pickupCity : dropCity,
             pickup ? pickupPincode : dropPincode,
             pickup,
-            pickup ? _openPickupSearch : _openDropSearch,
+            pickup ? _openPickupDetailsSheet : _openDropDetailsSheet,
             editOnTap: pickup ? _editPickup : _editDrop,
             showContactFields: false,
           ),
@@ -1412,7 +1830,7 @@ class _InternationalImportState extends State<InternationalImport> {
           const Spacer(),
           TextButton.icon(
             onPressed: pickup ? _openSavedLocations : _openSavedDropLocations,
-            icon: const Icon(Icons.folder, size: 13),
+            icon: const Icon(Icons.folder, size: 22),
             label: const Text('SAVED ADDRESS'),
             style: TextButton.styleFrom(
               foregroundColor: accent,
@@ -1923,7 +2341,7 @@ class _InternationalImportState extends State<InternationalImport> {
 
   Future<bool> _validateBeforeReview() async {
     if (pickupHouseNumberController.text.trim().isEmpty) {
-      _showMessage('Please enter pickup housing no. first');
+      // _showMessage('Please enter pickup housing no. first');
       await Future<void>.delayed(const Duration(milliseconds: 350));
       if (!mounted) return false;
       await _openImportAddress();
