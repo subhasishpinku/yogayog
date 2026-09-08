@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:yogayog/choosecourier/choose_courier.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:yogayog/core/services/bikescreen_service.dart';
@@ -535,6 +538,7 @@ class _NationalDetailsState extends State<NationalDetails> {
   String dropState = '';
   double? dropLatitude;
   double? dropLongitude;
+  gmaps.GoogleMapController? _locationMapController;
 
   @override
   void initState() {
@@ -897,6 +901,206 @@ class _NationalDetailsState extends State<NationalDetails> {
       setState(
         () => pickupAddress = error.toString().replaceFirst('Exception: ', ''),
       );
+    }
+  }
+
+  Future<bool> _isIndiaMapLocation(gmaps.LatLng location) async {
+    try {
+      final places = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+      if (places.isEmpty) return false;
+      final place = places.first;
+      final countryCode = place.isoCountryCode?.trim().toUpperCase();
+      final country = place.country?.trim().toLowerCase() ?? '';
+      return countryCode == 'IN' || country == 'india';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _pickLocationFromMap({required bool pickup}) async {
+    const initial = gmaps.LatLng(22.5726, 88.3639);
+    final selected = await showDialog<gmaps.LatLng>(
+      context: context,
+      builder: (dialogContext) {
+        gmaps.LatLng? marker = initial;
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: Text(
+              pickup ? 'Choose Pickup Location' : 'Choose Drop Location',
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 420,
+              child: gmaps.GoogleMap(
+                initialCameraPosition: const gmaps.CameraPosition(
+                  target: initial,
+                  zoom: 15,
+                ),
+                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                  Factory<OneSequenceGestureRecognizer>(
+                    () => EagerGestureRecognizer(),
+                  ),
+                },
+                myLocationButtonEnabled: true,
+                zoomControlsEnabled: true,
+                markers: marker == null
+                    ? {}
+                    : {
+                        gmaps.Marker(
+                          markerId: const gmaps.MarkerId('selected_location'),
+                          position: marker!,
+                          draggable: true,
+                          onDragEnd: (value) =>
+                              setDialogState(() => marker = value),
+                        ),
+                      },
+                onTap: (value) => setDialogState(() => marker = value),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: marker == null
+                    ? null
+                    : () async {
+                        final isIndia = await _isIndiaMapLocation(marker!);
+                        if (!isIndia) {
+                          _showMessage(
+                            pickup
+                                ? 'Pickup location must be within India'
+                                : 'Drop location must be within India',
+                          );
+                          return;
+                        }
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, marker);
+                        }
+                      },
+                child: const Text('Confirm'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+
+    try {
+      final places = await placemarkFromCoordinates(
+        selected.latitude,
+        selected.longitude,
+      );
+      if (!mounted) return;
+      final place = places.isNotEmpty ? places.first : null;
+      final address = [
+        place?.name,
+        place?.street,
+        place?.subLocality,
+        place?.locality,
+      ].where((value) => value?.trim().isNotEmpty == true).join(', ');
+      final fullAddress = address.isEmpty ? 'Selected map location' : address;
+      final pincode = place?.postalCode ?? '';
+      setState(() {
+        if (pickup) {
+          pickupAddress = fullAddress;
+          pickupCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          pickupState = place?.administrativeArea ?? '';
+          pickupPincode = pincode;
+          pickupPinController.text = pincode;
+          pickupHouseNumberController.text = _houseNumberFromAddress(
+            fullAddress,
+          );
+          pickupHouseNumber = pickupHouseNumberController.text;
+          pickupLatitude = selected.latitude;
+          pickupLongitude = selected.longitude;
+        } else {
+          dropAddress = fullAddress;
+          dropCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          dropState = place?.administrativeArea ?? '';
+          dropPincode = pincode;
+          pinController.text = pincode;
+          houseNumberController.text = _houseNumberFromAddress(fullAddress);
+          dropHouseNumber = houseNumberController.text;
+          dropLatitude = selected.latitude;
+          dropLongitude = selected.longitude;
+        }
+      });
+    } catch (_) {
+      _showMessage('Unable to read address from selected map location');
+    }
+  }
+
+  Future<void> _updateLocationFromDraggedMarker({
+    required bool pickup,
+    required gmaps.LatLng location,
+  }) async {
+    if (!await _isIndiaMapLocation(location)) {
+      _showMessage(
+        pickup
+            ? 'Pickup location must be within India'
+            : 'Drop location must be within India',
+      );
+      return;
+    }
+
+    // Update the marker position immediately after validation so the map does
+    // not wait for reverse-geocoding before reflecting the drag.
+    if (!mounted) return;
+    setState(() {
+      if (pickup) {
+        pickupLatitude = location.latitude;
+        pickupLongitude = location.longitude;
+      } else {
+        dropLatitude = location.latitude;
+        dropLongitude = location.longitude;
+      }
+    });
+
+    try {
+      final places = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+      if (!mounted) return;
+      final place = places.isNotEmpty ? places.first : null;
+      final address = [
+        place?.name,
+        place?.street,
+        place?.subLocality,
+        place?.locality,
+      ].where((value) => value?.trim().isNotEmpty == true).join(', ');
+      final fullAddress = address.isEmpty ? 'Selected map location' : address;
+      final pincode = place?.postalCode ?? '';
+
+      setState(() {
+        if (pickup) {
+          pickupAddress = fullAddress;
+          pickupCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          pickupState = place?.administrativeArea ?? '';
+          pickupPincode = pincode;
+          pickupPinController.text = pincode;
+          pickupHouseNumberController.text = _houseNumberFromAddress(
+            fullAddress,
+          );
+          pickupHouseNumber = pickupHouseNumberController.text;
+        } else {
+          dropAddress = fullAddress;
+          dropCity = place?.locality ?? place?.subAdministrativeArea ?? '';
+          dropState = place?.administrativeArea ?? '';
+          dropPincode = pincode;
+          pinController.text = pincode;
+          houseNumberController.text = _houseNumberFromAddress(fullAddress);
+          dropHouseNumber = houseNumberController.text;
+        }
+      });
+    } catch (_) {
+      _showMessage('Unable to update address from map marker');
     }
   }
 
@@ -1464,10 +1668,10 @@ class _NationalDetailsState extends State<NationalDetails> {
   }
 
   Future<void> _editDrop() async {
-    if (!RegExp(r'^\d{6}$').hasMatch(pinController.text.trim())) {
-      _showMessage('Please enter a valid drop PIN first');
-      return;
-    }
+    // if (!RegExp(r'^\d{6}$').hasMatch(pinController.text.trim())) {
+    //   _showMessage('Please enter a valid drop PIN first');
+    //   return;
+    // }
     if (!_validateDropContact()) return;
     if (placesKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
@@ -1979,23 +2183,23 @@ class _NationalDetailsState extends State<NationalDetails> {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 1),
-            child: Column(
-              children: [
-                Container(
-                  width: 13,
-                  height: 13,
-                  decoration: BoxDecoration(
-                    color: pickup ? const Color(0xFFFFC400) : Colors.black,
-                    shape: BoxShape.circle,
+            child: GestureDetector(
+              onTap: () => _pickLocationFromMap(pickup: pickup),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.map_outlined,
+                    size: 22,
+                    color: pickup ? const Color(0xFFFFB800) : Colors.black,
                   ),
-                ),
-                if (pickup)
-                  Container(
-                    width: 2,
-                    height: 26,
-                    color: const Color(0xFFD9DCE5),
-                  ),
-              ],
+                  if (pickup)
+                    Container(
+                      width: 2,
+                      height: 26,
+                      color: const Color(0xFFD9DCE5),
+                    ),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 14),
@@ -2394,19 +2598,20 @@ class _NationalDetailsState extends State<NationalDetails> {
       return;
     }
     if (await _rejectUnserviceableKolkataRoute()) return;
-    if (pickupNameController.text.trim().isEmpty ||
-        pickupPhoneController.text.trim().length != 10 ||
-        receiverNameController.text.trim().isEmpty ||
-        mobileController.text.trim().length != 10) {
-      // ScaffoldMessenger.of(context).showSnackBar(
-      //   const SnackBar(
-      //     content: Text(
-      //       'Please enter pickup and drop name with valid 10-digit phone number',
-      //     ),
-      //   ),
-      // );
-      return;
-    }
+    // if (pickupNameController.text.trim().isEmpty ||
+    //     pickupPhoneController.text.trim().length != 10 ||
+    //     receiverNameController.text.trim().isEmpty ||
+    //     mobileController.text.trim().length != 10
+    //     ) {
+    //   // ScaffoldMessenger.of(context).showSnackBar(
+    //   //   const SnackBar(
+    //   //     content: Text(
+    //   //       'Please enter pickup and drop name with valid 10-digit phone number',
+    //   //     ),
+    //   //   ),
+    //   // );
+    //   return;
+    // }
     final approximateWeight =
         double.tryParse(approximateWeightController.text) ?? 0;
     final volumetricWeight = packageBoxes.fold<double>(
@@ -2841,14 +3046,14 @@ class _NationalDetailsState extends State<NationalDetails> {
       _showMessage('Please enter drop full address');
       return false;
     }
-    if (pickupHouseNo.isEmpty) {
-      _showMessage('Please enter pickup house number');
-      return false;
-    }
-    if (dropHouseNo.isEmpty) {
-      _showMessage('Please enter drop house number');
-      return false;
-    }
+    // if (pickupHouseNo.isEmpty) {
+    //   _showMessage('Please enter pickup house number');
+    //   return false;
+    // }
+    // if (dropHouseNo.isEmpty) {
+    //   _showMessage('Please enter drop house number');
+    //   return false;
+    // }
     if ((double.tryParse(approximateWeight) ?? 0) <= 0) {
       _showMessage('Please enter approximate weight');
       return false;
@@ -2896,6 +3101,13 @@ class _NationalDetailsState extends State<NationalDetails> {
           children: [
             _locationCard(),
             const SizedBox(height: 10),
+            if (pickupLatitude != null &&
+                pickupLongitude != null &&
+                dropLatitude != null &&
+                dropLongitude != null) ...[
+              const SizedBox(height: 6),
+              _locationRouteMap(),
+            ],
             // SizedBox(
             //   width: double.infinity,
             //   child: OutlinedButton.icon(
@@ -3196,6 +3408,106 @@ class _NationalDetailsState extends State<NationalDetails> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _locationRouteMap() {
+    final pickup = gmaps.LatLng(pickupLatitude!, pickupLongitude!);
+    final drop = gmaps.LatLng(dropLatitude!, dropLongitude!);
+    return SizedBox(
+      width: double.infinity,
+      height: 380,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            gmaps.GoogleMap(
+              initialCameraPosition: const gmaps.CameraPosition(
+                target: gmaps.LatLng(22.5726, 88.3639),
+                zoom: 12,
+              ),
+              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                Factory<OneSequenceGestureRecognizer>(
+                  () => EagerGestureRecognizer(),
+                ),
+              },
+              onMapCreated: (controller) => _locationMapController = controller,
+              markers: {
+                gmaps.Marker(
+                  markerId: const gmaps.MarkerId('pickup'),
+                  draggable: true,
+                  position: pickup,
+                  onDragEnd: (location) => unawaited(
+                    _updateLocationFromDraggedMarker(
+                      pickup: true,
+                      location: location,
+                    ),
+                  ),
+                  icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                    gmaps.BitmapDescriptor.hueYellow,
+                  ),
+                  infoWindow: const gmaps.InfoWindow(title: 'Pickup'),
+                ),
+                gmaps.Marker(
+                  markerId: const gmaps.MarkerId('drop'),
+                  draggable: true,
+                  position: drop,
+                  onDragEnd: (location) => unawaited(
+                    _updateLocationFromDraggedMarker(
+                      pickup: false,
+                      location: location,
+                    ),
+                  ),
+                  icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                    gmaps.BitmapDescriptor.hueAzure,
+                  ),
+                  infoWindow: const gmaps.InfoWindow(title: 'Drop'),
+                ),
+              },
+              polylines: {
+                gmaps.Polyline(
+                  polylineId: const gmaps.PolylineId('pickup_drop_route'),
+                  points: [pickup, drop],
+                  color: AppColors.primaryMain,
+                  width: 5,
+                ),
+              },
+              zoomControlsEnabled: false,
+              myLocationButtonEnabled: false,
+              mapToolbarEnabled: false,
+            ),
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                elevation: 3,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Zoom in',
+                      icon: const Icon(Icons.add),
+                      onPressed: () => _locationMapController?.animateCamera(
+                        gmaps.CameraUpdate.zoomIn(),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    IconButton(
+                      tooltip: 'Zoom out',
+                      icon: const Icon(Icons.remove),
+                      onPressed: () => _locationMapController?.animateCamera(
+                        gmaps.CameraUpdate.zoomOut(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

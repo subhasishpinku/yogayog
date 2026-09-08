@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
@@ -2616,6 +2618,11 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                   target: center,
                   zoom: points.length > 1 ? 11.5 : 12.5,
                 ),
+                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                  Factory<OneSequenceGestureRecognizer>(
+                    () => EagerGestureRecognizer(),
+                  ),
+                },
                 markers: {
                   if (pickup != null)
                     gmaps.Marker(
