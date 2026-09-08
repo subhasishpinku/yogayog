@@ -42,6 +42,9 @@ class ConfirmOrderExport extends StatefulWidget {
 
 class _ConfirmOrderState extends State<ConfirmOrderExport> {
   final instructionController = TextEditingController();
+  late final TextEditingController _dropNameController;
+  late final TextEditingController _dropPhoneController;
+  late final TextEditingController _dropHouseController;
   bool _isCheckingWallet = false;
 
   Map<String, dynamic> get _pickup {
@@ -78,13 +81,66 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    final drop = _drop;
+    _dropNameController = TextEditingController(text: _value(drop, 'name'));
+    _dropPhoneController = TextEditingController(text: _value(drop, 'mobile'));
+    _dropHouseController = TextEditingController(
+      text: _value(drop, 'house_no').isNotEmpty
+          ? _value(drop, 'house_no')
+          : _value(drop, 'house_numb'),
+    );
+  }
+
+  @override
   void dispose() {
     instructionController.dispose();
+    _dropNameController.dispose();
+    _dropPhoneController.dispose();
+    _dropHouseController.dispose();
     super.dispose();
+  }
+
+  void _showValidationMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _proceedToPayment() async {
     if (_isCheckingWallet) return;
+
+    final dropName = _dropNameController.text.trim();
+    final dropPhone = _dropPhoneController.text.trim();
+    final dropHouseNo = _dropHouseController.text.trim();
+    if (dropName.isEmpty) {
+      _showValidationMessage('Please enter Drop Name');
+      return;
+    }
+    if (dropPhone.isEmpty) {
+      _showValidationMessage('Please enter Drop Phone Number');
+      return;
+    }
+    if (!RegExp(r'^[0-9]{10}$').hasMatch(dropPhone)) {
+      _showValidationMessage('Please enter a valid 10-digit phone number');
+      return;
+    }
+    if (dropHouseNo.isEmpty) {
+      _showValidationMessage('Please enter Drop House No');
+      return;
+    }
+
+    final dropValue = widget.orderPayload['drop'];
+    final drop = dropValue is Map
+        ? Map<String, dynamic>.from(dropValue)
+        : <String, dynamic>{};
+    drop['name'] = dropName;
+    drop['mobile'] = dropPhone;
+    drop['house_no'] = dropHouseNo;
+    drop['house_numb'] = dropHouseNo;
+    widget.orderPayload['drop'] = drop;
+
     setState(() => _isCheckingWallet = true);
 
     final orderPayload = <String, dynamic>{
@@ -153,7 +209,10 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
                   children: [
                     _courierSummary(),
                     const SizedBox(height: 14),
+
                     _priceDetails(),
+                    const SizedBox(height: 14),
+                    _dropDetails(),
                     const SizedBox(height: 14),
                     // _notice(),
                     // const SizedBox(height: 16),
@@ -323,6 +382,75 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _dropDetails() {
+    return _card(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'DROP DETAILS',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 9),
+          _dropField(
+            controller: _dropNameController,
+            hintText: 'Drop Name',
+            icon: Icons.person_outline,
+          ),
+          const SizedBox(height: 8),
+          _dropField(
+            controller: _dropPhoneController,
+            hintText: 'Drop Phone Number',
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+            maxLength: 10,
+          ),
+          const SizedBox(height: 8),
+          _dropField(
+            controller: _dropHouseController,
+            hintText: 'Drop House No',
+            icon: Icons.home_outlined,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dropField({
+    required TextEditingController controller,
+    required String hintText,
+    required IconData icon,
+    TextInputType? keyboardType,
+    int? maxLength,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLength: maxLength,
+      decoration: InputDecoration(
+        counterText: '',
+        hintText: hintText,
+        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+        prefixIcon: Icon(icon, size: 19, color: Colors.black87),
+        filled: true,
+        fillColor: const Color(0xFFF7F7F9),
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(11),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(11),
+          borderSide: const BorderSide(color: Color(0xFFE6E6EB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(11),
+          borderSide: const BorderSide(color: Color(0xFF172786)),
+        ),
       ),
     );
   }
