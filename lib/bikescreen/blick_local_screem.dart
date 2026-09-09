@@ -1374,19 +1374,29 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       _showMessage(provider.errorMessage!);
       return;
     }
+    final dropLocations = provider.locations
+        .where((location) => location.flag.trim().toLowerCase() == 'drop')
+        .toList();
+    if (dropLocations.isEmpty) {
+      _showMessage('No saved drop addresses found');
+      return;
+    }
     final selected = await showDialog<SavedLocation>(
       context: context,
       builder: (_) => _SavedLocationDialog(
         title: 'Select Drop Location',
-        locations: provider.locations,
+        locations: dropLocations,
       ),
     );
     if (selected == null || !mounted) return;
+    final houseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
+      dropNameController.text = selected.name;
+      dropPhoneController.text = selected.mobile;
       _dropAddress = selected.address;
-      dropHouseNumberController.text = _houseNumberFromAddress(
-        selected.address,
-      );
+      dropHouseNumberController.text = houseNumber;
       _dropCity = selected.city;
       _dropPincode = selected.pincode;
       pincodeController.text = selected.pincode;
@@ -1394,6 +1404,11 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       _dropLatitude = selected.latitude;
       _dropLongitude = selected.longitude;
     });
+    if (_pickupAddress.trim().isNotEmpty &&
+        _pickupAddress != 'Fetching current location...' &&
+        _pickupAddress != 'Tap to add pickup location') {
+      await _chooseVehicle();
+    }
   }
 
   Future<void> _loadCurrentPickupLocation() async {
