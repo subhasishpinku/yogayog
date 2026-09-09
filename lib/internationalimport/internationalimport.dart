@@ -5,6 +5,7 @@ import 'package:yogayog/internationalimport/internationalimport_delivery_address
 import 'package:yogayog/internationalimport/internationalimport_package.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yogayog/bikescreen/provider/bikescreen_provider.dart';
 import 'package:yogayog/choosecourier/choose_courier_intranational_import.dart';
@@ -482,6 +483,7 @@ class _InternationalImportState extends State<InternationalImport> {
   String dropHouseNumber = '';
   double? dropLatitude;
   double? dropLongitude;
+  gmaps.GoogleMapController? _routeMapController;
 
   @override
   void initState() {
@@ -660,6 +662,406 @@ class _InternationalImportState extends State<InternationalImport> {
       longitude: selected.longitude,
       houseNumber: selected.houseNumber,
     );
+  }
+
+  Future<void> _pickLocationFromMap({required bool pickup}) async {
+    // International import requires pickup outside India and drop inside India.
+    final initial = pickup
+        ? const gmaps.LatLng(51.5074, -0.1278) // London, outside India
+        : const gmaps.LatLng(22.5726, 88.3639); // Kolkata, India
+
+    final selected = await showDialog<gmaps.LatLng>(
+      context: context,
+      builder: (dialogContext) {
+        gmaps.LatLng? marker = initial;
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: Text(
+              pickup ? 'Choose Pickup Location' : 'Choose Drop Location',
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 420,
+              child: gmaps.GoogleMap(
+                initialCameraPosition: gmaps.CameraPosition(
+                  target: initial,
+                  zoom: 15,
+                ),
+                myLocationButtonEnabled: true,
+                zoomControlsEnabled: true,
+                markers: marker == null
+                    ? <gmaps.Marker>{}
+                    : {
+                        gmaps.Marker(
+                          markerId: const gmaps.MarkerId('selected_location'),
+                          position: marker!,
+                          draggable: true,
+                          onDragEnd: (value) =>
+                              setDialogState(() => marker = value),
+                        ),
+                      },
+                onTap: (value) => setDialogState(() => marker = value),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: marker == null
+                    ? null
+                    : () async {
+                        final allowed = await _isAllowedMapCountry(
+                          marker!,
+                          pickup: pickup,
+                        );
+                        if (!allowed) {
+                          _showMessage(
+                            pickup
+                                ? 'Pickup location must be outside India'
+                                : 'Drop location must be within India',
+                          );
+                          return;
+                        }
+                        if (dialogContext.mounted)
+                          Navigator.pop(dialogContext, marker);
+                      },
+                child: const Text('Confirm'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected == null || !mounted) return;
+
+    try {
+      final places = await placemarkFromCoordinates(
+        selected.latitude,
+        selected.longitude,
+      );
+      if (!mounted) return;
+      final place = places.isNotEmpty ? places.first : null;
+      final fullAddress = [
+        place?.name,
+        place?.street,
+        place?.subLocality,
+        place?.locality,
+        place?.administrativeArea,
+        place?.country,
+      ].where((value) => value?.trim().isNotEmpty == true).join(', ');
+      final address = fullAddress.isEmpty
+          ? 'Selected map location'
+          : fullAddress;
+      final city = place?.locality ?? place?.subAdministrativeArea ?? '';
+      final state = place?.administrativeArea ?? '';
+      final pincode = place?.postalCode ?? '';
+      final houseNumber = _houseNumberFromAddress(address);
+
+      setState(() {
+        if (pickup) {
+          pickupAddress = address;
+          pickupCity = city;
+          pickupState = state;
+          pickupPincode = pincode;
+          pickupPinController.text = pincode;
+          pickupHouseNumber = houseNumber;
+          pickupHouseNumberController.text = houseNumber;
+          pickupLatitude = selected.latitude;
+          pickupLongitude = selected.longitude;
+          addressController.text = address;
+          cityController.text = city;
+          countryController.text = _countryFromPickupAddress(
+            address,
+            fallback: place?.country ?? '',
+          );
+        } else {
+          dropAddress = address;
+          dropCity = city;
+          dropState = state;
+          dropPincode = pincode;
+          dropCountry = place?.country ?? '';
+          pinController.text = pincode;
+          dropHouseNumber = houseNumber;
+          dropHouseNumberController.text = houseNumber;
+          dropLatitude = selected.latitude;
+          dropLongitude = selected.longitude;
+          addressController.text = address;
+          cityController.text = city;
+          countryController.text = dropCountry;
+        }
+      });
+
+      if (pickup) {
+        await _savePickupLocation(
+          address: address,
+          city: city,
+          pincode: pincode,
+          state: state,
+          latitude: selected.latitude,
+          longitude: selected.longitude,
+          houseNumber: houseNumber,
+          country: place?.country ?? '',
+        );
+      } else {
+        await _saveDropLocation(
+          address: address,
+          city: city,
+          pincode: pincode,
+          state: state,
+          latitude: selected.latitude,
+          longitude: selected.longitude,
+          houseNumber: houseNumber,
+        );
+      }
+      await _openImportAddressIfReady();
+    } catch (_) {
+      _showMessage('Unable to read address from selected map location');
+    }
+  }
+
+  Future<bool> _isAllowedMapCountry(
+    gmaps.LatLng location, {
+    required bool pickup,
+  }) async {
+    try {
+      final places = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+      if (places.isEmpty) return false;
+      final place = places.first;
+      final countryCode = place.isoCountryCode?.trim().toUpperCase();
+      final country = place.country?.trim().toLowerCase() ?? '';
+      final isIndia = countryCode == 'IN' || country == 'india';
+      return pickup ? !isIndia : isIndia;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Widget _buildRouteMap() {
+    final pickup = gmaps.LatLng(pickupLatitude!, pickupLongitude!);
+    final drop = gmaps.LatLng(dropLatitude!, dropLongitude!);
+    final bounds = gmaps.LatLngBounds(
+      southwest: gmaps.LatLng(
+        pickup.latitude < drop.latitude ? pickup.latitude : drop.latitude,
+        pickup.longitude < drop.longitude ? pickup.longitude : drop.longitude,
+      ),
+      northeast: gmaps.LatLng(
+        pickup.latitude > drop.latitude ? pickup.latitude : drop.latitude,
+        pickup.longitude > drop.longitude ? pickup.longitude : drop.longitude,
+      ),
+    );
+
+    return SizedBox(
+      width: double.infinity,
+      height: 350,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            gmaps.GoogleMap(
+              onMapCreated: (controller) {
+                _routeMapController = controller;
+                if (pickup.latitude == drop.latitude &&
+                    pickup.longitude == drop.longitude) {
+                  unawaited(
+                    controller.animateCamera(
+                      gmaps.CameraUpdate.newLatLngZoom(pickup, 12),
+                    ),
+                  );
+                } else {
+                  unawaited(
+                    controller.animateCamera(
+                      gmaps.CameraUpdate.newLatLngBounds(bounds, 60),
+                    ),
+                  );
+                }
+              },
+              initialCameraPosition: const gmaps.CameraPosition(
+                target: gmaps.LatLng(22.5726, 88.3639),
+                zoom: 3,
+              ),
+              markers: {
+                gmaps.Marker(
+                  markerId: const gmaps.MarkerId('pickup'),
+                  draggable: true,
+                  position: pickup,
+                  onDragEnd: (location) => unawaited(
+                    _updateLocationFromDraggedMarker(
+                      pickup: true,
+                      location: location,
+                    ),
+                  ),
+                  icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                    gmaps.BitmapDescriptor.hueYellow,
+                  ),
+                  infoWindow: const gmaps.InfoWindow(title: 'Pickup'),
+                ),
+                gmaps.Marker(
+                  markerId: const gmaps.MarkerId('drop'),
+                  draggable: true,
+                  position: drop,
+                  onDragEnd: (location) => unawaited(
+                    _updateLocationFromDraggedMarker(
+                      pickup: false,
+                      location: location,
+                    ),
+                  ),
+                  icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+                    gmaps.BitmapDescriptor.hueAzure,
+                  ),
+                  infoWindow: const gmaps.InfoWindow(title: 'Drop'),
+                ),
+              },
+              polylines: {
+                gmaps.Polyline(
+                  polylineId: const gmaps.PolylineId('pickup_drop_route'),
+                  points: _curvedRoutePoints(pickup, drop),
+                  color: AppColors.primaryMain,
+                  width: 5,
+                ),
+              },
+              zoomControlsEnabled: false,
+              myLocationButtonEnabled: false,
+              mapToolbarEnabled: false,
+            ),
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                elevation: 3,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Zoom in',
+                      icon: const Icon(Icons.add),
+                      onPressed: () => _routeMapController?.animateCamera(
+                        gmaps.CameraUpdate.zoomIn(),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    IconButton(
+                      tooltip: 'Zoom out',
+                      icon: const Icon(Icons.remove),
+                      onPressed: () => _routeMapController?.animateCamera(
+                        gmaps.CameraUpdate.zoomOut(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<gmaps.LatLng> _curvedRoutePoints(
+    gmaps.LatLng pickup,
+    gmaps.LatLng drop,
+  ) {
+    final midpoint = gmaps.LatLng(
+      (pickup.latitude + drop.latitude) / 2,
+      (pickup.longitude + drop.longitude) / 2,
+    );
+    final curveOffset = (pickup.longitude - drop.longitude).abs() * 0.08;
+    final control = gmaps.LatLng(
+      midpoint.latitude + curveOffset,
+      midpoint.longitude,
+    );
+    return List<gmaps.LatLng>.generate(21, (index) {
+      final t = index / 20;
+      final oneMinusT = 1 - t;
+      return gmaps.LatLng(
+        oneMinusT * oneMinusT * pickup.latitude +
+            2 * oneMinusT * t * control.latitude +
+            t * t * drop.latitude,
+        oneMinusT * oneMinusT * pickup.longitude +
+            2 * oneMinusT * t * control.longitude +
+            t * t * drop.longitude,
+      );
+    });
+  }
+
+  Future<void> _updateLocationFromDraggedMarker({
+    required bool pickup,
+    required gmaps.LatLng location,
+  }) async {
+    if (!await _isAllowedMapCountry(location, pickup: pickup)) {
+      if (mounted) setState(() {});
+      _showMessage(
+        pickup
+            ? 'Pickup location must be outside India'
+            : 'Drop location must be within India',
+      );
+      return;
+    }
+
+    try {
+      final places = await placemarkFromCoordinates(
+        location.latitude,
+        location.longitude,
+      );
+      if (!mounted) return;
+      final place = places.isNotEmpty ? places.first : null;
+      final address = [
+        place?.name,
+        place?.street,
+        place?.subLocality,
+        place?.locality,
+        place?.administrativeArea,
+        place?.country,
+      ].where((value) => value?.trim().isNotEmpty == true).join(', ');
+      final fullAddress = address.isEmpty ? 'Selected map location' : address;
+      final city = place?.locality ?? place?.subAdministrativeArea ?? '';
+      final state = place?.administrativeArea ?? '';
+      final pincode = place?.postalCode ?? '';
+      final houseNumber = _houseNumberFromAddress(fullAddress);
+
+      setState(() {
+        if (pickup) {
+          pickupAddress = fullAddress;
+          pickupCity = city;
+          pickupState = state;
+          pickupPincode = pincode;
+          pickupPinController.text = pincode;
+          pickupHouseNumber = houseNumber;
+          pickupHouseNumberController.text = houseNumber;
+          pickupLatitude = location.latitude;
+          pickupLongitude = location.longitude;
+          addressController.text = fullAddress;
+          cityController.text = city;
+          countryController.text = _countryFromPickupAddress(
+            fullAddress,
+            fallback: place?.country ?? '',
+          );
+        } else {
+          dropAddress = fullAddress;
+          dropCity = city;
+          dropState = state;
+          dropPincode = pincode;
+          dropCountry = place?.country ?? '';
+          pinController.text = pincode;
+          dropHouseNumber = houseNumber;
+          dropHouseNumberController.text = houseNumber;
+          dropLatitude = location.latitude;
+          dropLongitude = location.longitude;
+          addressController.text = fullAddress;
+          cityController.text = city;
+          countryController.text = dropCountry;
+        }
+      });
+    } catch (_) {
+      if (mounted) setState(() {});
+      _showMessage('Unable to update address from map marker');
+    }
   }
 
   Future<void> _openPickupDetailsSheet() async {
@@ -1682,17 +2084,17 @@ class _InternationalImportState extends State<InternationalImport> {
   Future<void> _openImportPackage({bool reviewOnSave = false}) async {
     final pickupHouseMissing = pickupHouseNumberController.text.trim().isEmpty;
     final dropHouseMissing = dropHouseNumberController.text.trim().isEmpty;
-    if (pickupHouseMissing || dropHouseMissing) {
-      _showMessage(
-        pickupHouseMissing && dropHouseMissing
-            ? 'Please enter pickup and drop house numbers first'
-            : pickupHouseMissing
-            ? 'Please enter pickup house number first'
-            : 'Please enter drop house number first',
-      );
-      await _openImportAddress();
-      return;
-    }
+    // if (pickupHouseMissing || dropHouseMissing) {
+    //   _showMessage(
+    //     pickupHouseMissing && dropHouseMissing
+    //         ? 'Please enter pickup and drop house numbers first'
+    //         : pickupHouseMissing
+    //         ? 'Please enter pickup house number first'
+    //         : 'Please enter drop house number first',
+    //   );
+    //   await _openImportAddress();
+    //   return;
+    // }
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
@@ -1984,23 +2386,21 @@ class _InternationalImportState extends State<InternationalImport> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: 1),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 13,
-                      height: 13,
-                      decoration: BoxDecoration(
-                        color: pickup ? const Color(0xFFFFC400) : Colors.black,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    if (pickup)
-                      Container(
-                        width: 2,
-                        height: 26,
-                        color: const Color(0xFFD9DCE5),
-                      ),
-                  ],
+                child: IconButton(
+                  onPressed: () => _pickLocationFromMap(pickup: pickup),
+                  icon: Icon(
+                    Icons.map_outlined,
+                    color: pickup ? const Color(0xFFFFC400) : Colors.black,
+                    size: 22,
+                  ),
+                  tooltip: pickup
+                      ? 'Choose pickup on map'
+                      : 'Choose drop on map',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
@@ -2340,20 +2740,20 @@ class _InternationalImportState extends State<InternationalImport> {
   }
 
   Future<bool> _validateBeforeReview() async {
-    if (pickupHouseNumberController.text.trim().isEmpty) {
-      // _showMessage('Please enter pickup housing no. first');
-      await Future<void>.delayed(const Duration(milliseconds: 350));
-      if (!mounted) return false;
-      await _openImportAddress();
-      return false;
-    }
-    if (dropHouseNumberController.text.trim().isEmpty) {
-      _showMessage('Please enter drop housing no. first');
-      await Future<void>.delayed(const Duration(milliseconds: 350));
-      if (!mounted) return false;
-      await _openImportAddress();
-      return false;
-    }
+    // if (pickupHouseNumberController.text.trim().isEmpty) {
+    //   // _showMessage('Please enter pickup housing no. first');
+    //   await Future<void>.delayed(const Duration(milliseconds: 350));
+    //   if (!mounted) return false;
+    //   await _openImportAddress();
+    //   return false;
+    // }
+    // if (dropHouseNumberController.text.trim().isEmpty) {
+    //   _showMessage('Please enter drop housing no. first');
+    //   await Future<void>.delayed(const Duration(milliseconds: 350));
+    //   if (!mounted) return false;
+    //   await _openImportAddress();
+    //   return false;
+    // }
     return true;
   }
 
@@ -2839,23 +3239,33 @@ class _InternationalImportState extends State<InternationalImport> {
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: SizedBox(
-          height: 57,
-          child: ElevatedButton(
-            onPressed: () => _openImportPackage(reviewOnSave: true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFC400),
-              foregroundColor: const Color(0xFF101B8F),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (pickupLatitude != null && dropLatitude != null) ...[
+              _buildRouteMap(),
+              const SizedBox(height: 8),
+            ],
+            SizedBox(
+              height: 57,
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _openImportPackage(reviewOnSave: true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFC400),
+                  foregroundColor: const Color(0xFF101B8F),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: const Text(
+                  'Next →',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
-            child: const Text(
-              'Next →',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
+          ],
         ),
       ),
     );

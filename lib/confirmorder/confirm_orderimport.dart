@@ -42,6 +42,9 @@ class ConfirmOrderImport extends StatefulWidget {
 
 class _ConfirmOrderState extends State<ConfirmOrderImport> {
   final instructionController = TextEditingController();
+  late final TextEditingController _pickupNameController;
+  late final TextEditingController _pickupPhoneController;
+  late final TextEditingController _pickupHouseController;
   bool _checkingWallet = false;
 
   Map<String, dynamic> get _pickup {
@@ -58,6 +61,11 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
     return data[key]?.toString().trim() ?? '';
   }
 
+  String _houseNumber(Map<String, dynamic> data) {
+    final houseNo = _payloadText(data, 'house_no');
+    return houseNo.isNotEmpty ? houseNo : _payloadText(data, 'house_numb');
+  }
+
   String _locationText(Map<String, dynamic> data, String fallback) {
     final parts = [
       _payloadText(data, 'address'),
@@ -70,7 +78,28 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
   @override
   void dispose() {
     instructionController.dispose();
+    _pickupNameController.dispose();
+    _pickupPhoneController.dispose();
+    _pickupHouseController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _pickupNameController = TextEditingController(
+      text: _payloadText(_pickup, 'name'),
+    );
+    _pickupPhoneController = TextEditingController(
+      text: _payloadText(_pickup, 'mobile'),
+    );
+    _pickupHouseController = TextEditingController(text: _houseNumber(_pickup));
+  }
+
+  void _showValidationMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -90,6 +119,8 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
                     _courierSummary(),
                     const SizedBox(height: 14),
                     _priceDetails(),
+                    const SizedBox(height: 14),
+                    _pickupDetails(),
                     const SizedBox(height: 14),
                     // _notice(),
                     // const SizedBox(height: 16),
@@ -269,6 +300,79 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
     );
   }
 
+  Widget _pickupDetails() {
+    return _card(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'PICKUP DETAILS',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          _detailsField(
+            controller: _pickupNameController,
+            hintText: 'Pickup Name',
+            icon: Icons.person_outline,
+          ),
+          const SizedBox(height: 8),
+          _detailsField(
+            controller: _pickupPhoneController,
+            hintText: 'Pickup Phone Number',
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+          ),
+          const SizedBox(height: 8),
+          _detailsField(
+            controller: _pickupHouseController,
+            hintText: 'Pickup House No',
+            icon: Icons.home_outlined,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailsField({
+    required TextEditingController controller,
+    required String hintText,
+    required IconData icon,
+    TextInputType? keyboardType,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: const TextStyle(
+        color: Color(0xFF202124),
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon, color: Colors.black87, size: 20),
+        labelText: hintText,
+        floatingLabelBehavior: FloatingLabelBehavior.always,
+        labelStyle: const TextStyle(color: Color(0xFF98A0AE), fontSize: 12),
+        floatingLabelStyle: const TextStyle(
+          color: Color(0xFF98A0AE),
+          fontSize: 12,
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF7F8FA),
+        isDense: true,
+        constraints: const BoxConstraints(minHeight: 56),
+        contentPadding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE4E6EA)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE4E6EA)),
+        ),
+      ),
+    );
+  }
+
   Widget _row(String label, String value, {bool bold = false, Color? color}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
@@ -436,6 +540,39 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
   }
 
   Future<void> _proceedToPayment() async {
+    if (_checkingWallet) return;
+
+    final pickupName = _pickupNameController.text.trim();
+    final pickupPhone = _pickupPhoneController.text.trim();
+    final pickupHouseNo = _pickupHouseController.text.trim();
+
+    if (pickupName.isEmpty) {
+      _showValidationMessage('Please enter Pickup Name');
+      return;
+    }
+    if (pickupPhone.isEmpty) {
+      _showValidationMessage('Please enter Pickup Phone Number');
+      return;
+    }
+    if (!RegExp(r'^[0-9]{10}$').hasMatch(pickupPhone)) {
+      _showValidationMessage('Please enter a valid 10-digit phone number');
+      return;
+    }
+    if (pickupHouseNo.isEmpty) {
+      _showValidationMessage('Please enter Pickup House No');
+      return;
+    }
+
+    final pickupValue = widget.orderPayload['pickup'];
+    final pickup = pickupValue is Map
+        ? Map<String, dynamic>.from(pickupValue)
+        : <String, dynamic>{};
+    pickup['name'] = pickupName;
+    pickup['mobile'] = pickupPhone;
+    pickup['house_no'] = pickupHouseNo;
+    pickup['house_numb'] = pickupHouseNo;
+    widget.orderPayload['pickup'] = pickup;
+
     setState(() => _checkingWallet = true);
     final payload = {...widget.orderPayload, 'price': widget.total};
 

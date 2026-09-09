@@ -289,14 +289,6 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (widget.nameController != null) ...[
-              _field(_nameController, widget.nameLabel),
-              _field(
-                _phoneController,
-                widget.phoneLabel,
-                type: TextInputType.phone,
-              ),
-            ],
             _field(_addressController, 'Address', onChanged: _searchAddress),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.red)),
@@ -311,6 +303,14 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
                   );
                 }).toList(),
               ),
+            if (widget.nameController != null) ...[
+              _field(_nameController, widget.nameLabel),
+              _field(
+                _phoneController,
+                widget.phoneLabel,
+                type: TextInputType.phone,
+              ),
+            ],
             _field(_cityController, 'City'),
             _field(
               _pincodeController,
@@ -799,7 +799,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         'name': pickupNameController.text.trim(),
         'mobile': pickupPhoneController.text.trim(),
         'service_id': 1,
-        'house_numb': '',
+        'house_numb': pickupHouseNumberController.text.trim(),
         'street': selected.address,
         'city': selected.city,
         'district': selected.city,
@@ -809,6 +809,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         'country_cde': 'IN',
         'lat': selected.latitude,
         'lon': selected.longitude,
+        'flag': 'pick',
       },
     );
     if (!mounted) return;
@@ -875,7 +876,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         'name': dropNameController.text.trim(),
         'mobile': dropPhoneController.text.trim(),
         'service_id': 1,
-        'house_numb': '',
+        'house_numb': dropHouseNumberController.text.trim(),
         'street': result.address,
         'city': result.city,
         'district': result.city,
@@ -1335,19 +1336,27 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       _showMessage(provider.errorMessage!);
       return;
     }
+    final pickupLocations = provider.locations
+        .where((location) => location.flag.trim().toLowerCase() == 'pick')
+        .toList();
+    if (pickupLocations.isEmpty) {
+      _showMessage('No saved pickup addresses found');
+      return;
+    }
     final selected = await showDialog<SavedLocation>(
       context: context,
       builder: (_) => _SavedLocationDialog(
         title: 'Select Pickup Location',
-        locations: provider.locations,
+        locations: pickupLocations,
       ),
     );
     if (selected == null || !mounted) return;
+    final houseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
       _pickupAddress = selected.address;
-      pickupHouseNumberController.text = _houseNumberFromAddress(
-        selected.address,
-      );
+      pickupHouseNumberController.text = houseNumber;
       _pickupCity = selected.city;
       _pickupPincode = selected.pincode;
       pickupPincodeController.text = selected.pincode;
@@ -1487,7 +1496,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         'name': pickupNameController.text.trim(),
         'mobile': pickupPhoneController.text.trim(),
         'service_id': 1,
-        'house_numb': '',
+        'house_numb': pickupHouseNumberController.text.trim(),
         'street': result.address,
         'city': result.city,
         'district': result.city,
@@ -1497,6 +1506,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         'country_cde': 'IN',
         'lat': result.latitude,
         'lon': result.longitude,
+        'flag': 'pick',
       },
     );
     if (!mounted) return;
@@ -1651,6 +1661,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                                   'country_cde': 'IN',
                                   'lat': _pickupLatitude,
                                   'lon': _pickupLongitude,
+                                  'flag': 'pick',
                                 },
                               );
                           if (!mounted) return;
