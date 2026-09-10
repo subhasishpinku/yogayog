@@ -623,7 +623,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       'https://maps.googleapis.com/maps/api/place/details/json',
       queryParameters: {
         'place_id': placeId,
-        'fields': 'formatted_address,address_component,geometry',
+        'fields': 'formatted_address,address_components,geometry',
         'key': _googlePlacesApiKey,
       },
     );
@@ -654,11 +654,17 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       return double.tryParse(value?.toString() ?? '');
     }
 
+    final city = component('locality').isNotEmpty
+        ? component('locality')
+        : component('postal_town').isNotEmpty
+        ? component('postal_town')
+        : component('sublocality_level_1').isNotEmpty
+        ? component('sublocality_level_1')
+        : component('administrative_area_level_2');
+
     return _DropLocation(
       address: result['formatted_address']?.toString() ?? '',
-      city: component('locality').isNotEmpty
-          ? component('locality')
-          : component('administrative_area_level_2'),
+      city: city,
       pincode: component('postal_code'),
       state: component('administrative_area_level_1'),
       latitude: location is Map ? coordinate(location['lat']) : null,
@@ -702,11 +708,17 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       return double.tryParse(value?.toString() ?? '');
     }
 
+    final city = component('locality').isNotEmpty
+        ? component('locality')
+        : component('postal_town').isNotEmpty
+        ? component('postal_town')
+        : component('sublocality_level_1').isNotEmpty
+        ? component('sublocality_level_1')
+        : component('administrative_area_level_2');
+
     return _DropLocation(
       address: result['formatted_address']?.toString() ?? '$pincode, India',
-      city: component('locality').isNotEmpty
-          ? component('locality')
-          : component('administrative_area_level_2'),
+      city: city,
       pincode: component('postal_code').isEmpty
           ? pincode
           : component('postal_code'),
@@ -716,10 +728,10 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
     );
   }
 
-  Future<void> _openDropSearchDialog() async {
+  Future<_DropLocation?> _openDropSearchDialog() async {
     if (_googlePlacesApiKey.isEmpty) {
       _showMessage('Google Places API key is not configured');
-      return;
+      return null;
     }
     final selected = await showDialog<_DropLocation>(
       context: context,
@@ -728,7 +740,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         getPlaceDetails: _getPlaceDetails,
       ),
     );
-    if (selected == null || !mounted) return;
+    if (selected == null || !mounted) return null;
     setState(() {
       _dropAddress = selected.address;
       dropHouseNumberController.text = _houseNumberFromAddress(
@@ -746,7 +758,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         'name': dropNameController.text.trim(),
         'mobile': dropPhoneController.text.trim(),
         'service_id': 1,
-        'house_numb': '',
+        'house_numb': dropHouseNumberController.text.trim(),
         'street': selected.address,
         'city': selected.city,
         'district': selected.city,
@@ -759,13 +771,14 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         'flag': 'drop',
       },
     );
-    if (!mounted) return;
+    if (!mounted) return selected;
     // _showMessage(
     //   saved
     //       ? 'Drop address saved successfully'
     //       : context.read<BikescreenProvider>().errorMessage ??
     //             'Unable to save drop address',
     // );
+    return selected;
   }
 
   Future<void> _openPickupSearchDialog() async {
@@ -1147,6 +1160,26 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       caseSensitive: false,
     ).firstMatch(firstPart);
     return match?.group(1) ?? '';
+  }
+
+  Future<Map<String, String>> _cityStateFromAddress(String address) async {
+    if (address.trim().isEmpty) return const {};
+    try {
+      final locations = await locationFromAddress(address.trim());
+      if (locations.isEmpty) return const {};
+      final places = await placemarkFromCoordinates(
+        locations.first.latitude,
+        locations.first.longitude,
+      );
+      if (places.isEmpty) return const {};
+      final place = places.first;
+      return {
+        'city': (place.locality ?? place.subAdministrativeArea ?? '').trim(),
+        'state': (place.administrativeArea ?? '').trim(),
+      };
+    } catch (_) {
+      return const {};
+    }
   }
 
   bool _isWithinKolkata(gmaps.LatLng location) {
@@ -1642,12 +1675,44 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                         ),
                       ],
                     ),
-                    _contactField(pickupNameController, 'Pickup name'),
                     const SizedBox(height: 10),
-                    _contactField(
-                      pickupPhoneController,
-                      'Pickup phone',
-                      phone: true,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: _pickupCity,
+                            onChanged: (value) => _pickupCity = value.trim(),
+                            decoration: _inputDecoration('City'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: _pickupState,
+                            onChanged: (value) => _pickupState = value.trim(),
+                            decoration: _inputDecoration('State'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _contactField(
+                            pickupNameController,
+                            'Pickup name',
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _contactField(
+                            pickupPhoneController,
+                            'Pickup phone',
+                            phone: true,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
@@ -1715,182 +1780,254 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   }
 
   Future<void> _showDropBottomSheet() async {
+    final dropCityController = TextEditingController(text: _dropCity);
+    final dropStateController = TextEditingController(text: _dropState);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => SafeArea(
-        child: Container(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            12,
-            16,
-            16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
-          ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(sheetContext).height * .9,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (bottomSheetContext, setSheetState) => SafeArea(
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              12,
+              16,
+              16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD9DCE5),
-                        borderRadius: BorderRadius.circular(4),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * .9,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD9DCE5),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Drop details',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 14),
-                  InkWell(
-                    onTap: _openDropSearchDialog,
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Drop details',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFE0E2E8)),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _dropAddress == 'Tap to add destination' ||
-                                      _dropAddress.isEmpty
-                                  ? 'Search drop location'
-                                  : _dropAddress,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color:
-                                    _dropAddress == 'Tap to add destination' ||
+                    ),
+                    const SizedBox(height: 14),
+                    InkWell(
+                      onTap: () async {
+                        final selected = await _openDropSearchDialog();
+                        if (bottomSheetContext.mounted) {
+                          if (selected != null) {
+                            _dropCity = selected.city.trim().isNotEmpty
+                                ? selected.city.trim()
+                                : _dropCity;
+                            _dropState = selected.state.trim().isNotEmpty
+                                ? selected.state.trim()
+                                : _dropState;
+                          }
+                          dropCityController.text = _dropCity;
+                          dropStateController.text = _dropState;
+                          setSheetState(() {});
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFE0E2E8)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _dropAddress == 'Tap to add destination' ||
                                         _dropAddress.isEmpty
-                                    ? const Color(0xFF667085)
-                                    : Colors.black,
+                                    ? 'Search drop location'
+                                    : _dropAddress,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color:
+                                      _dropAddress ==
+                                              'Tap to add destination' ||
+                                          _dropAddress.isEmpty
+                                      ? const Color(0xFF667085)
+                                      : Colors.black,
+                                ),
                               ),
                             ),
+                            const Icon(Icons.search, color: blue),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _pinCodeField(
+                            label: 'Drop PIN',
+                            controller: pincodeController,
+                            hint: 'Drop PIN',
+                            onChanged: (value) {
+                              _dropPincode = value;
+                              _dropPincodeError = null;
+                              if (value.length < 6)
+                                _clearPincodeLocation(false);
+                              _updateAddressFromPincode(
+                                pickup: false,
+                                pincode: value,
+                              );
+                            },
                           ),
-                          const Icon(Icons.search, color: blue),
-                        ],
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _textField(
+                            controller: dropHouseNumberController,
+                            hintText: 'Drop House No',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: dropCityController,
+                            onChanged: (value) => _dropCity = value.trim(),
+                            decoration: _inputDecoration('City'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: dropStateController,
+                            onChanged: (value) => _dropState = value.trim(),
+                            decoration: _inputDecoration('State'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _contactField(dropNameController, 'Drop name'),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _contactField(
+                            dropPhoneController,
+                            'Drop phone',
+                            phone: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          // if (!_validateDropContact(
+                          //       openBottomSheetOnError: false,
+                          //     ) ||
+                          //     pincodeController.text.trim().length != 6) {
+                          //   if (pincodeController.text.trim().length != 6) {
+                          //     _showMessage('Please enter drop PIN first');
+                          //   }
+                          //   return;
+                          // }
+                          final addressDetails = await _cityStateFromAddress(
+                            _dropAddress,
+                          );
+                          final dropCity =
+                              (addressDetails['city']?.isNotEmpty == true
+                                      ? addressDetails['city']!
+                                      : _dropCity)
+                                  .trim();
+                          final dropState =
+                              (addressDetails['state']?.isNotEmpty == true
+                                      ? addressDetails['state']!
+                                      : _dropState)
+                                  .trim();
+                          final saved = await context
+                              .read<BikescreenProvider>()
+                              .savePickupLocation(
+                                payload: {
+                                  'name': dropNameController.text.trim(),
+                                  'mobile': dropPhoneController.text.trim(),
+                                  'service_id': 1,
+                                  'house_numb': dropHouseNumberController.text
+                                      .trim(),
+                                  'street': _dropAddress,
+                                  'city': dropCity,
+                                  'district': dropCity,
+                                  'state': dropState,
+                                  'pin': pincodeController.text.trim(),
+                                  'country': 'India',
+                                  'country_cde': 'IN',
+                                  'lat': _dropLatitude,
+                                  'lon': _dropLongitude,
+                                  'flag': 'drop',
+                                },
+                              );
+                          if (!mounted) return;
+                          Navigator.pop(sheetContext);
+                          // _showMessage(
+                          //   saved
+                          //       ? 'Drop address saved successfully'
+                          //       : context
+                          //                 .read<BikescreenProvider>()
+                          //                 .errorMessage ??
+                          //             'Unable to save drop address',
+                          // );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text(
+                          'Confirm Drop & Continue →',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _pinCodeField(
-                          label: 'Drop PIN',
-                          controller: pincodeController,
-                          hint: 'Drop PIN',
-                          onChanged: (value) {
-                            _dropPincode = value;
-                            _dropPincodeError = null;
-                            if (value.length < 6) _clearPincodeLocation(false);
-                            _updateAddressFromPincode(
-                              pickup: false,
-                              pincode: value,
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _textField(
-                          controller: dropHouseNumberController,
-                          hintText: 'Drop House No',
-                        ),
-                      ),
-                    ],
-                  ),
-                  _contactField(dropNameController, 'Drop name'),
-                  const SizedBox(height: 10),
-                  _contactField(dropPhoneController, 'Drop phone', phone: true),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        // if (!_validateDropContact(
-                        //       openBottomSheetOnError: false,
-                        //     ) ||
-                        //     pincodeController.text.trim().length != 6) {
-                        //   if (pincodeController.text.trim().length != 6) {
-                        //     _showMessage('Please enter drop PIN first');
-                        //   }
-                        //   return;
-                        // }
-                        final saved = await context
-                            .read<BikescreenProvider>()
-                            .savePickupLocation(
-                              payload: {
-                                'name': dropNameController.text.trim(),
-                                'mobile': dropPhoneController.text.trim(),
-                                'service_id': 1,
-                                'house_numb': dropHouseNumberController.text
-                                    .trim(),
-                                'street': _dropAddress,
-                                'city': _dropCity,
-                                'district': _dropCity,
-                                'state': _dropState,
-                                'pin': pincodeController.text.trim(),
-                                'country': 'India',
-                                'country_cde': 'IN',
-                                'lat': _dropLatitude,
-                                'lon': _dropLongitude,
-                                'flag': 'drop',
-                              },
-                            );
-                        if (!mounted) return;
-                        Navigator.pop(sheetContext);
-                        // _showMessage(
-                        //   saved
-                        //       ? 'Drop address saved successfully'
-                        //       : context
-                        //                 .read<BikescreenProvider>()
-                        //                 .errorMessage ??
-                        //             'Unable to save drop address',
-                        // );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: const Text(
-                        'Confirm Drop & Continue →',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
     );
+    dropCityController.dispose();
+    dropStateController.dispose();
   }
 
   Widget _dialogField(
@@ -2052,6 +2189,13 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
             'lat': _dropLatitude,
             'lng': _dropLongitude,
             'country': 'India',
+          },
+          onDropDetailsRequired: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).pop();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _showDropBottomSheet();
+            });
           },
         ),
       ),
@@ -3063,7 +3207,10 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       TextButton.icon(
-                        onPressed: pickup ? _editPickup : _editDrop,
+                        // onPressed: pickup ? _editPickup : _editDrop,
+                        onPressed: pickup
+                            ? _showPickupBottomSheet
+                            : _showDropBottomSheet,
                         icon: const Icon(Icons.edit, color: blue, size: 16),
                         label: const Text(
                           'Edit',

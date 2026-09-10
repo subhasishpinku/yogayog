@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:yogayog/Payment/Payment_wallet_Screen.dart';
@@ -15,6 +17,7 @@ class BikeConfirmScreem extends StatefulWidget {
     this.dropAddress = '',
     required this.pickup,
     required this.drop,
+    this.onDropDetailsRequired,
   });
   final VehicleRate rate;
   final double distance;
@@ -22,6 +25,7 @@ class BikeConfirmScreem extends StatefulWidget {
   final String dropAddress;
   final Map<String, dynamic> pickup;
   final Map<String, dynamic> drop;
+  final VoidCallback? onDropDetailsRequired;
 
   @override
   State<BikeConfirmScreem> createState() => _BikeConfirmScreemState();
@@ -36,6 +40,8 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
   late final TextEditingController _dropPhoneController;
   late final TextEditingController _dropHouseController;
   bool _isCheckingWallet = false;
+  Timer? _dropDetailsTimer;
+  bool _dropDetailsRedirected = false;
 
   @override
   void initState() {
@@ -49,10 +55,20 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
     _dropHouseController = TextEditingController(
       text: widget.drop['house_no']?.toString() ?? '',
     );
+    final hasMissingDropDetails =
+        _dropNameController.text.trim().isEmpty ||
+        _dropPhoneController.text.trim().isEmpty ||
+        _dropHouseController.text.trim().isEmpty;
+    if (hasMissingDropDetails) {
+      _dropDetailsTimer = Timer(const Duration(seconds: 5), () {
+        unawaited(_returnToDropDetails());
+      });
+    }
   }
 
   @override
   void dispose() {
+    _dropDetailsTimer?.cancel();
     instructionController.dispose();
     _dropNameController.dispose();
     _dropPhoneController.dispose();
@@ -66,12 +82,40 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _returnToDropDetails() async {
+    if (!mounted || _dropDetailsRedirected) return;
+    _dropDetailsRedirected = true;
+    _dropDetailsTimer?.cancel();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Drop details missing'),
+        content: const Text(
+          'Please complete Drop Name, Phone Number and House No.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    widget.onDropDetailsRequired?.call();
+  }
+
   Future<void> _proceedToPayment() async {
     if (_isCheckingWallet) return;
     // Validate Drop Details
     final dropName = _dropNameController.text.trim();
     final dropPhone = _dropPhoneController.text.trim();
     final dropHouseNo = _dropHouseController.text.trim();
+
+    if (dropName.isEmpty || dropPhone.isEmpty || dropHouseNo.isEmpty) {
+      await _returnToDropDetails();
+      return;
+    }
 
     if (dropName.isEmpty) {
       _showMessage('Please enter Drop Name');
@@ -611,6 +655,7 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
 
                 TextField(
                   controller: controller,
+                  readOnly: true,
 
                   // Keyboard
                   keyboardType: keyboardType,
@@ -618,8 +663,8 @@ class _BikeConfirmScreemState extends State<BikeConfirmScreem> {
                   // Text select / copy / paste
                   enableInteractiveSelection: true,
 
-                  // Cursor show করবে
-                  showCursor: true,
+                  // Confirm screen-এ details edit করা যাবে না
+                  showCursor: false,
 
                   // Phone হলে শুধু number allow করবে
                   inputFormatters: keyboardType == TextInputType.phone

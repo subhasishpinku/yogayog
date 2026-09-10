@@ -13,6 +13,7 @@ class ChooseBikeScreen extends StatefulWidget {
     this.dropAddress = '',
     required this.pickup,
     required this.drop,
+    this.onDropDetailsRequired,
   });
 
   final double approximateWeightKg;
@@ -22,6 +23,7 @@ class ChooseBikeScreen extends StatefulWidget {
   final String dropAddress;
   final Map<String, dynamic> pickup;
   final Map<String, dynamic> drop;
+  final VoidCallback? onDropDetailsRequired;
 
   @override
   State<ChooseBikeScreen> createState() => _ChooseBikeScreenState();
@@ -114,6 +116,7 @@ class _ChooseBikeScreenState extends State<ChooseBikeScreen> {
                           dropAddress: widget.dropAddress,
                           pickup: widget.pickup,
                           drop: widget.drop,
+                          onDropDetailsRequired: widget.onDropDetailsRequired,
                         ),
                       ),
                     );
