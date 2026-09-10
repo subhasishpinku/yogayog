@@ -395,12 +395,26 @@ class _LocationDetailsSheetState extends State<_LocationDetailsSheet> {
                 ],
               ),
               const SizedBox(height: 8),
-              _field(_nameController, 'Name'),
+              Row(
+                children: [
+                  Expanded(child: _field(_cityController, 'City')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _field(_stateController, 'State')),
+                ],
+              ),
               const SizedBox(height: 8),
-              _field(
-                _mobileController,
-                'Phone number',
-                keyboardType: TextInputType.phone,
+              Row(
+                children: [
+                  Expanded(child: _field(_nameController, 'Name')),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _field(
+                      _mobileController,
+                      'Phone number',
+                      keyboardType: TextInputType.phone,
+                    ),
+                  ),
+                ],
               ),
               if (_error != null) ...[
                 const SizedBox(height: 7),
@@ -1254,6 +1268,41 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         dropPhoneController.text = result.mobile;
       }
     });
+    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+      payload: {
+        'name': result.name,
+        'mobile': result.mobile,
+        'service_id': 1,
+        'house_numb': result.houseNumber.isNotEmpty
+            ? result.houseNumber
+            : _houseNumberFromAddress(result.address),
+        'street': result.address,
+        'city': result.city,
+        'district': result.city,
+        'state': result.state,
+        'pin': result.pincode,
+        'country': 'India',
+        'country_cde': 'IN',
+        'flag': pickup ? 'pick' : 'drop',
+        'lat': result.latitude,
+        'lon': result.longitude,
+      },
+    );
+    if (!mounted) return;
+    _showMessage(
+      saved
+          ? '${pickup ? 'Pickup' : 'Drop'} address saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save address',
+    );
+  }
+
+  Future<void> _openPickupDetailsBottomSheet() async {
+    await _openLocationDetails(pickup: true);
+  }
+
+  Future<void> _openDropDetailsBottomSheet() async {
+    await _openLocationDetails(pickup: false);
   }
 
   Future<_DropLocation?> _openPickupSearchDialog() async {
@@ -1360,7 +1409,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       'name': dropNameController.text.trim(),
       'mobile': dropPhoneController.text.trim(),
       'service_id': 1,
-      'house_numb': '',
+      'house_numb': dropHouseNumberController.text.trim(),
       'street': location.address,
       'city': location.city,
       'district': location.city,
@@ -1407,8 +1456,12 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       builder: (_) => _SavedLocationDialog(locations: provider.locations),
     );
     if (selected == null || !mounted) return;
+    final houseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
       _pickupAddress = selected.address;
+      pickupHouseNumberController.text = houseNumber;
       _pickupCity = selected.city;
       _pickupPincode = selected.pincode;
       pickupPincodeController.text = selected.pincode;
@@ -1432,8 +1485,14 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       builder: (_) => _SavedLocationDialog(locations: provider.locations),
     );
     if (selected == null || !mounted) return;
+    final houseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
+      dropNameController.text = selected.name;
+      dropPhoneController.text = selected.mobile;
       _dropAddress = selected.address;
+      dropHouseNumberController.text = houseNumber;
       _dropCity = selected.city;
       _dropPincode = selected.pincode;
       pincodeController.text = selected.pincode;
@@ -1441,6 +1500,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       _dropLatitude = selected.latitude;
       _dropLongitude = selected.longitude;
     });
+    await _chooseVehicle();
   }
 
   Future<void> _loadCurrentPickupLocation() async {
@@ -1648,6 +1708,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         'pin': result.pincode,
         'country': 'India',
         'country_cde': 'IN',
+        "flag": "pick",
         'lat': result.latitude,
         'lon': result.longitude,
       },
@@ -1830,6 +1891,13 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
             'lat': _dropLatitude,
             'lng': _dropLongitude,
             'country': 'India',
+          },
+          onDropDetailsRequired: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).pop();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _openDropDetailsBottomSheet();
+            });
           },
         ),
       ),
@@ -2864,7 +2932,9 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: InkWell(
-                  onTap: () => _openLocationDetails(pickup: pickup),
+                  onTap: pickup
+                      ? _openPickupDetailsBottomSheet
+                      : _openDropDetailsBottomSheet,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -2912,7 +2982,11 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
                 ),
               ),
               TextButton.icon(
-                onPressed: pickup ? _editPickup : _editDrop,
+                // onPressed: pickup ? _editPickup : _editDrop,
+                onPressed: pickup
+                    ? _openPickupDetailsBottomSheet
+                    : _openDropDetailsBottomSheet,
+
                 icon: const Icon(Icons.edit, color: blue, size: 16),
                 label: const Text(
                   'Edit',
@@ -2961,7 +3035,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
           const Spacer(),
           TextButton.icon(
             onPressed: pickup ? _openSavedLocations : _openSavedDropLocations,
-            icon: const Icon(Icons.folder, size: 13),
+            icon: const Icon(Icons.folder, size: 22),
             label: const Text('SAVED ADDRESS'),
             style: TextButton.styleFrom(
               foregroundColor: accent,

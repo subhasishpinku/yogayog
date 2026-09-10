@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:yogayog/Payment/Payment_wallet_national_Screen.dart';
 import 'package:yogayog/Payment/payment_national_screen.dart';
@@ -21,6 +23,7 @@ class ConfirmOrder extends StatefulWidget {
     this.total = 298,
     this.deliveryDate = 'Delivery in 3-4 days',
     this.orderPayload = const {},
+    this.onDropDetailsRequired,
   });
 
   final String courierName;
@@ -36,6 +39,7 @@ class ConfirmOrder extends StatefulWidget {
   final double total;
   final String deliveryDate;
   final Map<String, dynamic> orderPayload;
+  final VoidCallback? onDropDetailsRequired;
 
   @override
   State<ConfirmOrder> createState() => _ConfirmOrderState();
@@ -47,6 +51,8 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
   late final TextEditingController _dropPhoneController;
   late final TextEditingController _dropHouseController;
   bool _isCheckingWallet = false;
+  Timer? _dropDetailsTimer;
+  bool _dropDetailsRedirected = false;
 
   Map<String, dynamic> get _pickup {
     final value = widget.orderPayload['pickup'];
@@ -96,10 +102,20 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
           ? _value(drop, 'house_no')
           : _value(drop, 'house_numb'),
     );
+    final hasMissingDropDetails =
+        _dropNameController.text.trim().isEmpty ||
+        _dropPhoneController.text.trim().isEmpty ||
+        _dropHouseController.text.trim().isEmpty;
+    if (hasMissingDropDetails) {
+      _dropDetailsTimer = Timer(const Duration(seconds: 5), () {
+        unawaited(_returnToDropDetails());
+      });
+    }
   }
 
   @override
   void dispose() {
+    _dropDetailsTimer?.cancel();
     instructionController.dispose();
     _dropNameController.dispose();
     _dropPhoneController.dispose();
@@ -119,6 +135,11 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
     final dropName = _dropNameController.text.trim();
     final dropPhone = _dropPhoneController.text.trim();
     final dropHouseNo = _dropHouseController.text.trim();
+
+    if (dropName.isEmpty || dropPhone.isEmpty || dropHouseNo.isEmpty) {
+      await _returnToDropDetails();
+      return;
+    }
 
     if (dropName.isEmpty) {
       _showValidationMessage('Please enter Drop Name');
@@ -200,6 +221,28 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
     } finally {
       if (mounted) setState(() => _isCheckingWallet = false);
     }
+  }
+
+  Future<void> _returnToDropDetails() async {
+    if (!mounted || _dropDetailsRedirected) return;
+    _dropDetailsRedirected = true;
+    _dropDetailsTimer?.cancel();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Drop details missing'),
+        content: const Text(
+          'Please complete Drop Name, Phone Number and House No.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (mounted) widget.onDropDetailsRequired?.call();
   }
 
   @override
@@ -438,6 +481,8 @@ class _ConfirmOrderState extends State<ConfirmOrder> {
   }) {
     return TextField(
       controller: controller,
+      readOnly: true,
+      showCursor: false,
       keyboardType: keyboardType,
       textCapitalization: textCapitalization,
       maxLength: maxLength,

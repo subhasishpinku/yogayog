@@ -14,6 +14,7 @@ class ChooseTruckScreen extends StatefulWidget {
     required this.drop,
     this.pickupAddress = '',
     this.dropAddress = '',
+    this.onDropDetailsRequired,
   });
 
   final double approximateWeightKg;
@@ -23,6 +24,7 @@ class ChooseTruckScreen extends StatefulWidget {
   final Map<String, dynamic> drop;
   final String pickupAddress;
   final String dropAddress;
+  final VoidCallback? onDropDetailsRequired;
 
   @override
   State<ChooseTruckScreen> createState() => _ChooseTruckScreenState();
@@ -34,7 +36,6 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
 
   int selectedVehicle = 0;
   bool scheduleLater = false;
-  bool _showAllVehicles = false;
 
   double get totalWeight =>
       widget.approximateWeightKg > widget.volumetricWeightKg
@@ -59,39 +60,12 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
                   const SizedBox(height: 14),
 
                   ...List.generate(
-                    _showAllVehicles
-                        ? vehicles.length
-                        : vehicles.take(1).length,
+                    vehicles.length,
                     (index) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _vehicleCard(index),
                     ),
                   ),
-
-                  if (vehicles.length > 1)
-                    Align(
-                      alignment: Alignment.center,
-                      child: TextButton.icon(
-                        onPressed: () => setState(
-                          () => _showAllVehicles = !_showAllVehicles,
-                        ),
-                        icon: Icon(
-                          _showAllVehicles
-                              ? Icons.keyboard_arrow_up
-                              : Icons.keyboard_arrow_down,
-                          color: blue,
-                        ),
-                        label: Text(
-                          _showAllVehicles
-                              ? 'Show fewer trucks'
-                              : 'View all trucks (${vehicles.length})',
-                          style: const TextStyle(
-                            color: blue,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -133,6 +107,7 @@ class _ChooseTruckScreenState extends State<ChooseTruckScreen> {
           drop: widget.drop,
           pickupAddress: widget.pickupAddress,
           dropAddress: widget.dropAddress,
+          onDropDetailsRequired: widget.onDropDetailsRequired,
           approximateWeightKg: widget.approximateWeightKg,
           volumetricWeightKg: widget.volumetricWeightKg,
         ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:yogayog/Payment/Payment_wallet_Screen.dart';
 import 'package:yogayog/Payment/payment_screen.dart';
@@ -16,6 +18,7 @@ class TruckConfirmScreen extends StatefulWidget {
     this.dropAddress = '',
     this.approximateWeightKg = 0,
     this.volumetricWeightKg = 0,
+    this.onDropDetailsRequired,
   });
 
   final TruckVehicleRate rate;
@@ -26,6 +29,7 @@ class TruckConfirmScreen extends StatefulWidget {
   final String dropAddress;
   final double approximateWeightKg;
   final double volumetricWeightKg;
+  final VoidCallback? onDropDetailsRequired;
 
   @override
   State<TruckConfirmScreen> createState() => _TruckConfirmScreenState();
@@ -40,6 +44,8 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
   late final TextEditingController _dropPhoneController;
   late final TextEditingController _dropHouseController;
   bool _isCheckingWallet = false;
+  Timer? _dropDetailsTimer;
+  bool _dropDetailsRedirected = false;
 
   @override
   void initState() {
@@ -53,6 +59,14 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
     _dropHouseController = TextEditingController(
       text: _locationValue(widget.drop, 'house_no', ''),
     );
+    final hasMissingDropDetails =
+        _dropNameController.text.trim().isEmpty ||
+        _dropPhoneController.text.trim().isEmpty;
+    if (hasMissingDropDetails) {
+      _dropDetailsTimer = Timer(const Duration(seconds: 5), () {
+        unawaited(_returnToDropDetails());
+      });
+    }
   }
 
   double get totalWeight =>
@@ -81,6 +95,7 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
 
   @override
   void dispose() {
+    _dropDetailsTimer?.cancel();
     instructionController.dispose();
     _dropNameController.dispose();
     _dropPhoneController.dispose();
@@ -90,6 +105,11 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
 
   Future<void> _proceedToPayment() async {
     if (_isCheckingWallet) return;
+    if (_dropNameController.text.trim().isEmpty ||
+        _dropPhoneController.text.trim().isEmpty) {
+      await _returnToDropDetails();
+      return;
+    }
     widget.drop['name'] = _dropNameController.text.trim();
     widget.drop['mobile'] = _dropPhoneController.text.trim();
     widget.drop['house_no'] = _dropHouseController.text.trim();
@@ -153,6 +173,26 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
     } finally {
       if (mounted) setState(() => _isCheckingWallet = false);
     }
+  }
+
+  Future<void> _returnToDropDetails() async {
+    if (!mounted || _dropDetailsRedirected) return;
+    _dropDetailsRedirected = true;
+    _dropDetailsTimer?.cancel();
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Drop details missing'),
+        content: const Text('Please complete Drop Name and Phone Number.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (mounted) widget.onDropDetailsRequired?.call();
   }
 
   @override
@@ -524,9 +564,12 @@ class _TruckConfirmScreenState extends State<TruckConfirmScreen> {
           Expanded(
             child: TextField(
               controller: controller,
+              readOnly: true,
+              showCursor: false,
               keyboardType: keyboardType,
               decoration: InputDecoration(
                 labelText: label,
+                hintText: controller.text.trim().isEmpty ? 'Missing' : null,
                 labelStyle: const TextStyle(
                   color: Color(0xFF8A8F9C),
                   fontSize: 10,

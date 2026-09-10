@@ -148,6 +148,12 @@ class _NationalDetailsNextState extends State<NationalDetailsNext> {
       onTap: () {
         setState(() => _selectedType = title);
         widget.onPackageTypeChanged(title);
+        if (title == 'Non-document') {
+          if (widget.piecesController.text.trim().isEmpty) {
+            widget.piecesController.text = '1';
+          }
+          widget.onPiecesChanged(widget.piecesController.text.trim());
+        }
       },
       borderRadius: BorderRadius.circular(14),
       child: Container(

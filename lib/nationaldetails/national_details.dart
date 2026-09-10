@@ -1167,6 +1167,7 @@ class _NationalDetailsState extends State<NationalDetails> {
         'pin': result.pincode,
         'country': 'India',
         'country_cde': 'IN',
+        "flag": "pick",
         'lat': result.latitude,
         'lon': result.longitude,
       },
@@ -1210,6 +1211,8 @@ class _NationalDetailsState extends State<NationalDetails> {
   }
 
   Future<void> _showPickupBottomSheet() async {
+    final pickupCitySheetController = TextEditingController(text: pickupCity);
+    final pickupStateSheetController = TextEditingController(text: pickupState);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1251,7 +1254,11 @@ class _NationalDetailsState extends State<NationalDetails> {
                   InkWell(
                     onTap: () async {
                       final selected = await _openPickupSearchDialog();
-                      if (selected != null) setSheetState(() {});
+                      if (selected != null) {
+                        pickupCitySheetController.text = pickupCity;
+                        pickupStateSheetController.text = pickupState;
+                        setSheetState(() {});
+                      }
                     },
                     borderRadius: BorderRadius.circular(11),
                     child: Container(
@@ -1306,22 +1313,86 @@ class _NationalDetailsState extends State<NationalDetails> {
                       ),
                     ],
                   ),
-                  _textField(
-                    controller: pickupNameController,
-                    hintText: 'Pickup Name',
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _textField(
+                          controller: pickupCitySheetController,
+                          hintText: 'City',
+                          onChanged: (value) => pickupCity = value.trim(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _textField(
+                          controller: pickupStateSheetController,
+                          hintText: 'State',
+                          onChanged: (value) => pickupState = value.trim(),
+                        ),
+                      ),
+                    ],
                   ),
-                  _textField(
-                    controller: pickupPhoneController,
-                    hintText: 'Pickup Phone',
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    maxLength: 10,
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _textField(
+                          controller: pickupNameController,
+                          hintText: 'Pickup Name',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _textField(
+                          controller: pickupPhoneController,
+                          hintText: 'Pickup Phone',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          maxLength: 10,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   SizedBox(
                     height: 45,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(sheetContext),
+                      onPressed: () async {
+                        final saved = await context
+                            .read<BikescreenProvider>()
+                            .savePickupLocation(
+                              payload: {
+                                'name': pickupNameController.text.trim(),
+                                'mobile': pickupPhoneController.text.trim(),
+                                'service_id': 4,
+                                'house_numb': pickupHouseNumberController.text
+                                    .trim(),
+                                'street': pickupAddress,
+                                'city': pickupCity,
+                                'district': pickupCity,
+                                'state': pickupState,
+                                'pin': pickupPinController.text.trim(),
+                                'country': 'India',
+                                'country_cde': 'IN',
+                                'flag': 'pick',
+                                'lat': pickupLatitude,
+                                'lon': pickupLongitude,
+                              },
+                            );
+                        if (!mounted) return;
+                        Navigator.pop(sheetContext);
+                        _showMessage(
+                          saved
+                              ? 'Pickup address saved successfully'
+                              : context
+                                        .read<BikescreenProvider>()
+                                        .errorMessage ??
+                                    'Unable to save pickup address',
+                        );
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
                         foregroundColor: Colors.white,
@@ -1342,9 +1413,12 @@ class _NationalDetailsState extends State<NationalDetails> {
         ),
       ),
     );
+    pickupCitySheetController.dispose();
+    pickupStateSheetController.dispose();
   }
 
   Future<void> _showDropBottomSheet() async {
+    final dropStateSheetController = TextEditingController(text: dropState);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1386,7 +1460,11 @@ class _NationalDetailsState extends State<NationalDetails> {
                   InkWell(
                     onTap: () async {
                       await _openDropSearchDialog(validateContact: false);
-                      if (mounted) setSheetState(() {});
+                      if (mounted) {
+                        cityController.text = dropCity;
+                        dropStateSheetController.text = dropState;
+                        setSheetState(() {});
+                      }
                     },
                     borderRadius: BorderRadius.circular(11),
                     child: Container(
@@ -1442,27 +1520,85 @@ class _NationalDetailsState extends State<NationalDetails> {
                       ),
                     ],
                   ),
-                  _textField(
-                    controller: receiverNameController,
-                    hintText: 'Drop name',
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _textField(
+                          controller: cityController,
+                          hintText: 'Drop city',
+                          onChanged: (value) => dropCity = value,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _textField(
+                          controller: dropStateSheetController,
+                          hintText: 'Drop state',
+                          onChanged: (value) => dropState = value,
+                        ),
+                      ),
+                    ],
                   ),
-                  _textField(
-                    controller: mobileController,
-                    hintText: 'Drop phone',
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    maxLength: 10,
-                  ),
-                  _textField(
-                    controller: cityController,
-                    hintText: 'Drop city',
-                    onChanged: (value) => dropCity = value,
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _textField(
+                          controller: receiverNameController,
+                          hintText: 'Drop name',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _textField(
+                          controller: mobileController,
+                          hintText: 'Drop phone',
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          maxLength: 10,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   SizedBox(
                     height: 45,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(sheetContext),
+                      onPressed: () async {
+                        final saved = await context
+                            .read<BikescreenProvider>()
+                            .savePickupLocation(
+                              payload: {
+                                'name': receiverNameController.text.trim(),
+                                'mobile': mobileController.text.trim(),
+                                'service_id': 4,
+                                'house_numb': houseNumberController.text.trim(),
+                                'street': dropAddress,
+                                'city': dropCity,
+                                'district': dropCity,
+                                'state': dropState,
+                                'pin': pinController.text.trim(),
+                                'country': 'India',
+                                'country_cde': 'IN',
+                                'flag': 'drop',
+                                'lat': dropLatitude,
+                                'lon': dropLongitude,
+                              },
+                            );
+                        if (!mounted) return;
+                        Navigator.pop(sheetContext);
+                        _showMessage(
+                          saved
+                              ? 'Drop address saved successfully'
+                              : context
+                                        .read<BikescreenProvider>()
+                                        .errorMessage ??
+                                    'Unable to save drop address',
+                        );
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
                         foregroundColor: Colors.white,
@@ -1483,6 +1619,7 @@ class _NationalDetailsState extends State<NationalDetails> {
         ),
       ),
     );
+    dropStateSheetController.dispose();
   }
 
   Future<void> _openSavedLocations() async {
@@ -1493,14 +1630,24 @@ class _NationalDetailsState extends State<NationalDetails> {
       _showMessage(provider.errorMessage!);
       return;
     }
+    final pickupLocations = provider.locations
+        .where((location) => location.flag.trim().toLowerCase() == 'pick')
+        .toList();
+    if (pickupLocations.isEmpty) {
+      _showMessage('No saved pickup addresses found');
+      return;
+    }
     final selected = await showDialog<SavedLocation>(
       context: context,
-      builder: (_) => _SavedLocationDialog(locations: provider.locations),
+      builder: (_) => _SavedLocationDialog(locations: pickupLocations),
     );
     if (selected == null || !mounted) return;
+    final selectedHouseNumber = selected.houseNumber.trim().isNotEmpty
+        ? selected.houseNumber.trim()
+        : _houseNumberFromAddress(selected.address);
     setState(() {
       pickupAddress = selected.address;
-      pickupHouseNumber = selected.houseNumber;
+      pickupHouseNumber = selectedHouseNumber;
       pickupHouseNumberController.text = pickupHouseNumber;
       pickupCity = selected.city;
       pickupPincode = selected.pincode;
@@ -1523,6 +1670,7 @@ class _NationalDetailsState extends State<NationalDetails> {
         'pin': selected.pincode,
         'country': 'India',
         'country_cde': 'IN',
+        "flag": "pick",
         'lat': selected.latitude,
         'lon': selected.longitude,
         'flag': 'pickup',
@@ -1546,16 +1694,25 @@ class _NationalDetailsState extends State<NationalDetails> {
       _showMessage(provider.errorMessage!);
       return;
     }
+    final dropLocations = provider.locations
+        .where((location) => location.flag.trim().toLowerCase() == 'drop')
+        .toList();
+    if (dropLocations.isEmpty) {
+      _showMessage('No saved drop addresses found');
+      return;
+    }
     final selected = await showDialog<SavedLocation>(
       context: context,
-      builder: (_) => _SavedLocationDialog(locations: provider.locations),
+      builder: (_) => _SavedLocationDialog(locations: dropLocations),
     );
     if (selected == null || !mounted) return;
     final selectedHouseNumber = selected.houseNumber.trim().isNotEmpty
         ? selected.houseNumber.trim()
-        : dropHouseNumber.trim();
+        : _houseNumberFromAddress(selected.address);
     if (!_requireHouseNumber(selectedHouseNumber, 'Drop')) return;
     setState(() {
+      receiverNameController.text = selected.name;
+      mobileController.text = selected.mobile;
       dropAddress = selected.address;
       dropHouseNumber = selectedHouseNumber;
       houseNumberController.text = selectedHouseNumber;
@@ -1595,6 +1752,7 @@ class _NationalDetailsState extends State<NationalDetails> {
           : context.read<BikescreenProvider>().errorMessage ??
                 'Unable to save drop address',
     );
+    if (saved) await _openPackageSelection();
   }
 
   // ==================== Drop Location ====================
@@ -2778,6 +2936,13 @@ class _NationalDetailsState extends State<NationalDetails> {
           destination: dropCity.isEmpty ? 'Drop' : dropCity,
           rates: rates,
           orderPayload: orderPayload,
+          onDropDetailsRequired: () {
+            Navigator.of(context).pop();
+            Navigator.of(context).pop();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _showDropBottomSheet();
+            });
+          },
         ),
       ),
     );

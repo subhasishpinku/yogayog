@@ -12,6 +12,7 @@ class ChooseCourier extends StatefulWidget {
     this.orderPayload = const {},
     this.origin = 'Kolkata',
     this.destination = 'New Delhi',
+    this.onDropDetailsRequired,
   });
 
   final double approximateWeightKg;
@@ -20,6 +21,7 @@ class ChooseCourier extends StatefulWidget {
   final String destination;
   final NationalRateResponse? rates;
   final Map<String, dynamic> orderPayload;
+  final VoidCallback? onDropDetailsRequired;
 
   @override
   State<ChooseCourier> createState() => _ChooseCourierState();
@@ -72,8 +74,12 @@ class _ChooseCourierState extends State<ChooseCourier> {
 
                     if (widget.rates != null &&
                         widget.rates!.rates.isNotEmpty) ...[
-                      _courierCardFromRate(0),
-                      if (widget.rates!.rates.length > 1) _otherCouriers(),
+                      for (
+                        var index = 0;
+                        index < widget.rates!.rates.length;
+                        index++
+                      )
+                        _courierCardFromRate(index),
                     ] else ...[
                       _courierCard(
                         name: 'Delhivery',
@@ -117,36 +123,6 @@ class _ChooseCourierState extends State<ChooseCourier> {
             'Zone ${widget.rates!.zone} • ${widget.rates!.distance.toStringAsFixed(2)} km',
         tags: [rate.serviceMode, 'Prepaid', 'Door Pickup'],
         cheapest: index == 0,
-      ),
-    );
-  }
-
-  Widget _otherCouriers() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x10000000),
-            blurRadius: 8,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ExpansionTile(
-        initiallyExpanded: false,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-        title: const Text(
-          'Other courier options',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('${widget.rates!.rates.length - 1} more available'),
-        children: [
-          for (var index = 1; index < widget.rates!.rates.length; index++)
-            _courierCardFromRate(index),
-        ],
       ),
     );
   }
@@ -270,12 +246,13 @@ class _ChooseCourierState extends State<ChooseCourier> {
                 'service_id': 4,
                 'sub_service_id': 5,
               },
+              onDropDetailsRequired: widget.onDropDetailsRequired,
             ),
           ),
         );
       },
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(7),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
@@ -312,13 +289,13 @@ class _ChooseCourierState extends State<ChooseCourier> {
                   ),
                 ),
               ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 2),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 40,
+                  height: 40,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: color,
@@ -334,7 +311,7 @@ class _ChooseCourierState extends State<ChooseCourier> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,7 +323,7 @@ class _ChooseCourierState extends State<ChooseCourier> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         delivery,
                         style: TextStyle(
@@ -367,7 +344,7 @@ class _ChooseCourierState extends State<ChooseCourier> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 5),
             Align(
               alignment: Alignment.centerLeft,
               child: Wrap(
@@ -376,7 +353,7 @@ class _ChooseCourierState extends State<ChooseCourier> {
                 children: tags.map(_tag).toList(),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 5),
             const Divider(),
             Row(
               children: [
