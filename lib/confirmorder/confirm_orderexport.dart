@@ -3,6 +3,7 @@ import 'package:yogayog/Payment/payment_national_export_wallet_screen.dart';
 import 'package:yogayog/Payment/payment_national_export_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/viewledger_service.dart';
+import 'package:yogayog/internationaldetails/international_details.dart';
 
 class ConfirmOrderExport extends StatefulWidget {
   const ConfirmOrderExport({
@@ -46,6 +47,7 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
   late final TextEditingController _dropPhoneController;
   late final TextEditingController _dropHouseController;
   bool _isCheckingWallet = false;
+  bool _autoMovedToDetails = false;
 
   Map<String, dynamic> get _pickup {
     final value = widget.orderPayload['pickup'];
@@ -91,6 +93,23 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
           ? _value(drop, 'house_no')
           : _value(drop, 'house_numb'),
     );
+    if (_dropNameController.text.trim().isEmpty ||
+        _dropPhoneController.text.trim().isEmpty ||
+        _dropHouseController.text.trim().isEmpty) {
+      Future<void>.delayed(const Duration(seconds: 5), () {
+        if (!mounted || _autoMovedToDetails) return;
+        _autoMovedToDetails = true;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => InternationalDetails(
+              initialOrderPayload: widget.orderPayload,
+              openDropDetailsOnLoad: true,
+            ),
+          ),
+        );
+      });
+    }
   }
 
   @override
@@ -108,6 +127,37 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _returnToInternationalDetailsForDrop() async {
+    _autoMovedToDetails = true;
+    await Future<void>.delayed(const Duration(seconds: 5));
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Drop details required'),
+        content: const Text(
+          'Please complete the Drop name, mobile number and house number.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InternationalDetails(
+          initialOrderPayload: widget.orderPayload,
+          openDropDetailsOnLoad: true,
+        ),
+      ),
+    );
+  }
+
   Future<void> _proceedToPayment() async {
     if (_isCheckingWallet) return;
 
@@ -115,11 +165,11 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
     final dropPhone = _dropPhoneController.text.trim();
     final dropHouseNo = _dropHouseController.text.trim();
     if (dropName.isEmpty) {
-      _showValidationMessage('Please enter Drop Name');
+      await _returnToInternationalDetailsForDrop();
       return;
     }
     if (dropPhone.isEmpty) {
-      _showValidationMessage('Please enter Drop Phone Number');
+      await _returnToInternationalDetailsForDrop();
       return;
     }
     if (!RegExp(r'^[0-9]{10}$').hasMatch(dropPhone)) {
@@ -127,7 +177,7 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
       return;
     }
     if (dropHouseNo.isEmpty) {
-      _showValidationMessage('Please enter Drop House No');
+      await _returnToInternationalDetailsForDrop();
       return;
     }
 

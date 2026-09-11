@@ -454,7 +454,14 @@ class PackageBox {
 }
 
 class InternationalDetails extends StatefulWidget {
-  const InternationalDetails({super.key});
+  const InternationalDetails({
+    super.key,
+    this.initialOrderPayload,
+    this.openDropDetailsOnLoad = false,
+  });
+
+  final Map<String, dynamic>? initialOrderPayload;
+  final bool openDropDetailsOnLoad;
 
   @override
   State<InternationalDetails> createState() => _InternationalDetailsState();
@@ -493,6 +500,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
   String pickupHouseNumber = '';
   double? pickupLatitude;
   double? pickupLongitude;
+  bool _hasInitialPickupAddress = false;
 
   String dropAddress = 'Tap to add destination';
   String dropCity = '';
@@ -506,8 +514,71 @@ class _InternationalDetailsState extends State<InternationalDetails> {
   @override
   void initState() {
     super.initState();
+    _applyInitialOrderPayload();
     _loadSavedProfileContact();
     _loadCurrentPickupLocation();
+    if (widget.openDropDetailsOnLoad) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_openDropDetailsSheet());
+      });
+    }
+  }
+
+  void _applyInitialOrderPayload() {
+    final payload = widget.initialOrderPayload;
+    if (payload == null) return;
+
+    String value(Map<String, dynamic> data, String key) =>
+        data[key]?.toString().trim() ?? '';
+    Map<String, dynamic> location(String key) {
+      final data = payload[key];
+      return data is Map ? Map<String, dynamic>.from(data) : {};
+    }
+
+    final pickup = location('pickup');
+    final drop = location('drop');
+    final pickupPinValue = value(pickup, 'pincode').isNotEmpty
+        ? value(pickup, 'pincode')
+        : value(pickup, 'pin');
+    final dropPinValue = value(drop, 'pincode').isNotEmpty
+        ? value(drop, 'pincode')
+        : value(drop, 'pin');
+
+    if (value(pickup, 'address').isNotEmpty) {
+      _hasInitialPickupAddress = true;
+      pickupAddress = value(pickup, 'address');
+      pickupCity = value(pickup, 'city');
+      pickupPincode = pickupPinValue;
+      pickupState = value(pickup, 'state');
+      pickupHouseNumber = value(pickup, 'house_no').isNotEmpty
+          ? value(pickup, 'house_no')
+          : value(pickup, 'house_numb');
+      pickupNameController.text = value(pickup, 'name');
+      pickupMobileController.text = value(pickup, 'mobile');
+      pickupPinController.text = pickupPinValue;
+      pickupHouseNumberController.text = pickupHouseNumber;
+      pickupLatitude = double.tryParse(value(pickup, 'lat'));
+      pickupLongitude = double.tryParse(value(pickup, 'lng'));
+    }
+
+    if (value(drop, 'address').isNotEmpty) {
+      dropAddress = value(drop, 'address');
+      dropCity = value(drop, 'city');
+      dropPincode = dropPinValue;
+      dropState = value(drop, 'state');
+      dropHouseNumber = value(drop, 'house_no').isNotEmpty
+          ? value(drop, 'house_no')
+          : value(drop, 'house_numb');
+      receiverNameController.text = value(drop, 'name');
+      mobileController.text = value(drop, 'mobile');
+      pinController.text = dropPinValue;
+      deliveryHouseNumberController.text = dropHouseNumber;
+      addressController.text = dropAddress;
+      cityController.text = dropCity;
+      countryController.text = value(drop, 'country');
+      dropLatitude = double.tryParse(value(drop, 'lat'));
+      dropLongitude = double.tryParse(value(drop, 'lng'));
+    }
   }
 
   Future<void> _loadSavedProfileContact() async {
@@ -655,6 +726,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
   // ==================== Pickup Location ====================
 
   Future<void> _loadCurrentPickupLocation() async {
+    if (_hasInitialPickupAddress) return;
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         throw Exception('Please turn on location services');
@@ -1121,7 +1193,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                   SizedBox(
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (pickupAddress.trim().isEmpty ||
                             pickupAddress == 'Fetching current location...') {
                           _showMessage('Please select pickup address');
@@ -1131,13 +1203,30 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                           _showMessage('Please enter pickup house number');
                           return;
                         }
+                        final houseNumber = pickupHouseNumberController.text
+                            .trim();
+                        final city = cityController.text.trim();
+                        final state = stateController.text.trim();
+                        final pincode = pickupPinController.text.trim();
                         setState(() {
-                          pickupHouseNumber = pickupHouseNumberController.text
-                              .trim();
-                          pickupCity = cityController.text.trim();
-                          pickupState = stateController.text.trim();
-                          pickupPincode = pickupPinController.text.trim();
+                          pickupHouseNumber = houseNumber;
+                          pickupCity = city;
+                          pickupState = state;
+                          pickupPincode = pincode;
                         });
+                        await _saveLocation(
+                          name: pickupNameController.text.trim(),
+                          mobile: pickupMobileController.text.trim(),
+                          address: pickupAddress,
+                          city: city,
+                          pincode: pincode,
+                          state: state,
+                          latitude: pickupLatitude,
+                          longitude: pickupLongitude,
+                          flag: 'pick',
+                          houseNumber: houseNumber,
+                        );
+                        if (!mounted) return;
                         Navigator.pop(sheetContext);
                       },
                       style: ElevatedButton.styleFrom(
@@ -1235,6 +1324,8 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     );
     if (selected == null || !mounted) return;
     setState(() {
+      pickupNameController.text = selected.name;
+      pickupMobileController.text = selected.mobile;
       pickupAddress = selected.address;
       pickupCity = selected.city;
       pickupPincode = selected.pincode;
@@ -1346,6 +1437,8 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         ? selected.houseNumber.trim()
         : _houseNumberFromAddress(selected.address);
     setState(() {
+      receiverNameController.text = selected.name;
+      mobileController.text = selected.mobile;
       dropAddress = selected.address;
       dropCity = selected.city;
       dropPincode = selected.pincode;
@@ -1376,6 +1469,14 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       country: _countryFromAddress(selected.country, selected.address),
       houseNumber: selected.houseNumber,
     );
+    if (!mounted) return;
+    if (pickupAddress.trim().isEmpty ||
+        pickupAddress == 'Fetching current location...' ||
+        pickupAddress == 'Tap to add pickup location') {
+      _showMessage('Please select a full pickup address first');
+      return;
+    }
+    await _openPackageDetails(reviewOnSave: true);
   }
 
   // ==================== Drop Location ====================
@@ -1555,7 +1656,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                   SizedBox(
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (dropAddress.trim().isEmpty ||
                             dropAddress == 'Tap to add destination') {
                           _showMessage('Please select drop address');
@@ -1565,13 +1666,32 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                           _showMessage('Please enter drop house number');
                           return;
                         }
+                        final houseNumber = deliveryHouseNumberController.text
+                            .trim();
+                        final city = cityController.text.trim();
+                        final state = stateSheetController.text.trim();
+                        final pincode = pinController.text.trim();
+                        final country = countryController.text.trim();
                         setState(() {
-                          dropHouseNumber = deliveryHouseNumberController.text
-                              .trim();
-                          dropCity = cityController.text.trim();
-                          dropState = stateSheetController.text.trim();
-                          dropPincode = pinController.text.trim();
+                          dropHouseNumber = houseNumber;
+                          dropCity = city;
+                          dropState = state;
+                          dropPincode = pincode;
                         });
+                        await _saveLocation(
+                          name: receiverNameController.text.trim(),
+                          mobile: mobileController.text.trim(),
+                          address: dropAddress,
+                          city: city,
+                          pincode: pincode,
+                          state: state,
+                          latitude: dropLatitude,
+                          longitude: dropLongitude,
+                          flag: 'drop',
+                          country: country,
+                          houseNumber: houseNumber,
+                        );
+                        if (!mounted) return;
                         Navigator.pop(sheetContext);
                       },
                       style: ElevatedButton.styleFrom(
@@ -2257,9 +2377,15 @@ class _InternationalDetailsState extends State<InternationalDetails> {
               ],
             ),
           ),
-          TextButton(
-            onPressed: onEdit ?? onTap,
-            child: Text(
+          TextButton.icon(
+            // onPressed: onEdit ?? onTap,
+            onPressed: pickup ? _openPickupDetailsSheet : _openDropDetailsSheet,
+            icon: Icon(
+              Icons.edit,
+              color: pickup ? Colors.black : const Color(0xFF17249B),
+              size: 18,
+            ),
+            label: Text(
               'Edit',
               style: TextStyle(
                 color: pickup ? Colors.black : const Color(0xFF17249B),
@@ -2518,20 +2644,20 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       _showMessage('Please save the delivery address first');
       return false;
     }
-    if (pickupHouseNumberController.text.trim().isEmpty) {
-      _showMessage('Please enter pickup housing no. first');
-      await Future<void>.delayed(const Duration(milliseconds: 350));
-      if (!mounted) return false;
-      await _openAddressDetails();
-      return false;
-    }
-    if (deliveryHouseNumberController.text.trim().isEmpty) {
-      _showMessage('Please enter drop housing no. first');
-      await Future<void>.delayed(const Duration(milliseconds: 350));
-      if (!mounted) return false;
-      await _openAddressDetails();
-      return false;
-    }
+    // if (pickupHouseNumberController.text.trim().isEmpty) {
+    //   _showMessage('Please enter pickup housing no. first');
+    //   await Future<void>.delayed(const Duration(milliseconds: 350));
+    //   if (!mounted) return false;
+    //   await _openAddressDetails();
+    //   return false;
+    // }
+    // if (deliveryHouseNumberController.text.trim().isEmpty) {
+    //   _showMessage('Please enter drop housing no. first');
+    //   await Future<void>.delayed(const Duration(milliseconds: 350));
+    //   if (!mounted) return false;
+    //   await _openAddressDetails();
+    //   return false;
+    // }
     if (countryController.text.trim().isEmpty ||
         cityController.text.trim().isEmpty ||
         pinController.text.trim().isEmpty) {
@@ -3257,7 +3383,7 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
     final query = _query.trim().toLowerCase();
     final locations = widget.locations.where((location) {
       if (query.isEmpty) return true;
-      return '${location.name} ${location.address} ${location.city} ${location.pincode}'
+      return '${location.name} ${location.mobile} ${location.address} ${location.city} ${location.pincode}'
           .toLowerCase()
           .contains(query);
     }).toList();
@@ -3300,7 +3426,7 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: Text(
-                            '${location.city}, ${location.pincode}, ${location.state}',
+                            '${location.city}, ${location.pincode}, ${location.state} • ${location.name} • ${location.mobile}',
                           ),
                           onTap: () => Navigator.pop(context, location),
                         );

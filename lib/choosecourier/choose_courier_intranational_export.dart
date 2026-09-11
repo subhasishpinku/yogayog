@@ -138,14 +138,8 @@ class _ChooseCourierInternationalExportState
           ),
         ],
       ),
-      child: ExpansionTile(
-        initiallyExpanded: false,
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-        title: const Text(
-          'Other courier options',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text('${widget.rates!.rates.length - 1} more available'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var index = 1; index < widget.rates!.rates.length; index++)
             _courierCardFromRate(index),
@@ -273,10 +267,10 @@ class _ChooseCourierInternationalExportState
         );
       },
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isSelected
                 ? const Color(0xFF172786)
@@ -310,17 +304,17 @@ class _ChooseCourierInternationalExportState
                   ),
                 ),
               ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 2),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 36,
+                  height: 36,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: color,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(11),
                   ),
                   child: Text(
                     code,
@@ -332,7 +326,7 @@ class _ChooseCourierInternationalExportState
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,11 +334,11 @@ class _ChooseCourierInternationalExportState
                       Text(
                         name,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         delivery,
                         style: TextStyle(
@@ -359,13 +353,13 @@ class _ChooseCourierInternationalExportState
                   price,
                   style: const TextStyle(
                     color: Color(0xFF172786),
-                    fontSize: 20,
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             Align(
               alignment: Alignment.centerLeft,
               child: Wrap(
@@ -374,7 +368,7 @@ class _ChooseCourierInternationalExportState
                 children: tags.map(_tag).toList(),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             const Divider(),
             Row(
               children: [
@@ -401,7 +395,7 @@ class _ChooseCourierInternationalExportState
 
   Widget _tag(String text) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: const Color(0xFFE6F8E8),
         borderRadius: BorderRadius.circular(10),

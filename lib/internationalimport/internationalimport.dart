@@ -435,7 +435,9 @@ class PackageBox {
 }
 
 class InternationalImport extends StatefulWidget {
-  const InternationalImport({super.key});
+  const InternationalImport({super.key, this.openPickupDetailsOnLoad = false});
+
+  final bool openPickupDetailsOnLoad;
 
   @override
   State<InternationalImport> createState() => _InternationalImportState();
@@ -466,6 +468,7 @@ class _InternationalImportState extends State<InternationalImport> {
   final approximateWeightController = TextEditingController(text: '0.5');
 
   final List<PackageBox> packageBoxes = [];
+  bool _pickupSelectedFromSavedAddress = false;
 
   String pickupAddress = 'Tap to add pickup location';
   String pickupCity = '';
@@ -490,6 +493,11 @@ class _InternationalImportState extends State<InternationalImport> {
     super.initState();
     _loadSavedProfileContact();
     _loadCurrentPickupLocation();
+    if (widget.openPickupDetailsOnLoad) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_openPickupDetailsSheet());
+      });
+    }
   }
 
   Future<void> _loadSavedProfileContact() async {
@@ -1189,7 +1197,7 @@ class _InternationalImportState extends State<InternationalImport> {
                   SizedBox(
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (addressController.text.trim().isEmpty) {
                           _showMessage('Please select pickup address');
                           return;
@@ -1198,15 +1206,41 @@ class _InternationalImportState extends State<InternationalImport> {
                         //   _showMessage('Please enter pickup house number');
                         //   return;
                         // }
+                        final address = addressController.text.trim();
+                        final houseNumber = pickupHouseNumberController.text
+                            .trim();
+                        final city = cityController.text.trim();
+                        final state = stateController.text.trim();
+                        final pincode = pickupPinController.text.trim();
+                        final country = countryController.text.trim();
                         setState(() {
-                          pickupAddress = addressController.text.trim();
-                          pickupHouseNumber = pickupHouseNumberController.text
-                              .trim();
-                          pickupCity = cityController.text.trim();
-                          pickupState = stateController.text.trim();
-                          pickupPincode = pickupPinController.text.trim();
+                          pickupAddress = address;
+                          pickupHouseNumber = houseNumber;
+                          pickupCity = city;
+                          pickupState = state;
+                          pickupPincode = pincode;
                         });
+                        await _savePickupLocation(
+                          address: address,
+                          city: city,
+                          pincode: pincode,
+                          state: state,
+                          latitude: pickupLatitude,
+                          longitude: pickupLongitude,
+                          country: country.isEmpty ? 'India' : country,
+                          houseNumber: houseNumber,
+                        );
+                        if (!mounted) return;
                         Navigator.pop(sheetContext);
+                        if (_pickupSelectedFromSavedAddress &&
+                            dropAddress.trim().isNotEmpty &&
+                            dropAddress != 'Tap to add destination' &&
+                            dropCity.trim().isNotEmpty &&
+                            dropPincode.trim().isNotEmpty &&
+                            dropCountry.trim().isNotEmpty) {
+                          _pickupSelectedFromSavedAddress = false;
+                          await _openImportPackage(reviewOnSave: true);
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
@@ -1372,6 +1406,9 @@ class _InternationalImportState extends State<InternationalImport> {
         ? selected.houseNumber.trim()
         : _houseNumberFromAddress(selected.address);
     setState(() {
+      _pickupSelectedFromSavedAddress = true;
+      pickupNameController.text = selected.name;
+      pickupMobileController.text = selected.mobile;
       pickupAddress = selected.address;
       pickupCity = selected.city;
       pickupPincode = selected.pincode;
@@ -1379,6 +1416,8 @@ class _InternationalImportState extends State<InternationalImport> {
       pickupState = selected.state;
       pickupLatitude = selected.latitude;
       pickupLongitude = selected.longitude;
+      pickupHouseNumber = houseNumber;
+      pickupHouseNumberController.text = houseNumber;
       addressController.text = selected.address;
       cityController.text = selected.city;
       countryController.text = _countryFromPickupAddress(
@@ -1398,6 +1437,17 @@ class _InternationalImportState extends State<InternationalImport> {
           ? _countryFromPickupAddress(selected.address)
           : selected.country,
     );
+    if (!mounted) return;
+    final hasFullPickupAddress =
+        pickupAddress.trim().isNotEmpty &&
+        pickupAddress != 'Tap to add pickup location';
+    final hasFullDropAddress =
+        dropAddress.trim().isNotEmpty &&
+        dropAddress != 'Tap to add destination';
+    _pickupSelectedFromSavedAddress = false;
+    if (hasFullPickupAddress && hasFullDropAddress) {
+      await _openImportPackage(reviewOnSave: true);
+    }
   }
 
   bool _isOutsideIndiaLocation(SavedLocation location) {
@@ -1450,6 +1500,7 @@ class _InternationalImportState extends State<InternationalImport> {
       addressController.text = dropAddress;
       cityController.text = dropCity;
       pinController.text = dropPincode;
+      countryController.text = dropCountry;
     });
     await _openImportAddressIfReady();
     await _saveDropLocation(
@@ -1515,6 +1566,10 @@ class _InternationalImportState extends State<InternationalImport> {
       dropHouseNumber = _houseNumberFromAddress(dropAddress);
       dropHouseNumberController.text = dropHouseNumber;
     }
+    addressController.text = dropAddress;
+    cityController.text = dropCity;
+    pinController.text = dropPincode;
+    countryController.text = dropCountry;
     final stateController = TextEditingController(text: dropState);
     await showModalBottomSheet<void>(
       context: context,
@@ -1633,21 +1688,36 @@ class _InternationalImportState extends State<InternationalImport> {
                   SizedBox(
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (addressController.text.trim().isEmpty ||
                             addressController.text ==
                                 'Tap to add destination') {
                           _showMessage('Please select drop address');
                           return;
                         }
+                        final address = addressController.text.trim();
+                        final houseNumber = dropHouseNumberController.text
+                            .trim();
+                        final city = cityController.text.trim();
+                        final state = stateController.text.trim();
+                        final pincode = pinController.text.trim();
                         setState(() {
-                          dropAddress = addressController.text.trim();
-                          dropHouseNumber = dropHouseNumberController.text
-                              .trim();
-                          dropCity = cityController.text.trim();
-                          dropState = stateController.text.trim();
-                          dropPincode = pinController.text.trim();
+                          dropAddress = address;
+                          dropHouseNumber = houseNumber;
+                          dropCity = city;
+                          dropState = state;
+                          dropPincode = pincode;
                         });
+                        await _saveDropLocation(
+                          address: address,
+                          city: city,
+                          pincode: pincode,
+                          state: state,
+                          latitude: dropLatitude,
+                          longitude: dropLongitude,
+                          houseNumber: houseNumber,
+                        );
+                        if (!mounted) return;
                         Navigator.pop(sheetContext);
                       },
                       style: ElevatedButton.styleFrom(
@@ -2448,9 +2518,12 @@ class _InternationalImportState extends State<InternationalImport> {
                   ],
                 ),
               ),
-              TextButton(
-                onPressed: editOnTap ?? onTap,
-                child: Text(
+              TextButton.icon(
+                onPressed: pickup
+                    ? _openPickupDetailsSheet
+                    : _openDropDetailsSheet,
+                icon: const Icon(Icons.edit, color: Colors.black, size: 18),
+                label: Text(
                   'Edit',
                   style: const TextStyle(
                     color: Colors.black,
@@ -3340,7 +3413,8 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
                           ),
                           subtitle: Text(
                             '${location.country}, ${location.state}, '
-                            '${location.city}, ${location.pincode}',
+                            '${location.city}, ${location.pincode} • '
+                            '${location.name} • ${location.mobile}',
                           ),
                           onTap: () => Navigator.pop(context, location),
                         );

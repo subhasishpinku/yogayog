@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:yogayog/Payment/payment_national_Import_wallet_screen.dart';
 import 'package:yogayog/Payment/payment_national_import_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/viewledger_service.dart';
+import 'package:yogayog/internationalimport/internationalimport.dart';
 
 class ConfirmOrderImport extends StatefulWidget {
   const ConfirmOrderImport({
@@ -46,6 +49,7 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
   late final TextEditingController _pickupPhoneController;
   late final TextEditingController _pickupHouseController;
   bool _checkingWallet = false;
+  bool _returningToInternationalImport = false;
 
   Map<String, dynamic> get _pickup {
     final value = widget.orderPayload['pickup'];
@@ -94,12 +98,53 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
       text: _payloadText(_pickup, 'mobile'),
     );
     _pickupHouseController = TextEditingController(text: _houseNumber(_pickup));
+    if (_pickupDetailsAreMissing) {
+      Future<void>.delayed(const Duration(seconds: 5), () {
+        if (!mounted || _returningToInternationalImport) return;
+        unawaited(_returnToInternationalImportForPickup(wait: false));
+      });
+    }
   }
+
+  bool get _pickupDetailsAreMissing =>
+      _pickupNameController.text.trim().isEmpty ||
+      _pickupPhoneController.text.trim().isEmpty ||
+      _pickupHouseController.text.trim().isEmpty;
 
   void _showValidationMessage(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _returnToInternationalImportForPickup({bool wait = true}) async {
+    if (_returningToInternationalImport) return;
+    _returningToInternationalImport = true;
+    if (wait) await Future<void>.delayed(const Duration(seconds: 5));
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Pickup details required'),
+        content: const Text(
+          'Please complete the Pickup name, mobile number and house number.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const InternationalImport(openPickupDetailsOnLoad: true),
+      ),
+    );
   }
 
   @override
@@ -341,6 +386,7 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
   }) {
     return TextField(
       controller: controller,
+      readOnly: true,
       keyboardType: keyboardType,
       style: const TextStyle(
         color: Color(0xFF202124),
@@ -547,11 +593,11 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
     final pickupHouseNo = _pickupHouseController.text.trim();
 
     if (pickupName.isEmpty) {
-      _showValidationMessage('Please enter Pickup Name');
+      await _returnToInternationalImportForPickup();
       return;
     }
     if (pickupPhone.isEmpty) {
-      _showValidationMessage('Please enter Pickup Phone Number');
+      await _returnToInternationalImportForPickup();
       return;
     }
     if (!RegExp(r'^[0-9]{10}$').hasMatch(pickupPhone)) {
@@ -559,7 +605,7 @@ class _ConfirmOrderState extends State<ConfirmOrderImport> {
       return;
     }
     if (pickupHouseNo.isEmpty) {
-      _showValidationMessage('Please enter Pickup House No');
+      await _returnToInternationalImportForPickup();
       return;
     }
 
