@@ -1460,6 +1460,8 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         ? selected.houseNumber.trim()
         : _houseNumberFromAddress(selected.address);
     setState(() {
+      pickupNameController.text = selected.name;
+      pickupPhoneController.text = selected.mobile;
       _pickupAddress = selected.address;
       pickupHouseNumberController.text = houseNumber;
       _pickupCity = selected.city;
@@ -3469,7 +3471,7 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
     final query = _query.trim().toLowerCase();
     final locations = widget.locations.where((location) {
       if (query.isEmpty) return true;
-      return '${location.name} ${location.address} ${location.city} ${location.pincode}'
+      return '${location.name} ${location.address} ${location.city} ${location.pincode} ${location.name} ${location.mobile}'
           .toLowerCase()
           .contains(query);
     }).toList();
@@ -3512,7 +3514,7 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: Text(
-                            '${location.city}, ${location.pincode}, ${location.state}',
+                            '${location.city}, ${location.pincode}, ${location.state} • ${location.name} • ${location.mobile}',
                           ),
                           onTap: () => Navigator.pop(context, location),
                         );

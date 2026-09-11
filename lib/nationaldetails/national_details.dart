@@ -1639,13 +1639,18 @@ class _NationalDetailsState extends State<NationalDetails> {
     }
     final selected = await showDialog<SavedLocation>(
       context: context,
-      builder: (_) => _SavedLocationDialog(locations: pickupLocations),
+      builder: (_) => _SavedLocationDialog(
+        title: 'Select Pickup Location',
+        locations: pickupLocations,
+      ),
     );
     if (selected == null || !mounted) return;
     final selectedHouseNumber = selected.houseNumber.trim().isNotEmpty
         ? selected.houseNumber.trim()
         : _houseNumberFromAddress(selected.address);
     setState(() {
+      pickupNameController.text = selected.name;
+      pickupPhoneController.text = selected.mobile;
       pickupAddress = selected.address;
       pickupHouseNumber = selectedHouseNumber;
       pickupHouseNumberController.text = pickupHouseNumber;
@@ -1703,7 +1708,10 @@ class _NationalDetailsState extends State<NationalDetails> {
     }
     final selected = await showDialog<SavedLocation>(
       context: context,
-      builder: (_) => _SavedLocationDialog(locations: dropLocations),
+      builder: (_) => _SavedLocationDialog(
+        title: 'Select Drop Location',
+        locations: dropLocations,
+      ),
     );
     if (selected == null || !mounted) return;
     final selectedHouseNumber = selected.houseNumber.trim().isNotEmpty
@@ -3682,7 +3690,9 @@ class _NationalDetailsState extends State<NationalDetails> {
 // ==================== Saved Location Dialog ====================
 
 class _SavedLocationDialog extends StatefulWidget {
-  const _SavedLocationDialog({required this.locations});
+  const _SavedLocationDialog({required this.title, required this.locations});
+
+  final String title;
   final List<SavedLocation> locations;
 
   @override
@@ -3697,13 +3707,13 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
     final query = _query.trim().toLowerCase();
     final locations = widget.locations.where((location) {
       if (query.isEmpty) return true;
-      return '${location.name} ${location.address} ${location.city} ${location.pincode}'
+      return '${location.name} ${location.mobile} ${location.address} ${location.city} ${location.pincode}'
           .toLowerCase()
           .contains(query);
     }).toList();
 
     return AlertDialog(
-      title: const Text('Select Pickup Location'),
+      title: Text(widget.title),
       content: SizedBox(
         width: double.maxFinite,
         height: 360,
@@ -3740,7 +3750,7 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: Text(
-                            '${location.city}, ${location.pincode}, ${location.state}',
+                            '${location.city}, ${location.pincode}, ${location.state} • ${location.name} • ${location.mobile}',
                           ),
                           onTap: () => Navigator.pop(context, location),
                         );

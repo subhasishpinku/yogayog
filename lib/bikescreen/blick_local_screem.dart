@@ -517,6 +517,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   String? _pickupPincodeError;
   double? _pickupLatitude;
   double? _pickupLongitude;
+  bool _savedPickupAddressSelected = false;
   String _dropAddress = 'Tap to add destination';
   String _dropCity = '';
   String _dropPincode = '';
@@ -1388,6 +1389,10 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
         ? selected.houseNumber.trim()
         : _houseNumberFromAddress(selected.address);
     setState(() {
+      // Use the selected Saved Address for pickup address and contact details.
+      _savedPickupAddressSelected = true;
+      pickupNameController.text = selected.name;
+      pickupPhoneController.text = selected.mobile;
       _pickupAddress = selected.address;
       pickupHouseNumberController.text = houseNumber;
       _pickupCity = selected.city;
@@ -1467,6 +1472,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       );
       final place = placemarks.isNotEmpty ? placemarks.first : null;
       if (!mounted) return;
+      if (_savedPickupAddressSelected) return;
       setState(() {
         _pickupLatitude = position.latitude;
         _pickupLongitude = position.longitude;
@@ -2879,7 +2885,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                 ),
                 const SizedBox(width: 12),
                 const Text(
-                  'Bike Delivery',
+                  'Bike Deliverys',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 21,
@@ -3734,7 +3740,7 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: Text(
-                            '${location.city}, ${location.pincode}, ${location.state}',
+                            '${location.city}, ${location.pincode}, ${location.state} ${location.name} ${location.mobile}',
                           ),
                           onTap: () => Navigator.pop(context, location),
                         );
