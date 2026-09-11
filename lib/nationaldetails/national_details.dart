@@ -3713,7 +3713,10 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
     }).toList();
 
     return AlertDialog(
-      title: Text(widget.title),
+      title: Text(
+        widget.title,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
       content: SizedBox(
         width: double.maxFinite,
         height: 360,
@@ -3725,7 +3728,16 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
               decoration: const InputDecoration(
                 hintText: 'Search address or city',
                 prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Color(0xFFF7F8FC),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                  borderSide: BorderSide(color: Color(0xFFE4E7EF)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                  borderSide: BorderSide(color: Color(0xFFE4E7EF)),
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -3734,25 +3746,115 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
                   ? const Center(child: Text('No saved locations found'))
                   : ListView.separated(
                       itemCount: locations.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (_, index) {
                         final location = locations[index];
-                        return ListTile(
-                          leading: Icon(
-                            location.flag == 'pick'
-                                ? Icons.location_on
-                                : Icons.location_on_outlined,
-                            color: AppColors.primaryMain,
+                        final name = location.name.trim().isEmpty
+                            ? 'Saved location'
+                            : location.name.trim();
+                        final initial = name.substring(0, 1).toUpperCase();
+                        return Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => Navigator.pop(context, location),
+                            borderRadius: BorderRadius.circular(18),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: const Color(0xFFFFD95A),
+                                  width: 1.2,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x18000000),
+                                    blurRadius: 8,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: const Color(0xFFF1F3FF),
+                                    child: Text(
+                                      initial,
+                                      style: const TextStyle(
+                                        color: Color(0xFF172786),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 17,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 11),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                        if (location.mobile.trim().isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 4,
+                                            ),
+                                            child: Text(
+                                              location.mobile,
+                                              style: const TextStyle(
+                                                color: Color(0xFF172786),
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                          ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          location.address,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Color(0xFF8A8F9C),
+                                            fontSize: 12,
+                                            height: 1.25,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          '${location.city}, ${location.pincode}, ${location.state}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Color(0xFF8A8F9C),
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 8),
+                                    child: Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 15,
+                                      color: Color(0xFF98A0AE),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          title: Text(
-                            location.address,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            '${location.city}, ${location.pincode}, ${location.state} • ${location.name} • ${location.mobile}',
-                          ),
-                          onTap: () => Navigator.pop(context, location),
                         );
                       },
                     ),
