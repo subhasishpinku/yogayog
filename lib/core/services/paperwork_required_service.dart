@@ -7,6 +7,27 @@ class PaperworkRequiredService {
   PaperworkRequiredService({Dio? dio}) : _dio = dio ?? ApiClient.dio;
   final Dio _dio;
 
+  Future<List<KycDocument>> getDocuments() async {
+    try {
+      final response = await _dio.get(ApiEndpoints.uploadKycDocument);
+      final data = response.data;
+      if (data is! Map || data['success'] != true || data['data'] is! List) {
+        throw const PaperworkRequiredException('Unable to load KYC documents');
+      }
+      return (data['data'] as List)
+          .whereType<Map>()
+          .map((item) => KycDocument.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      throw PaperworkRequiredException(
+        data is Map && data['message'] != null
+            ? data['message'].toString()
+            : error.message ?? 'Network error while loading KYC documents',
+      );
+    }
+  }
+
   Future<String> verifyPan(String pan) async {
     try {
       final response = await _dio.post(
@@ -37,8 +58,8 @@ class PaperworkRequiredService {
     }
   }
 
-  Future<void> uploadPan({required XFile image}) async {
-    await uploadDocument(documentType: 'pan', image: image);
+  Future<void> uploadPan({required String number, required XFile image}) async {
+    await uploadDocument(documentType: 'pan', number: number, image: image);
   }
 
   Future<String> verifyAadhar(String aadhar) async {
@@ -103,6 +124,7 @@ class PaperworkRequiredService {
 
   Future<void> uploadDocument({
     required String documentType,
+    String number = '',
     required XFile image,
   }) async {
     try {
@@ -110,6 +132,7 @@ class PaperworkRequiredService {
         ApiEndpoints.uploadKycDocument,
         data: FormData.fromMap({
           'document_type': documentType,
+          'number': number,
           'file': await MultipartFile.fromFile(
             image.path,
             filename: image.name,
@@ -136,6 +159,30 @@ class PaperworkRequiredService {
       );
     }
   }
+}
+
+class KycDocument {
+  const KycDocument({
+    required this.type,
+    required this.label,
+    this.number,
+    required this.uploaded,
+    this.downloadUrl,
+  });
+
+  final String type;
+  final String label;
+  final String? number;
+  final bool uploaded;
+  final String? downloadUrl;
+
+  factory KycDocument.fromJson(Map<String, dynamic> json) => KycDocument(
+    type: json['type']?.toString() ?? '',
+    label: json['label']?.toString() ?? '',
+    number: json['number']?.toString(),
+    uploaded: json['uploaded'] == true,
+    downloadUrl: json['download_url']?.toString(),
+  );
 }
 
 class PaperworkRequiredException implements Exception {

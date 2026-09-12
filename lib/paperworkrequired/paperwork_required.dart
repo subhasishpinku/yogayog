@@ -25,10 +25,44 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
 
   bool get _isBusiness => _accountType.trim().toLowerCase() == 'business';
 
+  String _documentType(String title) {
+    switch (title) {
+      case 'Business PAN':
+      case 'PAN':
+        return 'pan';
+      case 'Aadhaar':
+        return 'aadhar';
+      case 'Voter ID':
+        return 'voter';
+      case 'GST':
+        return 'gst';
+      case 'IEC Code':
+        return 'iec';
+      case 'MSME Certificate':
+        return 'msme';
+      default:
+        return title.toLowerCase().replaceAll(' ', '_');
+    }
+  }
+
+  String? _documentNumber(String title) {
+    final type = _documentType(title);
+    final documents = context.watch<PaperworkRequiredProvider>().documents;
+    for (final document in documents) {
+      if (document.type == type &&
+          document.number != null &&
+          document.number!.trim().isNotEmpty) {
+        return document.number;
+      }
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
     _loadAccountType();
+    context.read<PaperworkRequiredProvider>().loadDocuments();
   }
 
   @override
@@ -195,7 +229,6 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
   }
 
   Future<void> _showFakeVerificationDialog(_Document document) async {
-    final numberController = TextEditingController();
     XFile? image;
     var isSubmitting = false;
     await showDialog<void>(
@@ -203,40 +236,34 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: Text('Upload ${document.title}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: numberController,
-                decoration: InputDecoration(
-                  labelText: '${document.title} Number',
-                  border: const OutlineInputBorder(),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (image != null)
+                  Image.file(File(image!.path), height: 130, fit: BoxFit.cover)
+                else
+                  Text('No ${document.title} image selected'),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final selected = await ImagePicker().pickImage(
+                      source: ImageSource.camera,
+                      imageQuality: 85,
+                    );
+                    if (selected != null) {
+                      setDialogState(() => image = selected);
+                    }
+                  },
+                  icon: const Icon(Icons.upload_file),
+                  label: Text(
+                    image == null
+                        ? 'Take ${document.title} Photo'
+                        : 'Retake Photo',
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              if (image != null)
-                Image.file(File(image!.path), height: 130, fit: BoxFit.cover)
-              else
-                Text('No ${document.title} image selected'),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final selected = await ImagePicker().pickImage(
-                    source: ImageSource.camera,
-                    imageQuality: 85,
-                  );
-                  if (selected != null) {
-                    setDialogState(() => image = selected);
-                  }
-                },
-                icon: const Icon(Icons.upload_file),
-                label: Text(
-                  image == null
-                      ? 'Take ${document.title} Photo'
-                      : 'Retake Photo',
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -247,14 +274,6 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
               onPressed: isSubmitting
                   ? null
                   : () async {
-                      if (numberController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Enter ${document.title} number'),
-                          ),
-                        );
-                        return;
-                      }
                       if (image == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -265,40 +284,8 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
                         );
                         return;
                       }
-                      setDialogState(() => isSubmitting = true);
-                      final provider = context
-                          .read<PaperworkRequiredProvider>();
-                      final documentType = document.title
-                          .toLowerCase()
-                          .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
-                          .replaceAll(RegExp(r'^_|_$'), '');
-                      final success = await provider.uploadDocument(
-                        documentType: documentType,
-                        image: image!,
-                      );
                       if (!mounted) return;
-                      if (success) {
-                        Navigator.pop(dialogContext);
-                        ScaffoldMessenger.of(this.context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '${document.title} fake verification successful',
-                            ),
-                          ),
-                        );
-                      } else {
-                        setDialogState(() => isSubmitting = false);
-                        ScaffoldMessenger.of(this.context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              this.context
-                                      .read<PaperworkRequiredProvider>()
-                                      .errorMessage ??
-                                  'Unable to upload ${document.title}',
-                            ),
-                          ),
-                        );
-                      }
+                      Navigator.pop(dialogContext);
                     },
               child: isSubmitting
                   ? const SizedBox(
@@ -306,13 +293,12 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
                       width: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Verify & Upload'),
+                  : const Text('Upload'),
             ),
           ],
         ),
       ),
     );
-    numberController.dispose();
   }
 
   Future<void> _showAadharUploadDialog() async {
@@ -687,6 +673,7 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
                   ..._accountDocuments.map(
                     (document) => _DocumentRow(
                       document: document,
+                      number: _documentNumber(document.title),
                       onUpload:
                           document.title == 'PAN' ||
                               document.title == 'Business PAN'
@@ -875,8 +862,9 @@ class _SectionHeading extends StatelessWidget {
 
 class _DocumentRow extends StatelessWidget {
   final _Document document;
+  final String? number;
   final VoidCallback? onUpload;
-  const _DocumentRow({required this.document, this.onUpload});
+  const _DocumentRow({required this.document, this.number, this.onUpload});
 
   @override
   Widget build(BuildContext context) {
@@ -922,6 +910,17 @@ class _DocumentRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (number != null)
+                  Text(
+                    'Number: $number',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF667085),
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
               ],
             ),
           ),

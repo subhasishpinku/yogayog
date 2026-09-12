@@ -59,6 +59,17 @@ class BookingHistory {
   List<Booking> get ordersToDisplay =>
       activeTab == 'past' ? pastOrders : upcomingOrders;
 
+  List<Booking> get allOrders => [...upcomingOrders, ...pastOrders];
+
+  List<Booking> get currentOrders =>
+      allOrders.where((booking) => !_isDelivered(booking.status)).toList();
+
+  List<Booking> get deliveredOrders =>
+      allOrders.where((booking) => _isDelivered(booking.status)).toList();
+
+  static bool _isDelivered(String status) =>
+      status.toLowerCase().contains('deliver');
+
   factory BookingHistory.fromJson(Map<String, dynamic> json) {
     List<Booking> parse(Object? value) => value is List
         ? value

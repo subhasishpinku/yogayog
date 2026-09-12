@@ -13,6 +13,7 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   int selectedFilter = 0;
+  int selectedOrderTab = 0;
 
   static const filters = <_HistoryFilter>[
     _HistoryFilter('All'),
@@ -105,6 +106,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         child: Column(
           children: [
             _header(),
+            _orderTabs(),
             Expanded(child: _buildBookings()),
           ],
         ),
@@ -134,17 +136,89 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
       );
     }
-    final bookings = provider.history?.ordersToDisplay ?? const <Booking>[];
+    final bookings = selectedOrderTab == 0
+        ? provider.currentOrders
+        : provider.deliveredOrders;
     if (bookings.isEmpty) {
       return const Center(child: Text('No bookings found'));
     }
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-      itemCount: bookings.length,
-      itemBuilder: (_, index) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: _bookingCard(bookings[index]),
+      children: [
+        _historySectionTitle(
+          selectedOrderTab == 0 ? 'Current Orders' : 'Delivered Orders',
+        ),
+        ...bookings.map(_historyCardPadding),
+      ],
+    );
+  }
+
+  Widget _orderTabs() {
+    final provider = context.watch<HistoryProvider>();
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: Row(
+        children: [
+          _orderTab(
+            label: 'Current Orders',
+            count: provider.currentOrders.length,
+            index: 0,
+          ),
+          const SizedBox(width: 10),
+          _orderTab(
+            label: 'Delivered Orders',
+            count: provider.deliveredOrders.length,
+            index: 1,
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _orderTab({required String label, required int count, required int index}) {
+    final selected = selectedOrderTab == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => selectedOrderTab = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primaryMain : const Color(0xFFF0F1F8),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$label ($count)',
+            style: TextStyle(
+              color: selected ? Colors.white : const Color(0xFF5D6478),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _historySectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9, top: 2),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Color(0xFF172786),
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _historyCardPadding(Booking booking) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _bookingCard(booking),
     );
   }
 

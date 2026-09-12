@@ -12,6 +12,8 @@ class HistoryProvider extends ChangeNotifier {
   BookingHistory? get history => _history;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  List<Booking> get currentOrders => _history?.currentOrders ?? const [];
+  List<Booking> get deliveredOrders => _history?.deliveredOrders ?? const [];
 
   Future<void> loadBookings({int? serviceId, int? subServiceId}) async {
     if (_isLoading) return;

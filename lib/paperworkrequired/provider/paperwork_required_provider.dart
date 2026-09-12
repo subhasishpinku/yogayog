@@ -11,8 +11,20 @@ class PaperworkRequiredProvider extends ChangeNotifier {
   final PaperworkRequiredService _service;
   bool _isLoading = false;
   String? _errorMessage;
+  List<KycDocument> _documents = const [];
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  List<KycDocument> get documents => _documents;
+
+  Future<void> loadDocuments() async {
+    try {
+      _documents = await _service.getDocuments();
+      notifyListeners();
+    } on PaperworkRequiredException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+    }
+  }
 
   Future<bool> verifyAndUploadPan({
     required String pan,
@@ -38,7 +50,8 @@ class PaperworkRequiredProvider extends ChangeNotifier {
           'PAN name does not match your profile name',
         );
       }
-      await _service.uploadPan(image: image);
+      await _service.uploadPan(number: pan, image: image);
+      await loadDocuments();
       return true;
     } on PaperworkRequiredException catch (error) {
       _errorMessage = error.message;
@@ -62,6 +75,7 @@ class PaperworkRequiredProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _service.uploadDocument(documentType: documentType, image: image);
+      await loadDocuments();
       return true;
     } on PaperworkRequiredException catch (error) {
       _errorMessage = error.message;
@@ -96,7 +110,12 @@ class PaperworkRequiredProvider extends ChangeNotifier {
           'Aadhaar name does not match your profile name',
         );
       }
-      await _service.uploadDocument(documentType: 'aadhar', image: image);
+      await _service.uploadDocument(
+        documentType: 'aadhar',
+        number: aadhar,
+        image: image,
+      );
+      await loadDocuments();
       return true;
     } on PaperworkRequiredException catch (error) {
       _errorMessage = error.message;
@@ -130,7 +149,12 @@ class PaperworkRequiredProvider extends ChangeNotifier {
           'Voter ID name does not match your profile name',
         );
       }
-      await _service.uploadDocument(documentType: 'voter', image: image);
+      await _service.uploadDocument(
+        documentType: 'voter',
+        number: voterNo,
+        image: image,
+      );
+      await loadDocuments();
       return true;
     } on PaperworkRequiredException catch (error) {
       _errorMessage = error.message;
