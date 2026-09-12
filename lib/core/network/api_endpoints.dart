@@ -17,6 +17,8 @@ class ApiEndpoints {
   static const String createOrder = "order/create";
   static const String createPayment = "payment/create";
   static const String verifyPan = "kyc/verify-pan";
+  static const String verifyAadhar = "kyc/verify-aadhar";
+  static const String verifyVoter = "kyc/verify-voter";
   static const String uploadKycDocument = "kyc/documents";
   static const String createPostpaidOrder = "order/create-postpaid";
   static const String pickupLocation = "locations/pickup";

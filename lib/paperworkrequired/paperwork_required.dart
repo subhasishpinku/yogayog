@@ -19,6 +19,8 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
   static const _green = AppColors.primaryMain;
   String _accountType = 'Individual';
   final _panController = TextEditingController();
+  final _aadharController = TextEditingController();
+  final _voterController = TextEditingController();
   XFile? _panImage;
 
   bool get _isBusiness => _accountType.trim().toLowerCase() == 'business';
@@ -32,6 +34,8 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
   @override
   void dispose() {
     _panController.dispose();
+    _aadharController.dispose();
+    _voterController.dispose();
     super.dispose();
   }
 
@@ -110,41 +114,424 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
               onPressed: isSubmitting
                   ? null
                   : () async {
-                final pan = _panController.text.trim().toUpperCase();
-                if (!RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]$').hasMatch(pan)) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Enter a valid PAN number')),
+                      final pan = _panController.text.trim().toUpperCase();
+                      if (!RegExp(r'^[A-Z]{5}[0-9]{4}[A-Z]$').hasMatch(pan)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Enter a valid PAN number'),
+                          ),
+                        );
+                        return;
+                      }
+                      if (_panImage == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please select PAN image'),
+                          ),
+                        );
+                        return;
+                      }
+                      setDialogState(() => isSubmitting = true);
+                      final success = await context
+                          .read<PaperworkRequiredProvider>()
+                          .verifyAndUploadPan(pan: pan, image: _panImage!);
+                      if (!mounted) return;
+                      if (!success) {
+                        setDialogState(() => isSubmitting = false);
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              this.context
+                                      .read<PaperworkRequiredProvider>()
+                                      .errorMessage ??
+                                  'Unable to verify or upload PAN',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(dialogContext);
+                      this.setState(() {});
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Verify & Upload'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _uploadOptionalDocument(_Document document) async {
+    final image = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+    );
+    if (image == null || !mounted) return;
+    final documentType = document.title
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+    final provider = context.read<PaperworkRequiredProvider>();
+    final success = await provider.uploadDocument(
+      documentType: documentType,
+      image: image,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? '${document.title} uploaded successfully'
+              : provider.errorMessage ?? 'Unable to upload ${document.title}',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showFakeVerificationDialog(_Document document) async {
+    final numberController = TextEditingController();
+    XFile? image;
+    var isSubmitting = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Upload ${document.title}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: numberController,
+                decoration: InputDecoration(
+                  labelText: '${document.title} Number',
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (image != null)
+                Image.file(File(image!.path), height: 130, fit: BoxFit.cover)
+              else
+                Text('No ${document.title} image selected'),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final selected = await ImagePicker().pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 85,
                   );
-                  return;
-                }
-                if (_panImage == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please select PAN image')),
+                  if (selected != null) {
+                    setDialogState(() => image = selected);
+                  }
+                },
+                icon: const Icon(Icons.upload_file),
+                label: Text(
+                  image == null
+                      ? 'Take ${document.title} Photo'
+                      : 'Retake Photo',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (numberController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Enter ${document.title} number'),
+                          ),
+                        );
+                        return;
+                      }
+                      if (image == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Please select ${document.title} image',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      setDialogState(() => isSubmitting = true);
+                      final provider = context
+                          .read<PaperworkRequiredProvider>();
+                      final documentType = document.title
+                          .toLowerCase()
+                          .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+                          .replaceAll(RegExp(r'^_|_$'), '');
+                      final success = await provider.uploadDocument(
+                        documentType: documentType,
+                        image: image!,
+                      );
+                      if (!mounted) return;
+                      if (success) {
+                        Navigator.pop(dialogContext);
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '${document.title} fake verification successful',
+                            ),
+                          ),
+                        );
+                      } else {
+                        setDialogState(() => isSubmitting = false);
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              this.context
+                                      .read<PaperworkRequiredProvider>()
+                                      .errorMessage ??
+                                  'Unable to upload ${document.title}',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Verify & Upload'),
+            ),
+          ],
+        ),
+      ),
+    );
+    numberController.dispose();
+  }
+
+  Future<void> _showAadharUploadDialog() async {
+    XFile? aadharImage;
+    var isSubmitting = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Upload Aadhaar Card'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _aadharController,
+                keyboardType: TextInputType.number,
+                maxLength: 12,
+                decoration: const InputDecoration(
+                  labelText: 'Aadhaar Number',
+                  hintText: '1234 5678 9012',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (aadharImage != null)
+                Image.file(
+                  File(aadharImage!.path),
+                  height: 130,
+                  fit: BoxFit.cover,
+                )
+              else
+                const Text('No Aadhaar image selected'),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final image = await ImagePicker().pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 85,
                   );
-                  return;
-                }
-                setDialogState(() => isSubmitting = true);
-                final success = await context
-                    .read<PaperworkRequiredProvider>()
-                    .verifyAndUploadPan(pan: pan, image: _panImage!);
-                if (!mounted) return;
-                if (!success) {
-                  setDialogState(() => isSubmitting = false);
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        this.context
-                                .read<PaperworkRequiredProvider>()
-                                .errorMessage ??
-                            'Unable to verify or upload PAN',
-                      ),
-                    ),
+                  if (image != null) setDialogState(() => aadharImage = image);
+                },
+                icon: const Icon(Icons.upload_file),
+                label: Text(
+                  aadharImage == null
+                      ? 'Take Aadhaar Photo'
+                      : 'Retake Aadhaar Photo',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final aadhar = _aadharController.text.replaceAll(' ', '');
+                      if (!RegExp(r'^\d{12}$').hasMatch(aadhar)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Enter a valid Aadhaar number'),
+                          ),
+                        );
+                        return;
+                      }
+                      if (aadharImage == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please select Aadhaar image'),
+                          ),
+                        );
+                        return;
+                      }
+                      setDialogState(() => isSubmitting = true);
+                      final success = await context
+                          .read<PaperworkRequiredProvider>()
+                          .verifyAndUploadAadhar(
+                            aadhar: aadhar,
+                            image: aadharImage!,
+                          );
+                      if (!mounted) return;
+                      if (success) {
+                        Navigator.pop(dialogContext);
+                        setState(() {});
+                      } else {
+                        setDialogState(() => isSubmitting = false);
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              this.context
+                                      .read<PaperworkRequiredProvider>()
+                                      .errorMessage ??
+                                  'Unable to verify or upload Aadhaar',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Verify & Upload'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showVoterUploadDialog() async {
+    XFile? voterImage;
+    var isSubmitting = false;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Upload Voter ID'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _voterController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Voter ID Number',
+                  hintText: 'HZG0031781',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (voterImage != null)
+                Image.file(
+                  File(voterImage!.path),
+                  height: 130,
+                  fit: BoxFit.cover,
+                )
+              else
+                const Text('No Voter ID image selected'),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final image = await ImagePicker().pickImage(
+                    source: ImageSource.camera,
+                    imageQuality: 85,
                   );
-                  return;
-                }
-                Navigator.pop(dialogContext);
-                this.setState(() {});
-              },
+                  if (image != null) setDialogState(() => voterImage = image);
+                },
+                icon: const Icon(Icons.upload_file),
+                label: Text(
+                  voterImage == null ? 'Take Voter ID Photo' : 'Retake Photo',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final voterNo = _voterController.text
+                          .trim()
+                          .toUpperCase();
+                      if (voterNo.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Enter Voter ID number'),
+                          ),
+                        );
+                        return;
+                      }
+                      if (voterImage == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please select Voter ID image'),
+                          ),
+                        );
+                        return;
+                      }
+                      setDialogState(() => isSubmitting = true);
+                      final success = await context
+                          .read<PaperworkRequiredProvider>()
+                          .verifyAndUploadVoter(
+                            voterNo: voterNo,
+                            image: voterImage!,
+                          );
+                      if (!mounted) return;
+                      if (success) {
+                        Navigator.pop(dialogContext);
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Voter ID verified and uploaded successfully',
+                            ),
+                          ),
+                        );
+                      } else {
+                        setDialogState(() => isSubmitting = false);
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              this.context
+                                      .read<PaperworkRequiredProvider>()
+                                      .errorMessage ??
+                                  'Unable to verify or upload Voter ID',
+                            ),
+                          ),
+                        );
+                      }
+                    },
               child: isSubmitting
                   ? const SizedBox(
                       height: 18,
@@ -170,27 +557,40 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
 
   List<_Document> get _accountDocuments => _isBusiness
       ? const [
-          _Document('📄', 'PAN', 'Business PAN card', true),
-          _Document('🧾', 'GST', 'GST registration certificate', true),
-          _Document('🌐', 'IEC Code', 'Import Export Code', true),
+          _Document('📄', 'Business PAN', 'Business PAN card', true),
+          _Document('🧾', 'GST', 'GST registration certificate', false),
+          _Document('🌐', 'IEC Code', 'Import Export Code', false),
           _Document('🏢', 'MSME Certificate', 'Udyam/MSME registration', false),
+          // _Document(
+          //   '🧾',
+          //   'Commercial Invoice',
+          //   'Signed invoice for the shipment',
+          //   false,
+          // ),
+          // _Document(
+          //   '🧾',
+          //   'Commercial Invoice',
+          //   'Signed invoice for the shipment',
+          //   false,
+          // ),
+          // _Document('📦', 'Packing List', 'Item-wise package details', false),
+          // _Document(
+          //   '🏢',
+          //   'Company Proof',
+          //   'Certificate of incorporation or company ID',
+          //   false,
+          // ),
+          // _Document(
+          //   '🪪',
+          //   'Personal ID Proof / Personal PAN Card',
+          //   'Authorized person identity proof',
+          //   false,
+          // ),
+          _Document('🪪', 'Aadhaar', 'Authorized person Aadhaar card', false),
           _Document(
-            '🧾',
-            'Commercial Invoice',
-            'Signed invoice for the shipment',
-            true,
-          ),
-          _Document('📦', 'Packing List', 'Item-wise package details', true),
-          _Document(
-            '🏢',
-            'Company Proof',
-            'Certificate of incorporation or company ID',
-            true,
-          ),
-          _Document(
-            '🪪',
-            'Personal ID Proof / Personal PAN Card',
-            'Authorized person identity proof',
+            '🗳️',
+            'Voter ID',
+            'Authorized person Voter ID card',
             false,
           ),
         ]
@@ -214,19 +614,20 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
             'Udyam/MSME registration, if available',
             false,
           ),
-          _Document('🪪', 'Aadhaar', 'Personal identity proof', true),
+          _Document('🪪', 'Aadhaar', 'Personal identity proof', false),
+          _Document('🗳️', 'Voter ID', 'Personal Voter ID card', false),
         ];
 
   static const _shipmentDocuments = [
-    _Document('🔖', 'AWB', 'Airway Bill / shipment document', true),
-    _Document('📦', 'Packing List', 'Item-wise package details', true),
+    _Document('🔖', 'AWB', 'Airway Bill / shipment document', false),
+    // _Document('📦', 'Packing List', 'Item-wise package details', false),
     _Document('🚢', 'Shipping Bill', 'Required for export shipment', false),
-    _Document(
-      '🧾',
-      'Commercial Invoice',
-      'Required for customs clearance',
-      true,
-    ),
+    // _Document(
+    //   '🧾',
+    //   'Commercial Invoice',
+    //   'Required for customs clearance',
+    //   false,
+    // ),
   ];
 
   @override
@@ -286,25 +687,46 @@ class _PaperworkRequiredState extends State<PaperworkRequired> {
                   ..._accountDocuments.map(
                     (document) => _DocumentRow(
                       document: document,
-                      onUpload: document.title == 'PAN'
+                      onUpload:
+                          document.title == 'PAN' ||
+                              document.title == 'Business PAN'
                           ? _showPanUploadDialog
-                          : null,
+                          : document.title == 'Aadhaar'
+                          ? _showAadharUploadDialog
+                          : document.title == 'Voter ID'
+                          ? _showVoterUploadDialog
+                          : document.title == 'GST' ||
+                                document.title == 'IEC Code' ||
+                                document.title == 'MSME Certificate'
+                          ? () => _showFakeVerificationDialog(document)
+                          : () => _uploadOptionalDocument(document),
                     ),
                   ),
-                  const _SectionHeading(
-                    title: 'Shipment Documents',
-                    subtitle: 'Upload documents related to this shipment',
-                  ),
-                  ..._shipmentDocuments.map(
-                    (document) => _DocumentRow(document: document),
-                  ),
+                  // const _SectionHeading(
+                  //   title: 'Shipment Documents',
+                  //   subtitle: 'Upload documents related to this shipment',
+                  // ),
+                  // ..._shipmentDocuments.map(
+                  //   (document) => _DocumentRow(
+                  //     document: document,
+                  //     onUpload: () => _uploadOptionalDocument(document),
+                  //   ),
+                  // ),
                   if (!_isBusiness)
-                    const _DocumentRow(
+                    _DocumentRow(
                       document: _Document(
                         '📍',
                         'Need Shipment Track Upload',
                         'Upload shipment tracking details',
                         false,
+                      ),
+                      onUpload: () => _uploadOptionalDocument(
+                        const _Document(
+                          '📍',
+                          'Need Shipment Track Upload',
+                          'Upload shipment tracking details',
+                          false,
+                        ),
                       ),
                     ),
                 ],
@@ -503,6 +925,24 @@ class _DocumentRow extends StatelessWidget {
               ],
             ),
           ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: document.required
+                  ? const Color(0xFFFFEAEA)
+                  : const Color(0xFFF0F0F5),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Text(
+              document.required ? 'Must' : 'Optional',
+              style: TextStyle(
+                color: document.required ? Colors.red : const Color(0xFF667085),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
           if (onUpload != null)
             ElevatedButton(
               onPressed: onUpload,
@@ -513,26 +953,6 @@ class _DocumentRow extends StatelessWidget {
                 minimumSize: const Size(0, 34),
               ),
               child: const Text('Upload'),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: document.required
-                    ? const Color(0xFFFFEAEA)
-                    : const Color(0xFFF0F0F5),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Text(
-                document.required ? 'Must' : 'Optional',
-                style: TextStyle(
-                  color: document.required
-                      ? Colors.red
-                      : const Color(0xFF667085),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
             ),
         ],
       ),
