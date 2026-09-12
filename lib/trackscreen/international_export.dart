@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:geocoding/geocoding.dart';
@@ -21,6 +23,7 @@ class InternationalExport extends StatefulWidget {
     this.amount = 0,
     this.status = 'In Transit',
     this.paymentDone = false,
+    this.paymentMode = 'WALLET',
   });
 
   final String trackingNumber;
@@ -30,6 +33,7 @@ class InternationalExport extends StatefulWidget {
   final String riderName, riderMobile, orderDate, status;
   final double amount;
   final bool paymentDone;
+  final String paymentMode;
 
   @override
   State<InternationalExport> createState() => _InternationalExportState();
@@ -61,9 +65,12 @@ class _InternationalExportState extends State<InternationalExport> {
     final drop = await _coordinatesFor(
       widget.dropAddress.isNotEmpty ? widget.dropAddress : widget.dropCity,
     );
-    final route = pickup != null && drop != null
+    final fetchedRoute = pickup != null && drop != null
         ? await _fetchRoute(pickup, drop)
         : const <gmaps.LatLng>[];
+    final route = pickup != null && drop != null && fetchedRoute.length < 3
+        ? _fallbackCurvedRoute(pickup, drop)
+        : fetchedRoute;
     if (!mounted) return;
     setState(() {
       _pickupLocation = pickup;
@@ -110,6 +117,39 @@ class _InternationalExportState extends State<InternationalExport> {
     } catch (_) {
       return const [];
     }
+  }
+
+  List<gmaps.LatLng> _fallbackCurvedRoute(
+    gmaps.LatLng origin,
+    gmaps.LatLng destination,
+  ) {
+    final latitudeDelta = destination.latitude - origin.latitude;
+    final longitudeDelta = destination.longitude - origin.longitude;
+    final distance = math.sqrt(
+      latitudeDelta * latitudeDelta + longitudeDelta * longitudeDelta,
+    );
+    if (distance == 0) return [origin, destination];
+
+    final bend = math.max(distance * 0.18, 0.02);
+    final normalLatitude = -longitudeDelta / distance;
+    final normalLongitude = latitudeDelta / distance;
+    final control = gmaps.LatLng(
+      (origin.latitude + destination.latitude) / 2 + normalLatitude * bend,
+      (origin.longitude + destination.longitude) / 2 + normalLongitude * bend,
+    );
+
+    return List<gmaps.LatLng>.generate(17, (index) {
+      final t = index / 16;
+      final oneMinusT = 1 - t;
+      return gmaps.LatLng(
+        oneMinusT * oneMinusT * origin.latitude +
+            2 * oneMinusT * t * control.latitude +
+            t * t * destination.latitude,
+        oneMinusT * oneMinusT * origin.longitude +
+            2 * oneMinusT * t * control.longitude +
+            t * t * destination.longitude,
+      );
+    });
   }
 
   List<gmaps.LatLng> _decodePolyline(String encoded) {
@@ -196,7 +236,7 @@ class _InternationalExportState extends State<InternationalExport> {
               Icon(Icons.arrow_back, color: Colors.white, size: 20),
               SizedBox(width: 4),
               Text(
-                'All\nOrders',
+                'All Orders',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 17,
@@ -331,6 +371,7 @@ class _InternationalExportState extends State<InternationalExport> {
         _info('📦', '18 kg', 'Weight'),
         _info('✈️', widget.subServiceId == 8 ? 'Import' : 'Export', 'Type'),
         _info('🏛️', '₹${widget.amount}', 'Amount'),
+        _info('💳', widget.paymentMode, 'Payment Mode'),
       ],
     ),
   );

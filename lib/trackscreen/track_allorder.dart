@@ -29,6 +29,7 @@ class _DemoOrder {
     this.riderName = '',
     this.riderMobile = '',
     this.paymentDone = false,
+    this.paymentMode = 'WALLET',
   });
 
   final String trackingNumber;
@@ -51,6 +52,7 @@ class _DemoOrder {
   final String riderName;
   final String riderMobile;
   final bool paymentDone;
+  final String paymentMode;
 
   factory _DemoOrder.fromBooking(Booking booking) {
     return _DemoOrder(
@@ -74,6 +76,7 @@ class _DemoOrder {
       riderName: booking.riderName,
       riderMobile: booking.riderMobile,
       paymentDone: booking.paymentDone,
+      paymentMode: booking.paymentMode,
     );
   }
 }
@@ -383,47 +386,47 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
               ),
 
               // Notification / Clear button
-              if (filter == 'All')
-                Container(
-                  width: 43,
-                  height: 43,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF303B9D),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.08),
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.notifications_none_rounded,
-                    color: Color(0xFFFFC400),
-                    size: 25,
-                  ),
-                )
-              else
-                TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      filter = 'All';
-                    });
-                  },
-                  icon: const Icon(Icons.close_rounded, size: 16),
-                  label: const Text(
-                    'Clear',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: green,
-                    backgroundColor: const Color(0xFF303B9D),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                ),
+              // if (filter == 'All')
+              //   Container(
+              //     width: 43,
+              //     height: 43,
+              //     decoration: BoxDecoration(
+              //       color: const Color(0xFF303B9D),
+              //       shape: BoxShape.circle,
+              //       border: Border.all(
+              //         color: Colors.white.withValues(alpha: 0.08),
+              //       ),
+              //     ),
+              //     child: const Icon(
+              //       Icons.notifications_none_rounded,
+              //       color: Color(0xFFFFC400),
+              //       size: 25,
+              //     ),
+              //   )
+              // else
+              //   TextButton.icon(
+              //     onPressed: () {
+              //       setState(() {
+              //         filter = 'All';
+              //       });
+              //     },
+              //     icon: const Icon(Icons.close_rounded, size: 16),
+              //     label: const Text(
+              //       'Clear',
+              //       style: TextStyle(fontWeight: FontWeight.w700),
+              //     ),
+              //     style: TextButton.styleFrom(
+              //       foregroundColor: green,
+              //       backgroundColor: const Color(0xFF303B9D),
+              //       padding: const EdgeInsets.symmetric(
+              //         horizontal: 12,
+              //         vertical: 8,
+              //       ),
+              //       shape: RoundedRectangleBorder(
+              //         borderRadius: BorderRadius.circular(18),
+              //       ),
+              //     ),
+              //   ),
             ],
           ),
 
@@ -511,8 +514,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
 
     final visibleNames = names
         .where(
-          (name) =>
-              name == 'All' || orders.any((o) => _statusMatches(o, name)),
+          (name) => name == 'All' || orders.any((o) => _statusMatches(o, name)),
         )
         .toList();
 
@@ -845,12 +847,12 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
 
                 const Spacer(),
 
-                if (filter == 'All')
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Color(0xFFB0B0B0),
-                    size: 20,
-                  ),
+                // if (filter == 'All')
+                //   const Icon(
+                //     Icons.chevron_right_rounded,
+                //     color: Color(0xFFB0B0B0),
+                //     size: 20,
+                //   ),
               ],
             ),
 
@@ -950,6 +952,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
         amount: order.amount,
         status: order.status,
         paymentDone: order.paymentDone,
+        paymentMode: order.paymentMode,
       );
     }
 
@@ -968,6 +971,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
         amount: order.amount,
         status: order.status,
         paymentDone: order.paymentDone,
+        paymentMode: order.paymentMode,
       );
     }
 
@@ -989,6 +993,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
           amount: order.amount,
           status: order.status,
           paymentDone: order.paymentDone,
+          paymentMode: order.paymentMode,
         );
       }
       if (order.subServiceId == 3) {
@@ -1006,6 +1011,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
           amount: order.amount,
           status: order.status,
           paymentDone: order.paymentDone,
+          paymentMode: order.paymentMode,
         );
       }
     }

@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
 
 class NationalExpressInTransit extends StatefulWidget {
-  const NationalExpressInTransit({super.key, this.trackingNumber = 'YCG-2025-00891'});
+  const NationalExpressInTransit({
+    super.key,
+    this.trackingNumber = 'YCG-2025-00891',
+    this.paymentMode = 'WALLET',
+  });
 
   final String trackingNumber;
+  final String paymentMode;
 
   @override
   State<NationalExpressInTransit> createState() =>
@@ -59,7 +64,7 @@ class _NationalExpressInTransitState extends State<NationalExpressInTransit> {
               Icon(Icons.arrow_back, color: Colors.white, size: 20),
               SizedBox(width: 4),
               Text(
-                'All\nOrders',
+                'All Orders',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 17,
@@ -169,6 +174,7 @@ class _NationalExpressInTransitState extends State<NationalExpressInTransit> {
         _info('📦', '5.2 kg', 'Weight'),
         _info('🚚', 'Express', 'Service'),
         _info('📍', '1,480 km', 'Distance'),
+        _info('💳', widget.paymentMode, 'Payment Mode'),
       ],
     ),
   );

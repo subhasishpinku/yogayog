@@ -48,16 +48,16 @@ class _BookingSuccessState extends State<BookingSuccess> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Shipment booked on behalf of Rahul Das.\nRider will pickup before 4:00 PM today.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color(0xFF667085),
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-              ),
+              // const SizedBox(height: 8),
+              // const Text(
+              //   'Shipment booked on behalf of Rahul Das.\nRider will pickup before 4:00 PM today.',
+              //   textAlign: TextAlign.center,
+              //   style: TextStyle(
+              //     color: Color(0xFF667085),
+              //     fontSize: 14,
+              //     height: 1.5,
+              //   ),
+              // ),
               const SizedBox(height: 21),
               _TrackingCard(orderId: widget.order?.orderId ?? ''),
               const SizedBox(height: 20),
@@ -71,21 +71,21 @@ class _BookingSuccessState extends State<BookingSuccess> {
                 height: 57,
                 child: Row(
                   children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const PaperworkRequired(),
-                            ),
-                          );
-                        },
-                        style: _actionButtonStyle(),
-                        child: const Text('Upload'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
+                    // Expanded(
+                    //   child: ElevatedButton(
+                    //     onPressed: () {
+                    //       Navigator.push(
+                    //         context,
+                    //         MaterialPageRoute(
+                    //           builder: (context) => const PaperworkRequired(),
+                    //         ),
+                    //       );
+                    //     },
+                    //     style: _actionButtonStyle(),
+                    //     child: const Text('Upload'),
+                    //   ),
+                    // ),
+                    // const SizedBox(width: 10),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _backToHome,

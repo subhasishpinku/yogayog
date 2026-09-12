@@ -23,6 +23,7 @@ class LocalBikeOutForDelivery extends StatefulWidget {
     this.amount = 0,
     this.status = 'Out for Delivery',
     this.paymentDone = false,
+    this.paymentMode = 'WALLET',
   });
 
   final String trackingNumber;
@@ -40,6 +41,7 @@ class LocalBikeOutForDelivery extends StatefulWidget {
   final double amount;
   final String status;
   final bool paymentDone;
+  final String paymentMode;
 
   @override
   State<LocalBikeOutForDelivery> createState() =>
@@ -224,7 +226,7 @@ class _LocalBikeOutForDeliveryState extends State<LocalBikeOutForDelivery> {
                 Icon(Icons.arrow_back, color: Colors.white, size: 20),
                 SizedBox(width: 4),
                 Text(
-                  'All\nOrders',
+                  'All Orders',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 17,
@@ -556,6 +558,7 @@ class _LocalBikeOutForDeliveryState extends State<LocalBikeOutForDelivery> {
                 : 'Due ₹${widget.amount}',
             'Payment',
           ),
+          _infoTile('💳', widget.paymentMode, 'Payment Mode'),
         ],
       ),
     );
@@ -618,6 +621,7 @@ class _LocalBikeOutForDeliveryState extends State<LocalBikeOutForDelivery> {
                 ? 'Paid · ₹${widget.amount}'
                 : 'Payment pending · ₹${widget.amount}',
           ),
+          _detailRow('Payment Mode', widget.paymentMode),
         ],
       ),
     );

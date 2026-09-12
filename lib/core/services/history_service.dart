@@ -96,6 +96,7 @@ class Booking {
     required this.riderName,
     required this.riderMobile,
     required this.paymentDone,
+    this.paymentMode = 'WALLET',
   });
 
   final String orderId;
@@ -118,6 +119,7 @@ class Booking {
   final String riderName;
   final String riderMobile;
   final bool paymentDone;
+  final String paymentMode;
 
   factory Booking.fromJson(Map<String, dynamic> json) {
     String nestedString(String key, String field) {
@@ -155,7 +157,14 @@ class Booking {
       riderName: rider is Map ? rider['name']?.toString() ?? '' : '',
       riderMobile: rider is Map ? rider['mobile']?.toString() ?? '' : '',
       paymentDone: json['payment_done'] == true,
+      paymentMode: _displayPaymentMode(json['payment_mode']),
     );
+  }
+
+  static String _displayPaymentMode(Object? value) {
+    final mode = value?.toString().trim();
+    if (mode == null || mode.isEmpty) return 'WALLET';
+    return mode.toUpperCase() == 'COD' ? 'Cash' : mode;
   }
 
   static String _formatStatus(String status) {

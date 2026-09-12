@@ -20,6 +20,7 @@ class LocalTruckOutForDelivery extends StatefulWidget {
     this.amount = 0,
     this.status = 'Pickup Scheduled',
     this.paymentDone = false,
+    this.paymentMode = 'WALLET',
   });
 
   final String trackingNumber;
@@ -35,6 +36,7 @@ class LocalTruckOutForDelivery extends StatefulWidget {
   final double amount;
   final String status;
   final bool paymentDone;
+  final String paymentMode;
 
   @override
   State<LocalTruckOutForDelivery> createState() =>
@@ -211,7 +213,7 @@ class _LocalTruckOutForDeliveryState extends State<LocalTruckOutForDelivery> {
               Icon(Icons.arrow_back, color: Colors.white, size: 20),
               SizedBox(width: 4),
               Text(
-                'All\nOrders',
+                'All Orders',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 17,
@@ -361,6 +363,7 @@ class _LocalTruckOutForDeliveryState extends State<LocalTruckOutForDelivery> {
               : 'Due ₹${widget.amount}',
           'Payment',
         ),
+        _info('💳', widget.paymentMode, 'Payment Mode'),
       ],
     ),
   );

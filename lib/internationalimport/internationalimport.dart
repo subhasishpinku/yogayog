@@ -1959,18 +1959,38 @@ class _InternationalImportState extends State<InternationalImport> {
         'state': state,
         'pin': pincode,
         'country': country,
-        'country_cde': country.toLowerCase() == 'india' ? 'IN' : '',
+        'country_cde': _countryCodeFor(country),
         'lat': latitude ?? 0,
         'lon': longitude ?? 0,
         'flag': 'pick',
       },
     );
     if (!mounted) return;
-    // _showMessage(
-    //   saved
-    //       ? 'Pickup location saved successfully'
-    //       : provider.errorMessage ?? 'Unable to save pickup location',
-    // );
+    _showMessage(
+      saved
+          ? 'Pickup location saved successfully'
+          : provider.errorMessage ?? 'Unable to save pickup location',
+    );
+  }
+
+  String _countryCodeFor(String country) {
+    const countryCodes = <String, String>{
+      'india': 'IN',
+      'brazil': 'BR',
+      'australia': 'AU',
+      'canada': 'CA',
+      'germany': 'DE',
+      'italy': 'IT',
+      'japan': 'JP',
+      'mexico': 'MX',
+      'singapore': 'SG',
+      'spain': 'ES',
+      'united arab emirates': 'AE',
+      'united kingdom': 'GB',
+      'united states': 'US',
+      'usa': 'US',
+    };
+    return countryCodes[country.trim().toLowerCase()] ?? 'XX';
   }
 
   Future<void> _saveDropLocation({

@@ -20,6 +20,7 @@ class NationalOutForDelivery extends StatefulWidget {
     this.amount = 0,
     this.status = 'Out for Delivery',
     this.paymentDone = false,
+    this.paymentMode = 'WALLET',
   });
 
   final String trackingNumber;
@@ -35,6 +36,7 @@ class NationalOutForDelivery extends StatefulWidget {
   final double amount;
   final String status;
   final bool paymentDone;
+  final String paymentMode;
 
   @override
   State<NationalOutForDelivery> createState() => _NationalOutForDeliveryState();
@@ -205,7 +207,7 @@ class _NationalOutForDeliveryState extends State<NationalOutForDelivery> {
               Icon(Icons.arrow_back, color: Colors.white, size: 20),
               SizedBox(width: 4),
               Text(
-                'All\nOrders',
+                'All Orders',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 17,
@@ -368,6 +370,7 @@ class _NationalOutForDeliveryState extends State<NationalOutForDelivery> {
               : 'Due ₹${widget.amount}',
           'Payment',
         ),
+        _info('💳', widget.paymentMode, 'Payment Mode'),
       ],
     ),
   );
