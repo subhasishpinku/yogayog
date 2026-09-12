@@ -809,6 +809,29 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
               ],
             ),
 
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => _screenForOrder(order)),
+                  );
+                },
+                icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                label: const Text('Details'),
+                style: TextButton.styleFrom(
+                  foregroundColor: headerBlue,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  visualDensity: VisualDensity.compact,
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+
             const SizedBox(height: 5),
 
             // --------------------------------------------------

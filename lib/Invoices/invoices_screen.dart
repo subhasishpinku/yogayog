@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:typed_data';
-import 'package:file_picker/file_picker.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:yogayog/bookscreen/book_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/invoices_service.dart';
@@ -200,7 +201,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     required String amount,
     required String status,
   }) => Container(
-    padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+    padding: const EdgeInsets.fromLTRB(14, 8, 14, 7),
     decoration: BoxDecoration(
       color: Colors.white,
       borderRadius: BorderRadius.circular(17),
@@ -241,18 +242,18 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             _statusBadge(status),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 5),
         Text(
           type,
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 5),
         _person('📤', 'SENDER', 'Santanu Roy', senderAddress),
         if (receiver != null) ...[
-          const Divider(height: 22),
+          const Divider(height: 12),
           _person('📍', 'RECEIVER', receiver, receiverAddress!),
         ],
-        const Divider(height: 22),
+        const Divider(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -298,7 +299,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                 foregroundColor: AppColors.primaryBlue,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 8,
+                  vertical: 5,
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(11),
@@ -375,26 +376,58 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     required String amount,
   }) async {
     try {
+      // The invoice endpoint is keyed by the order ID, not the invoice row ID.
+      final orderId = int.tryParse(order.trim());
       final bytes = await context.read<InvoicesProvider>().downloadInvoice(
-        invoiceId,
+        orderId ?? invoiceId,
       );
-      final path = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save invoice PDF from server',
-        fileName:
-            'invoice_${order.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_')}.pdf',
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-        bytes: Uint8List.fromList(bytes),
-      );
+      final safeOrder = order.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final directory = await _invoiceDownloadDirectory();
+      final file = File('${directory.path}/invoice_$safeOrder.pdf');
+      await file.writeAsBytes(bytes, flush: true);
       if (!mounted) return;
-      _message(
-        path == null ? 'PDF download cancelled' : 'PDF saved successfully',
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('PDF downloaded successfully'),
+          action: SnackBarAction(
+            label: 'OPEN',
+            onPressed: () async {
+              await Share.shareXFiles([
+                XFile(
+                  file.path,
+                  mimeType: 'application/pdf',
+                  name: file.uri.pathSegments.last,
+                ),
+              ]);
+            },
+          ),
+        ),
       );
     } on InvoicesException catch (error) {
       if (mounted) _message(error.message);
     } catch (_) {
       if (mounted) _message('Unable to download invoice PDF');
     }
+  }
+
+  Future<Directory> _invoiceDownloadDirectory() async {
+    if (Platform.isAndroid) {
+      try {
+        final directories = await getExternalStorageDirectories(
+          type: StorageDirectory.downloads,
+        );
+        if (directories != null && directories.isNotEmpty) {
+          final directory = directories.first;
+          if (!await directory.exists()) {
+            await directory.create(recursive: true);
+          }
+          return directory;
+        }
+      } catch (_) {
+        // Fall back to the app documents directory below.
+      }
+    }
+    return getApplicationDocumentsDirectory();
   }
 
   Widget _bottomNavigation() => BottomNavigationBar(
