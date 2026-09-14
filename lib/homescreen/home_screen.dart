@@ -610,6 +610,9 @@ class _HomeScreenState extends State<HomeScreen>
                                 'Modify',
                                 yellow,
                                 blue,
+                                // () {
+                                //   _showTrackingDialog(booking: booking);
+                                // },
                                 () => _showShipmentAction('Modify', booking),
                               ),
                             ),
@@ -712,7 +715,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Future<void> _showTrackingDialog() async {
+  Future<void> _showTrackingDialog({Booking? booking}) async {
     final awbController = TextEditingController();
     final awb = await showDialog<String>(
       context: context,
@@ -801,10 +804,10 @@ class _HomeScreenState extends State<HomeScreen>
     });
 
     if (!mounted || awb == null || awb.isEmpty) return;
-    _loadTrackingDetails(awb);
+    _loadTrackingDetails(awb, booking: booking);
   }
 
-  Future<void> _loadTrackingDetails(String awb) async {
+  Future<void> _loadTrackingDetails(String awb, {Booking? booking}) async {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -816,7 +819,7 @@ class _HomeScreenState extends State<HomeScreen>
       final tracking = await context.read<HomeProvider>().trackOrder(awb);
       if (!mounted) return;
       Navigator.of(context).pop();
-      _showTrackingDetails(tracking);
+      _showTrackingDetails(tracking, booking: booking);
     } on HomeException catch (error) {
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -832,7 +835,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _showTrackingDetails(TrackOrderData tracking) {
+  void _showTrackingDetails(TrackOrderData tracking, {Booking? booking}) {
     final date = _trackingDate(tracking.lastUpdated);
 
     showDialog<void>(
@@ -943,10 +946,15 @@ class _HomeScreenState extends State<HomeScreen>
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(dialogContext);
-                      final onMoreTrack = widget.onMoreTrack;
-                      if (onMoreTrack != null) {
-                        onMoreTrack(tracking.orderId);
-                      } else {
+                      if (booking != null &&
+                          tracking.status.toLowerCase().contains('deliver')) {
+                        _showShipmentAction('Modify', booking);
+                      }
+                      // else if (widget.onMoreTrack != null) {
+                      //   final onMoreTrack = widget.onMoreTrack!;
+                      //   onMoreTrack(tracking.orderId);
+                      // }
+                      else {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -1399,34 +1407,40 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                       const SizedBox(width: 6),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PaperworkRequired(),
+                      FadeTransition(
+                        opacity: Tween<double>(
+                          begin: .55,
+                          end: 1.0,
+                        ).animate(_logoController),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PaperworkRequired(),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: blue,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 5,
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: blue,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 5,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Upload',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
+                          child: const Text(
+                            'Upload',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
                           ),
                         ),
                       ),
