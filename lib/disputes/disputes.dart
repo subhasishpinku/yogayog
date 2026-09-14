@@ -142,7 +142,9 @@ class _DisputesState extends State<Disputes> {
               MaterialPageRoute(
                 builder: (context) => Claims(
                   orderNo: widget.orderNo,
-                  orderId: widget.orderId.isEmpty ? widget.orderNo : widget.orderId,
+                  orderId: widget.orderId.isEmpty
+                      ? widget.orderNo
+                      : widget.orderId,
                   issue: widget.subServiceName,
                   description: _detailsController.text.trim(),
                   amount: widget.amount,

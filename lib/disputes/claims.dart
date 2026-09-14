@@ -49,7 +49,7 @@ class _ClaimsState extends State<Claims> {
     try {
       final video = await _picker.pickVideo(
         source: ImageSource.camera,
-        maxDuration: const Duration(seconds: 30),
+        maxDuration: const Duration(seconds: 5),
       );
       if (video == null || !mounted) return;
       const maxVideoBytes = 20 * 1024 * 1024;
@@ -126,7 +126,7 @@ class _ClaimsState extends State<Claims> {
             title: 'Video (optional)',
             subtitle: _video != null
                 ? '1 video added'
-                : 'Show damage clearly, up to 30 seconds',
+                : 'Show damage clearly, up to 5 seconds',
             onAdd: _addVideo,
           ),
           const SizedBox(height: 14),

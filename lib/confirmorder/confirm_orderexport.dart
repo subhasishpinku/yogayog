@@ -98,16 +98,7 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
         _dropHouseController.text.trim().isEmpty) {
       Future<void>.delayed(const Duration(seconds: 5), () {
         if (!mounted || _autoMovedToDetails) return;
-        _autoMovedToDetails = true;
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => InternationalDetails(
-              initialOrderPayload: widget.orderPayload,
-              openDropDetailsOnLoad: true,
-            ),
-          ),
-        );
+        _returnToInternationalDetailsForDrop(wait: false);
       });
     }
   }
@@ -127,9 +118,9 @@ class _ConfirmOrderState extends State<ConfirmOrderExport> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _returnToInternationalDetailsForDrop() async {
+  Future<void> _returnToInternationalDetailsForDrop({bool wait = true}) async {
     _autoMovedToDetails = true;
-    await Future<void>.delayed(const Duration(seconds: 5));
+    if (wait) await Future<void>.delayed(const Duration(seconds: 5));
     if (!mounted) return;
     await showDialog<void>(
       context: context,
