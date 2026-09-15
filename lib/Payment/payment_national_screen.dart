@@ -31,11 +31,12 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
       );
       return;
     }
+    final isCashOnDelivery =
+        selectedMethod == 'Cash on Delivery - Pickup' ||
+        selectedMethod == 'Cash on Delivery - Drop';
     final payload = Map<String, dynamic>.from(widget.orderPayload)
-      ..['payment_method'] = selectedMethod == 'Cash on Delivery'
-          ? 'COD'
-          : 'ONLINE';
-    if (selectedMethod == 'Cash on Delivery') {
+      ..['payment_method'] = isCashOnDelivery ? 'COD' : 'ONLINE';
+    if (isCashOnDelivery) {
       await _createNationalOrder(payload);
       return;
     }
@@ -341,8 +342,8 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
           _paymentTile(
             icon: Icons.phone_android,
             iconColor: Colors.cyan,
-            title: 'Online UPI Payment',
-            subtitle: 'GPay, PhonePe, Paytm, any UPI ID',
+            title: 'Pay at Pickup',
+            subtitle: 'UPI / Card / Net Banking',
             method: 'UPI',
           ),
           // _divider(),
@@ -361,13 +362,21 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
           //   subtitle: 'All major Indian banks',
           //   method: 'Net Banking',
           // ),
+          // _divider(),
+          // _paymentTile(
+          //   icon: Icons.money,
+          //   iconColor: Colors.amber,
+          //   title: 'Cash on Delivery',
+          //   subtitle: 'Pay at pickup',
+          //   method: 'Cash on Delivery - Pickup',
+          // ),
           _divider(),
           _paymentTile(
             icon: Icons.money,
             iconColor: Colors.amber,
-            title: 'Cash on Delivery',
-            subtitle: 'Pay at pickup',
-            method: 'Cash on Delivery',
+            title: 'Pay at Drop',
+            subtitle: 'Cash / UPI',
+            method: 'Cash on Delivery - Drop',
           ),
         ],
       ),

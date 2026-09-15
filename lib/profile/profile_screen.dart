@@ -6,6 +6,7 @@ import 'package:yogayog/history/history_screen.dart';
 import 'package:yogayog/history/myshipmentes/my_shipments.dart';
 import 'package:yogayog/mybooking/my_booking.dart';
 import 'package:yogayog/mywallet/mywallet.dart';
+import 'package:yogayog/paperworkrequired/paperwork_required.dart';
 import 'package:yogayog/profile/profile_edit_screen.dart';
 import 'package:yogayog/savedaddresses/savedaddresses.dart';
 import 'package:yogayog/OnboardingScreen/onboarding_screen.dart';
@@ -47,8 +48,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _menuItem(
                     icon: Icons.inventory_2_outlined,
                     iconColor: const Color(0xFFD49A67),
-                    title: 'My Shipments',
-                    onTap: () => _open(const MyShipments()),
+                    title: 'Kyc',
+                    // onTap: () => _open(const MyShipments()),
+                    onTap: () => _open(const PaperworkRequired()),
                   ),
                   _menuItem(
                     icon: Icons.location_on_outlined,

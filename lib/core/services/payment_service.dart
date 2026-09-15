@@ -40,7 +40,9 @@ class PaymentService {
       final data = response.data;
       if (data is! Map || data['success'] != true || data['order'] is! Map) {
         throw PaymentException(
-          data is Map ? data['message']?.toString() ?? 'Unable to create order' : 'Invalid response from the server',
+          data is Map
+              ? data['message']?.toString() ?? 'Unable to create order'
+              : 'Invalid response from the server',
         );
       }
       return PaymentOrderResponse.fromJson(Map<String, dynamic>.from(data));
@@ -49,7 +51,9 @@ class PaymentService {
       if (data is Map && data['message'] != null) {
         throw PaymentException(data['message'].toString());
       }
-      throw PaymentException(error.message ?? 'Network error while creating order');
+      throw PaymentException(
+        error.message ?? 'Network error while creating order',
+      );
     }
   }
 
@@ -62,7 +66,9 @@ class PaymentService {
         data: payload,
       );
       final data = response.data;
-      if (data is! Map || data['success'] != true || data['gatewayResponse'] is! Map) {
+      if (data is! Map ||
+          data['success'] != true ||
+          data['gatewayResponse'] is! Map) {
         throw PaymentException(
           data is Map
               ? data['message']?.toString() ?? 'Unable to initialize payment'
@@ -96,7 +102,9 @@ class BillDeskPaymentResponse {
 
   factory BillDeskPaymentResponse.fromJson(Map<String, dynamic> json) {
     final gateway = Map<String, dynamic>.from(json['gatewayResponse'] as Map);
-    final links = gateway['links'] is List ? gateway['links'] as List : const [];
+    final links = gateway['links'] is List
+        ? gateway['links'] as List
+        : const [];
     Map<String, dynamic> redirect = const <String, dynamic>{};
     for (final link in links) {
       if (link is Map && link['rel']?.toString() == 'redirect') {
@@ -118,7 +126,8 @@ class BillDeskPaymentResponse {
       throw const PaymentException('Payment gateway details are incomplete');
     }
     return BillDeskPaymentResponse(
-      orderId: json['orderId']?.toString() ?? gateway['orderid']?.toString() ?? '',
+      orderId:
+          json['orderId']?.toString() ?? gateway['orderid']?.toString() ?? '',
       merchantId: merchantId,
       billDeskOrderId: billDeskOrderId,
       authToken: authToken,
@@ -136,11 +145,14 @@ class PaymentOrderResponse {
   final String orderId;
   final String invoiceId;
   final String invoiceUrl;
+
   /// Numeric database id required by `/orders/{id}/invoice/download`.
   final int? databaseId;
 
   factory PaymentOrderResponse.fromJson(Map<String, dynamic> json) {
-    final order = json['order'] is Map ? Map<String, dynamic>.from(json['order']) : const <String, dynamic>{};
+    final order = json['order'] is Map
+        ? Map<String, dynamic>.from(json['order'])
+        : const <String, dynamic>{};
     return PaymentOrderResponse(
       orderId: order['order_id']?.toString() ?? order['id']?.toString() ?? '',
       invoiceId: order['invoice_id']?.toString() ?? '',

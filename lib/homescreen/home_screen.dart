@@ -18,6 +18,7 @@ import 'package:yogayog/mywallet/mywallet.dart';
 import 'package:yogayog/OnboardingScreen/onboarding_screen.dart';
 import 'package:yogayog/bikescreen/choose_bike_screen.dart';
 import 'package:yogayog/reschedule/reschedule.dart';
+import 'package:yogayog/shipmentdocument/shipment_document.dart';
 import 'package:yogayog/truckscreen/choose_truck_screen.dart';
 import 'package:yogayog/nationaldetails/national_details.dart';
 import 'package:yogayog/internationaldetails/international_details.dart';
@@ -157,12 +158,12 @@ class _HomeScreenState extends State<HomeScreen>
         child: Column(
           children: [
             _buildHeader(),
+            _buildCategories(),
 
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.only(bottom: 12),
                 children: [
-                  _buildCategories(),
                   _buildActiveShipment(),
                   _buildServices(),
                   _buildRecentShipmentsFromApi(),
@@ -1417,7 +1418,7 @@ class _HomeScreenState extends State<HomeScreen>
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => PaperworkRequired(),
+                                builder: (_) => ShipmentDocument(),
                               ),
                             );
                           },
