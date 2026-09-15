@@ -214,9 +214,9 @@ class _AddmoneyState extends State<Addmoney> {
       );
       return;
     }
-    Navigator.push(
+
+    Navigator.of(
       context,
-      MaterialPageRoute(builder: (_) => PaymentScreen(amount: amount)),
-    );
+    ).push(MaterialPageRoute(builder: (_) => PaymentScreen(amount: amount)));
   }
 }

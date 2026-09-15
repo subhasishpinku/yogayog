@@ -40,7 +40,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
       // The payment API requires amount for every online payment, including
       // booking payments whose order payload may not contain it.
       // payload['amount'] = widget.amount;
-      payload['amount'] = 1;
+      payload['amount'] = isTopUp ? widget.amount : 1;
 
       final payment = await context
           .read<PaymentProvider>()
