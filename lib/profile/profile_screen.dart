@@ -48,7 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _menuItem(
                     icon: Icons.inventory_2_outlined,
                     iconColor: const Color(0xFFD49A67),
-                    title: 'Kyc',
+                    title: 'KYC',
                     // onTap: () => _open(const MyShipments()),
                     onTap: () => _open(const PaperworkRequired()),
                   ),

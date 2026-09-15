@@ -48,14 +48,14 @@ class _ToolInformationState extends State<ToolInformation> {
       iconColor: Color(0xFF28358F),
       details: 'View the addresses of the four nearest branches.',
     ),
-    _ToolItem(
-      title: 'Contact Persons',
-      subtitle: 'Operations, Support, Finance',
-      icon: Icons.groups_outlined,
-      iconBackground: Color(0xFFFFEAF0),
-      iconColor: Color(0xFF252525),
-      details: 'Find the right contact for operations, support, or finance.',
-    ),
+    // _ToolItem(
+    //   title: 'Contact Persons',
+    //   subtitle: 'Operations, Support, Finance',
+    //   icon: Icons.groups_outlined,
+    //   iconBackground: Color(0xFFFFEAF0),
+    //   iconColor: Color(0xFF252525),
+    //   details: 'Find the right contact for operations, support, or finance.',
+    // ),
     _ToolItem(
       title: 'Paperwork Required',
       subtitle: 'Docs needed per shipment type',
@@ -141,14 +141,14 @@ class _ToolInformationState extends State<ToolInformation> {
                       return;
                     }
 
-                    if (_tools[index].title == 'Contact Persons') {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const ContactPersons(),
-                        ),
-                      );
-                      return;
-                    }
+                    // if (_tools[index].title == 'Contact Persons') {
+                    //   Navigator.of(context).push(
+                    //     MaterialPageRoute(
+                    //       builder: (_) => const ContactPersons(),
+                    //     ),
+                    //   );
+                    //   return;
+                    // }
 
                     if (_tools[index].title == 'Branch Addresses') {
                       Navigator.of(context).push(
