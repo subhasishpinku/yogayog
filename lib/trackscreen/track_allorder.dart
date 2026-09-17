@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/history_service.dart';
+import 'package:yogayog/disputes/disputes.dart';
+import 'package:yogayog/reschedule/reschedule.dart';
 import 'package:yogayog/trackscreen/track_screen.dart';
 import 'package:yogayog/trackscreen/international_export.dart';
 import 'package:yogayog/trackscreen/local_bike _out_for_delivery.dart';
@@ -322,9 +324,12 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
                         ),
                       ),
                     )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(10, 4, 10, 24),
-                      children: _grouped(visible),
+                  : SizedBox(
+                      height: MediaQuery.sizeOf(context).height * 0.62,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(10, 4, 10, 24),
+                        children: _grouped(visible),
+                      ),
                     ),
             ),
           ],
@@ -766,7 +771,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
       borderRadius: BorderRadius.circular(18),
       child: Container(
         margin: const EdgeInsets.only(bottom: 11),
-        padding: const EdgeInsets.fromLTRB(15, 13, 15, 14),
+        padding: const EdgeInsets.fromLTRB(15, 8, 15, 9),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
@@ -809,30 +814,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
               ],
             ),
 
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => _screenForOrder(order)),
-                  );
-                },
-                icon: const Icon(Icons.open_in_new_rounded, size: 15),
-                label: const Text('Details'),
-                style: TextButton.styleFrom(
-                  foregroundColor: headerBlue,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  visualDensity: VisualDensity.compact,
-                  textStyle: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 5),
+            // const SizedBox(height: 5),
 
             // --------------------------------------------------
             // STATUS
@@ -867,8 +849,8 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
                   const SizedBox(width: 8),
                   _liveBadge(),
                 ],
-
-                const Spacer(),
+                SizedBox(width: 10),
+                // const Spacer(),
 
                 // if (filter == 'All')
                 //   const Icon(
@@ -876,6 +858,7 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
                 //     color: Color(0xFFB0B0B0),
                 //     size: 20,
                 //   ),
+                _orderActions(order),
               ],
             ),
 
@@ -951,6 +934,118 @@ class _TrackAllOrderState extends State<TrackAllOrder> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _orderActions(_DemoOrder order) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (order.status.trim().toLowerCase() == 'delivered') ...[
+          TextButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => Disputes(
+                    orderNo: order.orderNo,
+                    orderId: order.trackingNumber,
+                    serviceName: order.serviceName,
+                    subServiceName: order.subServiceName,
+                    orderDate: order.orderDate,
+                    pickupCity: order.pickupCity,
+                    dropCity: order.dropCity,
+                    status: order.status,
+                    amount: order.amount,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.edit_rounded, size: 15),
+            label: const Text('Modify'),
+            style: TextButton.styleFrom(
+              foregroundColor: headerBlue,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              visualDensity: VisualDensity.compact,
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        if (order.status.trim().toLowerCase() != 'delivered') ...[
+          const SizedBox(width: 8),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => Reschedule(booking: _bookingForOrder(order)),
+                ),
+              );
+            },
+            icon: const Icon(Icons.calendar_month_rounded, size: 15),
+            label: const Text('Reschedule'),
+            style: TextButton.styleFrom(
+              foregroundColor: headerBlue,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              visualDensity: VisualDensity.compact,
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        TextButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => _screenForOrder(order)),
+            );
+          },
+          icon: const Icon(Icons.open_in_new_rounded, size: 15),
+          label: const Text('Details'),
+          style: TextButton.styleFrom(
+            foregroundColor: headerBlue,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            visualDensity: VisualDensity.compact,
+            textStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Booking _bookingForOrder(_DemoOrder order) {
+    return Booking(
+      orderId: order.trackingNumber,
+      orderNo: order.orderNo,
+      serviceId: order.serviceId,
+      subServiceId: order.subServiceId,
+      orderDate: order.orderDate,
+      serviceName: order.serviceName,
+      subServiceName: order.subServiceName,
+      amount: order.amount,
+      status: order.status,
+      pickupCity: order.pickupCity,
+      dropCity: order.dropCity,
+      pickupName: order.pickupName,
+      pickupAddress: order.pickupAddress,
+      pickupMobile: order.pickupMobile,
+      dropName: order.dropName,
+      dropAddress: order.dropAddress,
+      dropMobile: order.dropMobile,
+      riderName: order.riderName,
+      riderMobile: order.riderMobile,
+      paymentDone: order.paymentDone,
+      paymentMode: order.paymentMode,
     );
   }
 

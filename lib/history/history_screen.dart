@@ -14,6 +14,8 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   int selectedFilter = 0;
   int selectedOrderTab = 0;
+  String searchQuery = '';
+  final searchController = TextEditingController();
 
   static const filters = <_HistoryFilter>[
     _HistoryFilter('All'),
@@ -107,6 +109,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           children: [
             _header(),
             _orderTabs(),
+            _searchBox(),
             Expanded(child: _buildBookings()),
           ],
         ),
@@ -136,9 +139,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
       );
     }
-    final bookings = selectedOrderTab == 0
-        ? provider.currentOrders
-        : provider.deliveredOrders;
+    final bookings =
+        (selectedOrderTab == 0
+                ? provider.currentOrders
+                : provider.deliveredOrders)
+            .where(
+              (booking) => booking.orderNo.toLowerCase().contains(
+                searchQuery.trim().toLowerCase(),
+              ),
+            )
+            .toList();
     if (bookings.isEmpty) {
       return const Center(child: Text('No bookings found'));
     }
@@ -150,6 +160,42 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         ...bookings.map(_historyCardPadding),
       ],
+    );
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
+  Widget _searchBox() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+      child: TextField(
+        controller: searchController,
+        onChanged: (value) => setState(() => searchQuery = value),
+        decoration: InputDecoration(
+          hintText: 'Search by order no.',
+          prefixIcon: const Icon(Icons.search_rounded),
+          suffixIcon: searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  onPressed: () {
+                    searchController.clear();
+                    setState(() => searchQuery = '');
+                  },
+                  icon: const Icon(Icons.clear_rounded),
+                ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
     );
   }
 
@@ -176,7 +222,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  Widget _orderTab({required String label, required int count, required int index}) {
+  Widget _orderTab({
+    required String label,
+    required int count,
+    required int index,
+  }) {
     final selected = selectedOrderTab == index;
     return Expanded(
       child: GestureDetector(
@@ -224,95 +274,191 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Widget _bookingCard(Booking item) {
     final delivered = item.status.toLowerCase() == 'delivered';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x10000000),
-            blurRadius: 8,
-            offset: Offset(0, 3),
+    return InkWell(
+      onTap: () => _showBookingDetails(item),
+      borderRadius: BorderRadius.circular(17),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(17),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x10000000),
+              blurRadius: 8,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF0FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.local_shipping,
+                    color: delivered
+                        ? const Color(0xFF62D746)
+                        : const Color(0xFFFFC400),
+                    size: 25,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.orderNo,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        '${item.serviceName} - ${item.orderDate}',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _statusBadge(item.status),
+              ],
+            ),
+            const SizedBox(height: 13),
+            Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '${item.pickupCity}  →  ${item.dropCity}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => _showBookingDetails(item),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                    label: const Text('Details'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF172786),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      visualDensity: VisualDensity.compact,
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 22),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '₹${item.amount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Color(0xFF172786),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  item.subServiceName,
+                  style: const TextStyle(
+                    color: Color(0xFF172786),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBookingDetails(Booking item) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(
+          'Order Details',
+          style: TextStyle(
+            color: Color(0xFF172786),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _detailRow('Order No.', item.orderNo),
+              _detailRow('Order ID', item.orderId),
+              _detailRow('Service', item.serviceName),
+              _detailRow('Sub-service', item.subServiceName),
+              _detailRow('Date', item.orderDate),
+              _detailRow('Status', item.status),
+              _detailRow('Pickup Name', item.pickupName),
+              _detailRow('Pickup Address', item.pickupAddress),
+              _detailRow('Pickup City', item.pickupCity),
+              _detailRow('Pickup Mobile', item.pickupMobile),
+              _detailRow('Drop Name', item.dropName),
+              _detailRow('Drop Address', item.dropAddress),
+              _detailRow('Drop City', item.dropCity),
+              _detailRow('Drop Mobile', item.dropMobile),
+              _detailRow('Amount', '₹${item.amount.toStringAsFixed(2)}'),
+              _detailRow('Payment Mode', item.paymentMode),
+              _detailRow('Payment Done', item.paymentDone ? 'Yes' : 'No'),
+              _detailRow('Rider Name', item.riderName),
+              _detailRow('Rider Mobile', item.riderMobile),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Close'),
           ),
         ],
       ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF0FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.local_shipping,
-                  color: delivered
-                      ? const Color(0xFF62D746)
-                      : const Color(0xFFFFC400),
-                  size: 25,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.orderNo,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Text(
-                      '${item.serviceName} - ${item.orderDate}',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _statusBadge(item.status),
-            ],
-          ),
-          const SizedBox(height: 13),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '${item.pickupCity}  →  ${item.dropCity}',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    final displayValue = value.trim().isEmpty ? '-' : value;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(color: Colors.black87, fontSize: 13),
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
-          ),
-          const Divider(height: 22),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '₹${item.amount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: Color(0xFF172786),
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                item.subServiceName,
-                style: const TextStyle(
-                  color: Color(0xFF172786),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ],
+            TextSpan(text: displayValue),
+          ],
+        ),
       ),
     );
   }
