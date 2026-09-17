@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/bookingsuccess/bookingsuccess.dart';
-import 'package:yogayog/Payment/provider/payment_national_provider.dart';
+import 'package:yogayog/Payment/provider/payment_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:billdesk_sdk/sdk.dart';
-import 'package:yogayog/core/services/payment_national_service.dart';
 import 'package:yogayog/core/services/payment_service.dart';
+import 'package:yogayog/dashboard/dashboard_scren.dart';
 
-class PaymentNationalScreen extends StatefulWidget {
-  const PaymentNationalScreen({
+class PaymentAddWalletScreen extends StatefulWidget {
+  const PaymentAddWalletScreen({
     super.key,
     this.amount = 149,
     this.orderPayload = const {},
@@ -18,10 +18,10 @@ class PaymentNationalScreen extends StatefulWidget {
   final Map<String, dynamic> orderPayload;
 
   @override
-  State<PaymentNationalScreen> createState() => _PaymentNationalScreenState();
+  State<PaymentAddWalletScreen> createState() => _PaymentAddWalletScreenState();
 }
 
-class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
+class _PaymentAddWalletScreenState extends State<PaymentAddWalletScreen> {
   String? selectedMethod;
 
   Future<void> _processPayment() async {
@@ -34,39 +34,47 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
     final isCashOnDelivery =
         selectedMethod == 'Cash on Delivery - Pickup' ||
         selectedMethod == 'Cash on Delivery - Drop';
+    final isTopUp = widget.orderPayload.isEmpty;
     final payload = Map<String, dynamic>.from(widget.orderPayload)
       ..['payment_method'] = isCashOnDelivery ? 'COD' : 'ONLINE';
-    if (isCashOnDelivery) {
-      await _createNationalOrder(payload);
+    if (!isCashOnDelivery) {
+      // The payment API requires amount for every online payment, including
+      // booking payments whose order payload may not contain it.
+      // payload['amount'] = widget.amount;
+      payload['amount'] = isTopUp ? widget.amount : 1;
+
+      final payment = await context
+          .read<PaymentProvider>()
+          .createBillDeskPayment(payload: payload);
+      if (!mounted) return;
+      if (payment == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.read<PaymentProvider>().errorMessage ??
+                  'Unable to initialize BillDesk payment',
+            ),
+          ),
+        );
+        return;
+      }
+      _openBillDesk(payment, orderPayload: payload);
       return;
     }
-    // The only remaining method is online UPI payment.
-    payload['amount'] = 1;
-    final payment = await context
-        .read<PaymentNationalProvider>()
-        .createBillDeskPayment(payload: payload);
-    if (!mounted) return;
-    if (payment == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.read<PaymentNationalProvider>().errorMessage ??
-                'Unable to initialize BillDesk payment',
-          ),
-        ),
+    if (isTopUp) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const Dashboard()),
+        (route) => false,
       );
+      return;
     }
-    if (payment != null) _openBillDesk(payment, orderPayload: payload);
-  }
-
-  Future<void> _createNationalOrder(Map<String, dynamic> payload) async {
-    final order = await context.read<PaymentNationalProvider>().createOrder(
+    final order = await context.read<PaymentProvider>().createOrder(
       payload: payload,
     );
     if (!mounted) return;
     if (order == null) {
       final message =
-          context.read<PaymentNationalProvider>().errorMessage ??
+          context.read<PaymentProvider>().errorMessage ??
           'Unable to create order';
       ScaffoldMessenger.of(
         context,
@@ -74,7 +82,7 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
       return;
     }
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => BookingSuccess(order: order)),
+      MaterialPageRoute(builder: (_) => Dashboard()),
       (route) => false,
     );
   }
@@ -113,7 +121,7 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
     Map<String, dynamic> orderPayload,
   ) async {
     if (!mounted) return;
-    final order = await context.read<PaymentNationalProvider>().createOrder(
+    final order = await context.read<PaymentProvider>().createOrder(
       payload: orderPayload,
     );
     if (!mounted) return;
@@ -121,7 +129,7 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.read<PaymentNationalProvider>().errorMessage ??
+            context.read<PaymentProvider>().errorMessage ??
                 'Payment succeeded, but order creation failed',
           ),
         ),
@@ -129,7 +137,7 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
       return;
     }
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => BookingSuccess(order: order)),
+      MaterialPageRoute(builder: (_) => Dashboard()),
       (route) => false,
     );
   }
@@ -167,7 +175,7 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: context.watch<PaymentNationalProvider>().isLoading
+              onPressed: context.watch<PaymentProvider>().isLoading
                   ? null
                   : _processPayment,
               style: ElevatedButton.styleFrom(
@@ -182,7 +190,7 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              child: context.watch<PaymentNationalProvider>().isLoading
+              child: context.watch<PaymentProvider>().isLoading
                   ? const SizedBox(
                       width: 24,
                       height: 24,
@@ -348,14 +356,6 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
           ),
           // _divider(),
           // _paymentTile(
-          //   icon: Icons.credit_card,
-          //   iconColor: Colors.orange,
-          //   title: 'Wallet',
-          //   subtitle: 'Visa, Mastercard, RuPay',
-          //   method: 'Card',
-          // ),
-          // _divider(),
-          // _paymentTile(
           //   icon: Icons.account_balance,
           //   iconColor: Colors.green,
           //   title: 'Net Banking',
@@ -370,14 +370,14 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
           //   subtitle: 'Pay at pickup',
           //   method: 'Cash on Delivery - Pickup',
           // ),
-          // _divider(),
-          // _paymentTile(
-          //   icon: Icons.money,
-          //   iconColor: Colors.amber,
-          //   title: 'Pay at Drop',
-          //   subtitle: 'Cash / UPI',
-          //   method: 'Cash on Delivery - Drop',
-          // ),
+          _divider(),
+          _paymentTile(
+            icon: Icons.money,
+            iconColor: Colors.amber,
+            title: 'Pay at Drop',
+            subtitle: 'Cash / UPI',
+            method: 'Cash on Delivery - Drop',
+          ),
         ],
       ),
     );
@@ -464,7 +464,11 @@ class _BillDeskResponseHandler extends ResponseHandler {
 
   @override
   void onTransactionResponse(TxnInfo txnInfo) {
-    if (txnInfo.txnInfoMap['isCancelledByUser'] == true) {
+    final cancelled =
+        txnInfo.txnInfoMap['isCancelledByUser'] == true ||
+        txnInfo.txnInfoMap['isCancelledByUser']?.toString().toLowerCase() ==
+            'true';
+    if (cancelled) {
       onFailure();
     } else {
       onSuccess();

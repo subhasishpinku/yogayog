@@ -1,7 +1,29 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+import 'package:yogayog/paperworkrequired/provider/paperwork_required_provider.dart';
 
 class ShipmentDocument extends StatefulWidget {
-  const ShipmentDocument({super.key});
+  const ShipmentDocument({
+    super.key,
+    this.orderId = '',
+    this.serviceName = '',
+    this.orderDate = '',
+    this.status = '',
+    this.pickupCity = '',
+    this.dropCity = '',
+    this.shipmentType = 'Export',
+  });
+
+  final String orderId;
+  final String serviceName;
+  final String orderDate;
+  final String status;
+  final String pickupCity;
+  final String dropCity;
+  final String shipmentType;
 
   @override
   State<ShipmentDocument> createState() => _ShipmentDocumentState();
@@ -10,16 +32,10 @@ class ShipmentDocument extends StatefulWidget {
 class _ShipmentDocumentState extends State<ShipmentDocument> {
   static const _documents = [
     _ShipmentDocumentItem(
-      '🔖',
-      'AWB',
-      'Airway Bill / shipment document',
-      true,
-      true,
-    ),
-    _ShipmentDocumentItem(
       '📦',
       'Packing List',
       'Item-wise package details',
+      false,
       true,
     ),
     _ShipmentDocumentItem(
@@ -27,18 +43,14 @@ class _ShipmentDocumentState extends State<ShipmentDocument> {
       'Shipping Bill',
       'Required for export shipment',
       false,
+      true,
     ),
     _ShipmentDocumentItem(
       '🧾',
       'Commercial Invoice',
       'Required for customs clearance',
-      true,
-    ),
-    _ShipmentDocumentItem(
-      '📍',
-      'Need Shipment Track Upload',
-      'Upload shipment tracking details',
       false,
+      true,
     ),
   ];
 
@@ -48,25 +60,173 @@ class _ShipmentDocumentState extends State<ShipmentDocument> {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          const _ShipmentHeader(),
+          _ShipmentHeader(orderId: widget.orderId),
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(9, 14, 9, 7),
-                  child: _SectionHeading(
-                    title: 'Shipment Documents',
-                    subtitle: 'Upload documents related to this shipment',
-                  ),
-                ),
-                ..._documents.map(_documentTile),
-              ],
+              children: [_shipmentSummaryCard(), ..._documentSections()],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _shipmentSummaryCard() {
+    final serviceDate = [
+      widget.serviceName,
+      widget.orderDate,
+    ].where((value) => value.trim().isNotEmpty).join(' · ');
+    final route = [
+      widget.pickupCity,
+      widget.dropCity,
+    ].where((value) => value.trim().isNotEmpty).join('  →  ');
+    final status = widget.status.trim().isEmpty
+        ? 'Manifest Uploaded'
+        : widget.status.trim();
+    final displayServiceDate = serviceDate.isEmpty
+        ? 'International Courier · 2026-09-15'
+        : serviceDate;
+    final displayRoute = route.isEmpty ? 'Kolkata  →  Bannockburn' : route;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(9, 10, 9, 2),
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F4E5),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: const Icon(
+                  Icons.local_shipping_rounded,
+                  color: Colors.black87,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.orderId.trim().isEmpty
+                          ? 'Shipment'
+                          : widget.orderId.trim(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Text(
+                      displayServiceDate,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF8A909A),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF2C9),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Text(
+                  status,
+                  style: const TextStyle(
+                    color: Color(0xFF927000),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Text(
+            displayRoute,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _documentSections() {
+    return [
+      ..._documentGroup('Bike Document', const ['Invoice', 'Way Bill']),
+      ..._documentGroup('Truck Document', const [
+        'Invoice',
+        'Way Bill – Part A',
+        'Way Bill – Part B',
+      ]),
+      ..._documentGroup('National Document', const [
+        'Sales',
+        'Invoice',
+        'Way Bill – Part A',
+        // 'Indian',
+      ]),
+      ..._documentGroup('International Export Document', const [
+        'Packing List',
+        'Shipping Bill',
+        'Commercial Invoice',
+        'Declaration',
+      ]),
+      ..._documentGroup('International Import Document', const [
+        'Commercial Invoice',
+        'Declaration',
+      ]),
+    ];
+  }
+
+  List<Widget> _documentGroup(String heading, List<String> titles) {
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(9, 14, 9, 7),
+        child: Text(
+          heading,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+        ),
+      ),
+      ...titles.map(
+        (title) => _documentTile(
+          _ShipmentDocumentItem(
+            '📄',
+            title,
+            'Upload $title document',
+            false,
+            true,
+          ),
+        ),
+      ),
+    ];
   }
 
   Widget _documentTile(_ShipmentDocumentItem document) {
@@ -117,23 +277,29 @@ class _ShipmentDocumentState extends State<ShipmentDocument> {
               ],
             ),
           ),
-          if (document.canUpload)
-            ElevatedButton(
-              onPressed: () => _showUploadMessage(document.title),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFC400),
-                foregroundColor: Colors.black,
-                elevation: 1,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                minimumSize: const Size(0, 34),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _statusBadge(document),
+              if (document.canUpload) ...[
+                const SizedBox(width: 6),
+                ElevatedButton(
+                  onPressed: () => _showUploadDialog(document),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFC400),
+                    foregroundColor: Colors.black,
+                    elevation: 1,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    minimumSize: const Size(0, 34),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
+                  child: const Text('Upload'),
                 ),
-              ),
-              child: const Text('Upload'),
-            )
-          else
-            _statusBadge(document),
+              ],
+            ],
+          ),
         ],
       ),
     );
@@ -161,15 +327,131 @@ class _ShipmentDocumentState extends State<ShipmentDocument> {
     );
   }
 
-  void _showUploadMessage(String title) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Upload $title')));
+  Future<void> _showUploadDialog(_ShipmentDocumentItem document) async {
+    XFile? image;
+    var isSubmitting = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Upload ${document.title}'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (image != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.file(
+                      File(image!.path),
+                      height: 150,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                else
+                  Container(
+                    height: 120,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4F4F8),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFD8D8E0)),
+                    ),
+                    child: Text('No ${document.title} photo selected'),
+                  ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final selected = await ImagePicker().pickImage(
+                      source: ImageSource.camera,
+                      imageQuality: 85,
+                    );
+                    if (selected != null) {
+                      setDialogState(() => image = selected);
+                    }
+                  },
+                  icon: const Icon(Icons.photo_camera_outlined),
+                  label: Text(
+                    image == null
+                        ? 'Take ${document.title} Photo'
+                        : 'Retake ${document.title} Photo',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (image == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Please select ${document.title} photo',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      setDialogState(() => isSubmitting = true);
+                      final type = document.title
+                          .toLowerCase()
+                          .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+                          .replaceAll(RegExp(r'^_|_$'), '');
+                      final success = await context
+                          .read<PaperworkRequiredProvider>()
+                          .uploadDocument(documentType: type, image: image!);
+                      if (!mounted) return;
+                      if (!success) {
+                        setDialogState(() => isSubmitting = false);
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              this.context
+                                      .read<PaperworkRequiredProvider>()
+                                      .errorMessage ??
+                                  'Unable to upload ${document.title}',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            '${document.title} uploaded successfully',
+                          ),
+                        ),
+                      );
+                    },
+              child: isSubmitting
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Verify & Upload'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
 class _ShipmentHeader extends StatelessWidget {
-  const _ShipmentHeader();
+  const _ShipmentHeader({this.orderId = ''});
+
+  final String orderId;
 
   @override
   Widget build(BuildContext context) {
@@ -228,6 +510,15 @@ class _ShipmentHeader extends StatelessWidget {
                     'Documents needed per shipment type',
                     style: TextStyle(color: Color(0xFFB8DDC8), fontSize: 14),
                   ),
+                  if (orderId.trim().isNotEmpty)
+                    Text(
+                      'Order ID: ${orderId.trim()}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                 ],
               ),
             ),

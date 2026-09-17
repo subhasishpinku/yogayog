@@ -370,14 +370,14 @@ class _PaymentNationalScreenExportState
           //   subtitle: 'Pay at pickup',
           //   method: 'Cash on Delivery - Pickup',
           // ),
-          _divider(),
-          _paymentTile(
-            icon: Icons.money,
-            iconColor: Colors.amber,
-            title: 'Pay at Drop',
-            subtitle: 'Cash / UPI',
-            method: 'Cash on Delivery - Drop',
-          ),
+          // _divider(),
+          // _paymentTile(
+          //   icon: Icons.money,
+          //   iconColor: Colors.amber,
+          //   title: 'Pay at Drop',
+          //   subtitle: 'Cash / UPI',
+          //   method: 'Cash on Delivery - Drop',
+          // ),
         ],
       ),
     );

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:yogayog/Payment/Payment_wallet_Screen.dart';
+import 'package:yogayog/Payment/payment_add_wallet_screen.dart';
 import 'package:yogayog/Payment/payment_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 
@@ -217,6 +219,6 @@ class _AddmoneyState extends State<Addmoney> {
 
     Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => PaymentScreen(amount: amount)));
+    ).push(MaterialPageRoute(builder: (_) => PaymentAddWalletScreen(amount: amount)));
   }
 }

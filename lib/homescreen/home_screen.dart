@@ -1244,7 +1244,7 @@ class _HomeScreenState extends State<HomeScreen>
       booking.dropCity,
     ].where((city) => city.trim().isNotEmpty).join(' → ');
     final details = [
-      booking.orderNo,
+      booking.orderId.isEmpty ? booking.orderNo : booking.orderId,
       booking.orderDate,
     ].where((value) => value.trim().isNotEmpty).join(' · ');
 
@@ -1380,7 +1380,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ),
                     ),
-                    if (status == 'Track') ...[
+                    if (status.isNotEmpty) ...[
                       const SizedBox(width: 6),
                       ElevatedButton(
                         onPressed: () =>
@@ -1418,7 +1418,9 @@ class _HomeScreenState extends State<HomeScreen>
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => ShipmentDocument(),
+                                builder: (_) => ShipmentDocument(
+                                  orderId: trackingId ?? number,
+                                ),
                               ),
                             );
                           },
@@ -1451,7 +1453,7 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
           ),
-          if (status != 'Track') ...[
+          if (status.isEmpty) ...[
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
