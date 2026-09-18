@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:yogayog/Payment/Payment_wallet_Screen.dart';
-import 'package:yogayog/Payment/payment_add_wallet_screen.dart';
-import 'package:yogayog/Payment/payment_screen.dart';
+import 'package:billdesk_sdk/sdk.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/Payment/provider/payment_provider.dart';
+import 'package:yogayog/core/services/payment_service.dart';
+import 'package:yogayog/dashboard/dashboard_scren.dart';
+import 'package:provider/provider.dart';
 
 class Addmoney extends StatefulWidget {
   const Addmoney({super.key});
@@ -131,9 +133,9 @@ class _AddmoneyState extends State<Addmoney> {
             IconButton(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.arrow_back, color: Colors.white),
-              style: IconButton.styleFrom(
-                backgroundColor: const Color(0xFF4D59A7),
-              ),
+              // style: IconButton.styleFrom(
+              //   backgroundColor: const Color(0xFF4D59A7),
+              // ),
             ),
             const SizedBox(width: 10),
             const Text(
@@ -208,7 +210,7 @@ class _AddmoneyState extends State<Addmoney> {
     );
   }
 
-  void _proceed() {
+  Future<void> _proceed() async {
     final amount = double.tryParse(amountController.text.trim());
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -217,8 +219,105 @@ class _AddmoneyState extends State<Addmoney> {
       return;
     }
 
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => PaymentAddWalletScreen(amount: amount)));
+    final payload = <String, dynamic>{
+      'payment_method': 'ONLINE',
+      'amount': amount,
+    };
+    final payment = await context.read<PaymentProvider>().createBillDeskPayment(
+      payload: payload,
+    );
+    if (!mounted) return;
+    if (payment == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.read<PaymentProvider>().errorMessage ??
+                'Unable to initialize BillDesk payment',
+          ),
+        ),
+      );
+      return;
+    }
+
+    _openBillDesk(payment, orderPayload: payload);
   }
+
+  void _openBillDesk(
+    BillDeskPaymentResponse payment, {
+    required Map<String, dynamic> orderPayload,
+  }) {
+    final config = SdkConfig(
+      sdkConfigJson: SdkConfiguration(
+        {
+          'authToken': payment.authToken,
+          'merchantId': payment.merchantId,
+          'bdOrderId': payment.billDeskOrderId,
+          'childWindow': false,
+        },
+        FlowType.payments,
+        '',
+        null,
+      ),
+      responseHandler: _BillDeskResponseHandler(
+        onSuccess: () => _createOrderAfterPayment(orderPayload),
+        onFailure: () {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('BillDesk payment was cancelled')),
+          );
+        },
+      ),
+      isUATEnv: false,
+    );
+    SdkWebView.openSdkWebView(config, context);
+  }
+
+  Future<void> _createOrderAfterPayment(
+    Map<String, dynamic> orderPayload,
+  ) async {
+    if (!mounted) return;
+    final order = await context.read<PaymentProvider>().createOrder(
+      payload: orderPayload,
+    );
+    if (!mounted) return;
+    if (order == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.read<PaymentProvider>().errorMessage ??
+                'Payment succeeded, but order creation failed',
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const Dashboard()),
+      (route) => false,
+    );
+  }
+}
+
+class _BillDeskResponseHandler extends ResponseHandler {
+  _BillDeskResponseHandler({required this.onSuccess, required this.onFailure});
+
+  final Future<void> Function() onSuccess;
+  final VoidCallback onFailure;
+
+  @override
+  void onTransactionResponse(TxnInfo txnInfo) {
+    final cancelled =
+        txnInfo.txnInfoMap['isCancelledByUser'] == true ||
+        txnInfo.txnInfoMap['isCancelledByUser']?.toString().toLowerCase() ==
+            'true';
+    if (cancelled) {
+      onFailure();
+    } else {
+      onSuccess();
+    }
+  }
+
+  @override
+  void onError(SdkError sdkError) => onFailure();
 }
