@@ -3,6 +3,9 @@ import 'package:yogayog/confirmorder/confirm_orderexport.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/international_details_services.dart';
 import 'package:yogayog/core/services/national_service.dart';
+import 'package:yogayog/dashboard/dashboard_scren.dart';
+import 'package:yogayog/internationaldetails/provider/international_details_provider.dart';
+import 'package:provider/provider.dart';
 
 class ChooseCourierInternationalExport extends StatefulWidget {
   const ChooseCourierInternationalExport({
@@ -30,11 +33,63 @@ class ChooseCourierInternationalExport extends StatefulWidget {
 class _ChooseCourierInternationalExportState
     extends State<ChooseCourierInternationalExport> {
   String? selectedCourier;
+  bool _isSubmittingPostPaid = false;
+
+  bool get _isPostPaid =>
+      widget.orderPayload['payment_mode']
+          ?.toString()
+          .trim()
+          .toLowerCase()
+          .replaceAll(RegExp(r'[\s_-]'), '') ==
+      'postpaid';
 
   double get totalWeight {
     return widget.approximateWeightKg >= widget.volumetricWeightKg
         ? widget.approximateWeightKg
         : widget.volumetricWeightKg;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isPostPaid) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _createPostPaidOrder();
+      });
+    }
+  }
+
+  Future<void> _createPostPaidOrder() async {
+    if (_isSubmittingPostPaid) return;
+    setState(() => _isSubmittingPostPaid = true);
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+
+    final payload = Map<String, dynamic>.from(widget.orderPayload)
+      ..remove('payment_method')
+      ..remove('payment_mode')
+      ..remove('price');
+    final created = await context
+        .read<InternationalDetailsProvider>()
+        .createPostpaidOrder(payload: payload);
+    if (!mounted) return;
+    if (created == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.read<InternationalDetailsProvider>().errorMessage ??
+                'Unable to create post-paid order',
+          ),
+        ),
+      );
+      setState(() => _isSubmittingPostPaid = false);
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const Dashboard()),
+    );
   }
 
   @override
@@ -78,16 +133,14 @@ class _ChooseCourierInternationalExportState
                       _courierCardFromRate(0),
                       if (widget.rates!.rates.length > 1) _otherCouriers(),
                     ] else ...[
-                      _courierCard(
-                        name: 'Delhivery',
-                        code: 'DLVRY',
-                        totalPrice: 298,
-                        color: const Color(0xFFFF424A),
-                        price: 'Rs 298',
-                        delivery: 'Delivery in 3-4 days',
-                        note: 'Real-time tracking included',
-                        tags: const ['Door Pickup', 'Door Delivery'],
-                        cheapest: true,
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 28),
+                        child: Center(
+                          child: Text(
+                            'No courier rates available',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
                       ),
                     ],
 
@@ -244,28 +297,30 @@ class _ChooseCourierInternationalExportState
     final isSelected = selectedCourier == name;
 
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          selectedCourier = name;
-        });
+      onTap: _isPostPaid || _isSubmittingPostPaid
+          ? null
+          : () {
+              setState(() {
+                selectedCourier = name;
+              });
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ConfirmOrderExport(
-              courierName: name,
-              courierCode: code,
-              serviceName: 'Express',
-              origin: widget.origin,
-              destination: widget.destination,
-              weightKg: totalWeight,
-              total: totalPrice,
-              deliveryDate: delivery,
-              orderPayload: {...widget.orderPayload, 'price': totalPrice},
-            ),
-          ),
-        );
-      },
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ConfirmOrderExport(
+                    courierName: name,
+                    courierCode: code,
+                    serviceName: 'Express',
+                    origin: widget.origin,
+                    destination: widget.destination,
+                    weightKg: totalWeight,
+                    total: totalPrice,
+                    deliveryDate: delivery,
+                    orderPayload: {...widget.orderPayload, 'price': totalPrice},
+                  ),
+                ),
+              );
+            },
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(

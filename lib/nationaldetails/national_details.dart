@@ -1947,10 +1947,10 @@ class _NationalDetailsState extends State<NationalDetails> {
   }
 
   bool _requireHouseNumber(String value, String locationLabel) {
-    if (value.trim().isEmpty) {
-      _showMessage('Please enter $locationLabel house number before saving');
-      return false;
-    }
+    // if (value.trim().isEmpty) {
+    //   _showMessage('Please enter $locationLabel house number before saving');
+    //   return false;
+    // }
     return true;
   }
 
@@ -2822,7 +2822,9 @@ class _NationalDetailsState extends State<NationalDetails> {
       'weight': weight,
       'pickup_pincode': pickupPincode.trim(),
       'delivery_pincode': dropPincode.trim(),
-      'payment_type': isPrepaid ? 'prepaid' : 'postpaid',
+      // The rates endpoint accepts prepaid as the rate-calculation type.
+      // The actual post-paid order is created later using payment_mode.
+      'payment_type': 'prepaid',
       'payment_mode': paymentModeLabel,
       'drop_lat': dropLatitude ?? 0,
       'pickup_lat': pickupLatitude ?? 0,
@@ -2873,12 +2875,11 @@ class _NationalDetailsState extends State<NationalDetails> {
       },
     };
     final provider = context.read<NationalProvider>();
-    NationalRateResponse? rates;
-    if (isPrepaid) {
-      rates = await provider.loadRates(payload: ratesPayload);
-    }
+    NationalRateResponse? rates = await provider.loadRates(
+      payload: ratesPayload,
+    );
     if (!mounted) return;
-    if (isPrepaid && (rates == null || rates.rates.isEmpty)) {
+    if (rates == null || rates.rates.isEmpty) {
       _showMessage(provider.errorMessage ?? 'No courier rates available');
       return;
     }

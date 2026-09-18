@@ -2716,7 +2716,9 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       'drop_lng': dropLongitude ?? 0,
       'country': pickupAddress.isNotEmpty ? 'India' : '',
       'destination': countryController.text.trim(),
-      'payment_type': isPrepaid ? 'prepaid' : 'postpaid',
+      // The rates endpoint accepts prepaid for rate calculation. The actual
+      // payment mode remains in payment_mode for post-paid order creation.
+      'payment_type': 'prepaid',
       'payment_mode': paymentModeLabel,
       'rate_type': 'forward',
     };
@@ -2784,12 +2786,11 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       },
     };
     final provider = context.read<InternationalDetailsProvider>();
-    NationalRateResponse? rates;
-    if (isPrepaid) {
-      rates = await provider.loadRates(payload: ratesPayload);
-    }
+    NationalRateResponse? rates = await provider.loadRates(
+      payload: ratesPayload,
+    );
     if (!mounted) return;
-    if (isPrepaid && (rates == null || rates.rates.isEmpty)) {
+    if (rates == null || rates.rates.isEmpty) {
       _showMessage(provider.errorMessage ?? 'No courier rates available');
       return;
     }
@@ -2832,25 +2833,6 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    if (!isPrepaid) {
-      final postpaidPayload = Map<String, dynamic>.from(orderPayload)
-        ..remove('payment_method')
-        ..remove('payment_mode')
-        ..remove('price');
-      final created = await provider.createPostpaidOrder(
-        payload: postpaidPayload,
-      );
-      if (!mounted) return;
-      if (created == null) {
-        _showMessage(
-          provider.errorMessage ?? 'Unable to create post-paid order',
-        );
-        return;
-      }
-      Navigator.push(context, MaterialPageRoute(builder: (_) => Dashboard()));
-      _showMessage('Post-paid order created successfully');
-      return;
-    }
     Navigator.push(
       context,
       MaterialPageRoute(
