@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
+import 'package:yogayog/disputes/provider/disputes_provider.dart';
 
 class Refunds extends StatefulWidget {
   const Refunds({super.key});
@@ -12,6 +13,32 @@ class _RefundsState extends State<Refunds> {
   static const _blue = AppColors.primaryMain;
   static const _background = Color(0xFFF5F6FA);
   int _selectedTab = 0;
+  final _provider = DisputesProvider();
+  List<DisputeIssue> _issues = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadIssues();
+  }
+
+  @override
+  void dispose() {
+    _provider.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadIssues() async {
+    final issues = await _provider.getIssues();
+    if (!mounted) return;
+    setState(() {
+      _issues = issues;
+      _isLoading = false;
+      _errorMessage = _provider.errorMessage;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,31 +74,143 @@ class _RefundsState extends State<Refunds> {
         children: [
           Row(
             children: [
-              _tabButton('Open (1)', 0),
+              _tabButton('Open (${_openCount()})', 0),
               const SizedBox(width: 7),
-              _tabButton('Resolved', 1),
+              _tabButton('Resolved (${_resolvedCount()})', 1),
             ],
           ),
           const SizedBox(height: 15),
-          if (_selectedTab == 0) ...[
-            _reviewingClaim(),
-            const SizedBox(height: 11),
-            _refundedClaim(),
-          ] else
-            _card(
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: Text(
-                    'No resolved claims yet',
-                    style: TextStyle(color: Color(0xFF667085), fontSize: 12),
-                  ),
-                ),
-              ),
-            ),
+          if (_isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_errorMessage != null)
+            _emptyCard(_errorMessage!)
+          else
+            ...(_claimsForSelectedTab().isEmpty
+                ? <Widget>[
+                    _emptyCard(
+                      _selectedTab == 0
+                          ? 'No open claims yet'
+                          : 'No resolved claims yet',
+                    ),
+                  ]
+                : _claimsForSelectedTab()
+                      .map(
+                        (claim) => Padding(
+                          padding: const EdgeInsets.only(bottom: 11),
+                          child: _apiClaimCard(claim),
+                        ),
+                      )
+                      .toList()),
         ],
       ),
     );
+  }
+
+  int _openCount() => _issues.where((claim) => !_isClosed(claim)).length;
+
+  int _resolvedCount() => _issues.where(_isClosed).length;
+
+  bool _isClosed(DisputeIssue claim) {
+    return {
+      'resolved',
+      'refunded',
+      'closed',
+    }.contains(claim.status.toLowerCase());
+  }
+
+  List<DisputeIssue> _claimsForSelectedTab() {
+    return _issues.where((claim) {
+      final closed = _isClosed(claim);
+      return _selectedTab == 1 ? closed : !closed;
+    }).toList();
+  }
+
+  Widget _emptyCard(String message) {
+    return _card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Text(
+            message,
+            style: const TextStyle(color: Color(0xFF667085), fontSize: 12),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _apiClaimCard(DisputeIssue claim) {
+    final closed = _isClosed(claim);
+    final statusText = closed ? 'Resolved' : 'Reviewing';
+    final statusBackground = closed
+        ? const Color(0xFFE4F8E8)
+        : const Color(0xFFFFF3C4);
+    final statusForeground = closed
+        ? const Color(0xFF198345)
+        : const Color(0xFF8B6900);
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  '${_issueLabel(claim.claimType)} · ${claim.claimId}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              _pill(statusText, statusBackground, statusForeground),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Order ${claim.orderId} · Submitted ${claim.createdAt}',
+            style: const TextStyle(color: Color(0xFF667085), fontSize: 10),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _bar(_blue)),
+              const SizedBox(width: 6),
+              Expanded(child: _bar(closed ? _blue : const Color(0xFFFFC400))),
+              const SizedBox(width: 6),
+              Expanded(child: _bar(closed ? _blue : const Color(0xFFD9DDE5))),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _timelineItem(Icons.check, 'Claim submitted', claim.createdAt, true),
+          const SizedBox(height: 14),
+          _timelineItem(
+            closed ? Icons.check : Icons.circle,
+            closed ? 'Claim resolved' : 'Evidence under review',
+            closed ? claim.status : 'We’ll update you within 48 hours',
+            closed,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _issueLabel(String code) {
+    switch (code) {
+      case 'item_mismatch':
+        return 'Package issue';
+      case 'not_received_shipment':
+        return 'Delivery issue';
+      case 'damaged':
+        return 'Payment & refund';
+      default:
+        return code.isEmpty ? 'Claim' : code;
+    }
   }
 
   Widget _tabButton(String label, int index) {

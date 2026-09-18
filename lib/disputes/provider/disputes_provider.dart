@@ -10,6 +10,17 @@ class DisputesProvider extends ChangeNotifier {
   bool get isSubmitting => _isSubmitting;
   String? get errorMessage => _errorMessage;
 
+  Future<List<DisputeIssue>> getIssues() async {
+    _errorMessage = null;
+    try {
+      final claims = await _service.getIssues();
+      return claims.map(DisputeIssue.fromJson).toList();
+    } on DisputesException catch (error) {
+      _errorMessage = error.message;
+      return const [];
+    }
+  }
+
   Future<bool> submitIssue({required int orderId, required String issue, required String description, required List<XFile> photos, XFile? video}) async {
     if (_isSubmitting) return false;
     _isSubmitting = true;
@@ -26,4 +37,33 @@ class DisputesProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+}
+
+class DisputeIssue {
+  const DisputeIssue({
+    required this.claimId,
+    required this.claimType,
+    required this.orderId,
+    required this.status,
+    required this.remarks,
+    required this.createdAt,
+  });
+
+  factory DisputeIssue.fromJson(Map<String, dynamic> json) {
+    return DisputeIssue(
+      claimId: json['claim_id']?.toString() ?? '',
+      claimType: json['claim_type']?.toString() ?? '',
+      orderId: json['order_id']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      remarks: json['remarks']?.toString() ?? '',
+      createdAt: json['created_at']?.toString() ?? '',
+    );
+  }
+
+  final String claimId;
+  final String claimType;
+  final String orderId;
+  final String status;
+  final String remarks;
+  final String createdAt;
 }

@@ -29,6 +29,7 @@ class ApiEndpoints {
   static const String termsAndConditions = "terms-and-conditions";
   static const String invoices = "orders/invoices";
   static const String sendIssue = "order/send-issue";
+  static const String getIssues = "order/get-issues";
   static const String reschedulePickup = "order/reschedule-pickup";
   static String invoiceDownload(int orderId) => 'orders/$orderId/invoice/download';
 

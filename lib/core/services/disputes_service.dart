@@ -7,6 +7,37 @@ class DisputesService {
   DisputesService({Dio? dio}) : _dio = dio ?? ApiClient.dio;
   final Dio _dio;
 
+  Future<List<Map<String, dynamic>>> getIssues() async {
+    try {
+      final response = await _dio.get(ApiEndpoints.getIssues);
+      final data = response.data;
+      if (response.statusCode == null ||
+          response.statusCode! >= 400 ||
+          data is! Map ||
+          data['success'] == false) {
+        throw DisputesException(
+          data is Map && data['message'] != null
+              ? data['message'].toString()
+              : 'Unable to load claims',
+        );
+      }
+
+      final claims = data['data'];
+      if (claims is! List) return const [];
+      return claims
+          .whereType<Map>()
+          .map((claim) => Map<String, dynamic>.from(claim))
+          .toList();
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      throw DisputesException(
+        data is Map && data['message'] != null
+            ? data['message'].toString()
+            : error.message ?? 'Unable to load claims',
+      );
+    }
+  }
+
   Future<void> sendIssue({
     required int orderId,
     required String issue,

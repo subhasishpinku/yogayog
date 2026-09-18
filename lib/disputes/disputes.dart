@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/disputes/claims.dart';
+import 'package:yogayog/disputes/provider/disputes_provider.dart';
 
 class Disputes extends StatefulWidget {
   const Disputes({
@@ -36,16 +37,24 @@ class _DisputesState extends State<Disputes> {
   static const Color _yellow = Color(0xFFFFC400);
 
   final _detailsController = TextEditingController();
+  final _provider = DisputesProvider();
   int _selectedIssue = 0;
 
   @override
   void dispose() {
     _detailsController.dispose();
+    _provider.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDelivered = widget.status.trim().toLowerCase() == 'delivered';
+    const issueNames = ['Package issue', 'Delivery issue', 'Payment & refund'];
+    const issueCodes = ['item_mismatch', 'not_received_shipment', 'damaged'];
+    final selectedIssue = issueNames[_selectedIssue];
+    final selectedIssueCode = issueCodes[_selectedIssue];
+
     return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
@@ -136,7 +145,51 @@ class _DisputesState extends State<Disputes> {
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(9, 7, 9, 9),
         child: ElevatedButton(
-          onPressed: () => {
+          onPressed: () async {
+            if (!isDelivered) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'You can continue after the order is delivered.',
+                  ),
+                ),
+              );
+              return;
+            }
+
+            if (selectedIssue == 'Payment & refund') {
+              final id = int.tryParse(
+                widget.orderId.isEmpty ? widget.orderNo : widget.orderId,
+              );
+              if (id == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Order ID is unavailable')),
+                );
+                return;
+              }
+
+              final submitted = await _provider.submitIssue(
+                orderId: id,
+                issue: selectedIssueCode,
+                description: _detailsController.text.trim().isEmpty
+                    ? 'Issue submitted from the app'
+                    : _detailsController.text.trim(),
+                photos: const [],
+              );
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    submitted
+                        ? 'Payment issue submitted successfully'
+                        : (_provider.errorMessage ??
+                              'Unable to submit payment issue'),
+                  ),
+                ),
+              );
+              return;
+            }
+
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -145,12 +198,12 @@ class _DisputesState extends State<Disputes> {
                   orderId: widget.orderId.isEmpty
                       ? widget.orderNo
                       : widget.orderId,
-                  issue: widget.subServiceName,
+                  issue: selectedIssueCode,
                   description: _detailsController.text.trim(),
                   amount: widget.amount,
                 ),
               ),
-            ),
+            );
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: _blue,
@@ -161,9 +214,9 @@ class _DisputesState extends State<Disputes> {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: const Text(
-            'Continue to evidence →',
-            style: TextStyle(fontWeight: FontWeight.w800),
+          child: Text(
+            isDelivered ? 'Continue to evidence →' : 'Available after delivery',
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
       ),
@@ -208,10 +261,6 @@ class _DisputesState extends State<Disputes> {
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                     SizedBox(height: 4),
-                    Text(
-                      '${widget.serviceName} · ${widget.orderDate}',
-                      style: TextStyle(color: Colors.grey, fontSize: 11),
-                    ),
                   ],
                 ),
               ),
