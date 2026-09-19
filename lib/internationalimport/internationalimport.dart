@@ -14,7 +14,6 @@ import 'package:yogayog/core/services/home_service.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/national_service_import.dart';
-import 'package:yogayog/dashboard/dashboard_scren.dart';
 import 'package:yogayog/internationalimport/provider/international_import_provider.dart';
 
 String _houseNumberFromAddress(String address) {
@@ -3000,25 +2999,6 @@ class _InternationalImportState extends State<InternationalImport> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    if (!isPrepaid) {
-      final postpaidPayload = Map<String, dynamic>.from(orderPayload)
-        ..remove('payment_method')
-        ..remove('payment_mode')
-        ..remove('price');
-      final created = await provider.createPostpaidOrder(
-        payload: postpaidPayload,
-      );
-      if (!mounted) return;
-      if (created == null) {
-        _showMessage(
-          provider.errorMessage ?? 'Unable to create post-paid order',
-        );
-        return;
-      }
-      Navigator.push(context, MaterialPageRoute(builder: (_) => Dashboard()));
-      _showMessage('Post-paid order created successfully');
-      return;
-    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -3031,6 +3011,7 @@ class _InternationalImportState extends State<InternationalImport> {
               : countryController.text.trim(),
           rates: rates,
           orderPayload: orderPayload,
+          isPostpaid: !isPrepaid,
         ),
       ),
     );

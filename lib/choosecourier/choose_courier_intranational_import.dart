@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:yogayog/confirmorder/confirm_orderimport.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/core/services/national_service_import.dart';
+import 'package:provider/provider.dart';
+import 'package:yogayog/dashboard/dashboard_scren.dart';
+import 'package:yogayog/internationalimport/provider/international_import_provider.dart';
 
 class ChooseCourierInternationalImport extends StatefulWidget {
   const ChooseCourierInternationalImport({
@@ -10,6 +15,7 @@ class ChooseCourierInternationalImport extends StatefulWidget {
     required this.volumetricWeightKg,
     this.rates,
     this.orderPayload = const {},
+    this.isPostpaid = false,
     this.origin = 'Kolkata',
     this.destination = 'New Delhi',
   });
@@ -20,6 +26,7 @@ class ChooseCourierInternationalImport extends StatefulWidget {
   final String destination;
   final NationalRateResponse? rates;
   final Map<String, dynamic> orderPayload;
+  final bool isPostpaid;
 
   @override
   State<ChooseCourierInternationalImport> createState() =>
@@ -29,6 +36,37 @@ class ChooseCourierInternationalImport extends StatefulWidget {
 class _ChooseCourierInternationalImportState
     extends State<ChooseCourierInternationalImport> {
   String? selectedCourier;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isPostpaid) {
+      unawaited(_createPostpaidOrder());
+    }
+  }
+
+  Future<void> _createPostpaidOrder() async {
+    final postpaidPayload = Map<String, dynamic>.from(widget.orderPayload)
+      ..remove('payment_method')
+      ..remove('payment_mode')
+      ..remove('price');
+    final provider = context.read<InternationalImportProvider>();
+    final created = await provider.createPostpaidOrder(payload: postpaidPayload);
+    if (!mounted) return;
+    if (created == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            provider.errorMessage ?? 'Unable to create post-paid order',
+          ),
+        ),
+      );
+      return;
+    }
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    Navigator.push(context, MaterialPageRoute(builder: (_) => Dashboard()));
+  }
 
   double get totalWeight {
     return widget.approximateWeightKg >= widget.volumetricWeightKg
