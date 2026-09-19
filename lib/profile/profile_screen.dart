@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:yogayog/Invoices/invoices_screen.dart';
+import 'package:yogayog/claimsrefund/claims_refund_screen.dart';
 import 'package:yogayog/constants/app_colors.dart';
 import 'package:yogayog/helpsupport/help_support.dart';
 import 'package:yogayog/history/history_screen.dart';
@@ -76,6 +77,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   //   title: 'My Bookings',
                   //   onTap: () => _open(const MyBooking()),
                   // ),
+                  _menuItem(
+                    icon: Icons.description_outlined,
+                    iconColor: const Color(0xFFFFC400),
+                    title: 'Claims & Refunds',
+                    onTap: () => _open(const ClaimsRefundScreen()),
+                  ),
                   _menuItem(
                     icon: Icons.description_outlined,
                     iconColor: const Color(0xFFFFC400),

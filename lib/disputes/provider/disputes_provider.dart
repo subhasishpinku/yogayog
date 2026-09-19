@@ -1,14 +1,31 @@
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:yogayog/core/services/disputes_service.dart';
+import 'package:yogayog/core/services/home_service.dart';
 
 class DisputesProvider extends ChangeNotifier {
-  DisputesProvider({DisputesService? service}) : _service = service ?? DisputesService();
+  DisputesProvider({DisputesService? service, HomeService? homeService})
+    : _service = service ?? DisputesService(),
+      _homeService = homeService ?? HomeService();
   final DisputesService _service;
+  final HomeService _homeService;
   bool _isSubmitting = false;
   String? _errorMessage;
   bool get isSubmitting => _isSubmitting;
   String? get errorMessage => _errorMessage;
+
+  Future<TrackOrderData?> trackOrder(String trackingNumber) async {
+    final value = trackingNumber.trim();
+    if (value.isEmpty) return null;
+
+    _errorMessage = null;
+    try {
+      return await _homeService.trackOrder(value);
+    } on HomeException catch (error) {
+      _errorMessage = error.message;
+      return null;
+    }
+  }
 
   Future<List<DisputeIssue>> getIssues() async {
     _errorMessage = null;

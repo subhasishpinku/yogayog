@@ -181,7 +181,7 @@ class _ShipmentDocumentState extends State<ShipmentDocument> {
 
   List<Widget> _documentSections() {
     return [
-      ..._documentGroup('Bike Document', const ['Invoice', 'Way Bill']),
+      // ..._documentGroup('Bike Document', const ['Invoice', 'Way Bill']),
       ..._documentGroup('Truck Document', const [
         'Invoice',
         'Way Bill – Part A',
