@@ -48,7 +48,22 @@ class BikescreenProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
+  Future<bool> saveDropLocation({
+    required Map<String, dynamic> payload,
+  }) async {
+    _errorMessage = null;
+    try {
+      await _service.saveDropLocation(payload: payload);
+      _locations = [];
+      _loadedServiceId = null;
+      notifyListeners();
+      return true;
+    } on BikescreenException catch (error) {
+      _errorMessage = error.message;
+      notifyListeners();
+      return false;
+    }
+  }
   Future<bool> savePickupLocation({
     required Map<String, dynamic> payload,
   }) async {

@@ -22,6 +22,8 @@ class ApiEndpoints {
   static const String uploadKycDocument = "kyc/documents";
   static const String createPostpaidOrder = "order/create-postpaid";
   static const String pickupLocation = "locations/pickup";
+    static const String dropLocation = "locations/drop";
+
   static const String nearbyBranches = "nearby-branches";
   static const String cutoffTimes = "cutoff-times";
   static const String contacts = "contacts";

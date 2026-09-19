@@ -773,12 +773,12 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
       },
     );
     if (!mounted) return selected;
-    // _showMessage(
-    //   saved
-    //       ? 'Drop address saved successfully'
-    //       : context.read<BikescreenProvider>().errorMessage ??
-    //             'Unable to save drop address',
-    // );
+    _showMessage(
+      saved
+          ? 'Drop address saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save drop address',
+    );
     return selected;
   }
 
@@ -978,7 +978,12 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
   }
 
   Future<void> _pickLocationFromMap({required bool pickup}) async {
-    const initial = gmaps.LatLng(22.5726, 88.3639);
+    const fallback = gmaps.LatLng(22.5726, 88.3639);
+    final savedLatitude = pickup ? _pickupLatitude : _dropLatitude;
+    final savedLongitude = pickup ? _pickupLongitude : _dropLongitude;
+    final initial = savedLatitude != null && savedLongitude != null
+        ? gmaps.LatLng(savedLatitude, savedLongitude)
+        : fallback;
     final selected = await showDialog<gmaps.LatLng>(
       context: context,
       builder: (dialogContext) {
@@ -1980,7 +1985,7 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                                   .trim();
                           final saved = await context
                               .read<BikescreenProvider>()
-                              .savePickupLocation(
+                              .saveDropLocation(
                                 payload: {
                                   'name': dropNameController.text.trim(),
                                   'mobile': dropPhoneController.text.trim(),
@@ -2001,14 +2006,14 @@ class _BikeLocalScreenState extends State<BikeLocalScreen> {
                               );
                           if (!mounted) return;
                           Navigator.pop(sheetContext);
-                          // _showMessage(
-                          //   saved
-                          //       ? 'Drop address saved successfully'
-                          //       : context
-                          //                 .read<BikescreenProvider>()
-                          //                 .errorMessage ??
-                          //             'Unable to save drop address',
-                          // );
+                          _showMessage(
+                            saved
+                                ? 'Drop address saved successfully'
+                                : context
+                                          .read<BikescreenProvider>()
+                                          .errorMessage ??
+                                      'Unable to save drop address',
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: blue,
