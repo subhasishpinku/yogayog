@@ -2006,7 +2006,7 @@ class _InternationalImportState extends State<InternationalImport> {
       return;
     }
     final provider = context.read<BikescreenProvider>();
-    final saved = await provider.savePickupLocation(
+    final saved = await provider.saveDropLocation(
       payload: {
         'name': dropNameController.text.trim(),
         'mobile': dropMobileController.text.trim(),

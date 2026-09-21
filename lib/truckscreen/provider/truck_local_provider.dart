@@ -22,6 +22,7 @@ class TruckLocalProvider extends ChangeNotifier {
       return null;
     }
   }
+ 
 
   Future<TruckRateResponse?> loadRates({required Map<String, dynamic> payload}) async {
     if (_isLoading) return null;

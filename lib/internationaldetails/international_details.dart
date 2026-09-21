@@ -1266,7 +1266,7 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         '',
       );
       final locationText =
-          '${location.state} ${location.city} ${location.address}'
+          '${location.country} ${location.state} ${location.city} ${location.address}'
               .toLowerCase()
               .replaceAll(RegExp(r'[^a-z]'), '');
       const foreignCountryTokens = <String>{
@@ -1336,18 +1336,6 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       pickupHouseNumber = selected.houseNumber;
       pickupHouseNumberController.text = pickupHouseNumber;
     });
-    await _saveLocation(
-      name: pickupNameController.text.trim(),
-      mobile: pickupMobileController.text.trim(),
-      address: selected.address,
-      city: selected.city,
-      pincode: selected.pincode,
-      state: selected.state,
-      latitude: selected.latitude,
-      longitude: selected.longitude,
-      flag: 'pick',
-      houseNumber: selected.houseNumber,
-    );
   }
 
   Future<void> _openSavedDropLocations() async {
@@ -1456,19 +1444,6 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       );
     });
     await _openAddressDetailsIfReady();
-    await _saveLocation(
-      name: receiverNameController.text.trim(),
-      mobile: mobileController.text.trim(),
-      address: selected.address,
-      city: selected.city,
-      pincode: selected.pincode,
-      state: selected.state,
-      latitude: selected.latitude,
-      longitude: selected.longitude,
-      flag: 'drop',
-      country: _countryFromAddress(selected.country, selected.address),
-      houseNumber: selected.houseNumber,
-    );
     if (!mounted) return;
     if (pickupAddress.trim().isEmpty ||
         pickupAddress == 'Fetching current location...' ||
@@ -1773,20 +1748,6 @@ class _InternationalDetailsState extends State<InternationalDetails> {
         selected.address,
       );
     });
-    await _saveLocation(
-      name: receiverNameController.text.trim(),
-      mobile: mobileController.text.trim(),
-      address: selected.address,
-      city: selected.city,
-      pincode: selected.pincode,
-      state: selected.state,
-      latitude: selected.latitude,
-      longitude: selected.longitude,
-      flag: 'drop',
-      country: _countryFromAddress(selected.country, selected.address),
-      houseNumber: selected.houseNumber,
-      countryCode: selected.countryCode,
-    );
   }
 
   // ==================== Helper Methods ====================
@@ -1822,31 +1783,36 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       );
       return;
     }
-    final saved = await context.read<BikescreenProvider>().savePickupLocation(
-      payload: {
-        'name': name,
-        'mobile': mobile,
-        'service_id': 9,
-        'house_numb': houseNumber,
-        'street': address,
-        'city': city,
-        'district': city,
-        'state': state,
-        'pin': pincode,
-        'country': country,
-        'country_cde': countryCode,
-        'lat': latitude,
-        'lon': longitude,
-        'flag': flag,
-      },
-    );
+    final payload = {
+      'name': name,
+      'mobile': mobile,
+      'service_id': 9,
+      'house_numb': houseNumber,
+      'street': address,
+      'city': city,
+      'district': city,
+      'state': state,
+      'pin': pincode,
+      'country': country,
+      'country_cde': countryCode,
+      'lat': latitude,
+      'lon': longitude,
+      'flag': flag,
+    };
+    final provider = context.read<BikescreenProvider>();
+    final bool saved;
+    if (flag == 'pick') {
+      saved = await provider.savePickupLocation(payload: payload);
+    } else {
+      saved = await provider.saveDropLocation(payload: payload);
+    }
     if (!mounted) return;
-    // _showMessage(
-    //   saved
-    //       ? '${flag == 'pick' ? 'Pickup' : 'Drop'} location saved successfully'
-    //       : context.read<BikescreenProvider>().errorMessage ??
-    //             'Unable to save location',
-    // );
+    _showMessage(
+      saved
+          ? '${flag == 'pick' ? 'Pickup' : 'Drop'} location saved successfully'
+          : context.read<BikescreenProvider>().errorMessage ??
+                'Unable to save location',
+    );
   }
 
   void _showMessage(String message) {
@@ -3365,7 +3331,7 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
     final query = _query.trim().toLowerCase();
     final locations = widget.locations.where((location) {
       if (query.isEmpty) return true;
-      return '${location.name} ${location.mobile} ${location.address} ${location.city} ${location.pincode}'
+      return '${location.name} ${location.mobile} ${location.country} ${location.address} ${location.city} ${location.pincode}'
           .toLowerCase()
           .contains(query);
     }).toList();
@@ -3488,6 +3454,22 @@ class _SavedLocationDialogState extends State<_SavedLocationDialog> {
                                             height: 1.25,
                                           ),
                                         ),
+                                        if (location.country.trim().isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 3,
+                                            ),
+                                            child: Text(
+                                              location.country,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Color(0xFF172786),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
                                         const SizedBox(height: 3),
                                         Text(
                                           '${location.city}, ${location.pincode}, ${location.state}',

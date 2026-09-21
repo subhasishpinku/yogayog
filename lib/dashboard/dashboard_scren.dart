@@ -142,11 +142,11 @@ class _DashboardState extends State<Dashboard> {
               activeIcon: _navIcon('assets/images/more.png'),
               label: 'More',
             ),
-            BottomNavigationBarItem(
-              icon: _navIcon('assets/images/logout.png'),
-              activeIcon: _navIcon('assets/images/logout.png'),
-              label: 'Logout',
-            ),
+            // BottomNavigationBarItem(
+            //   icon: _navIcon('assets/images/logout.png'),
+            //   activeIcon: _navIcon('assets/images/logout.png'),
+            //   label: 'Logout',
+            // ),
           ],
         ),
       ),

@@ -89,6 +89,7 @@ class Booking {
   const Booking({
     required this.orderId,
     required this.orderNo,
+    this.id = 0,
     required this.serviceId,
     required this.subServiceId,
     required this.orderDate,
@@ -112,6 +113,7 @@ class Booking {
 
   final String orderId;
   final String orderNo;
+  final int id;
   final int serviceId;
   final int subServiceId;
   final String orderDate;
@@ -148,6 +150,7 @@ class Booking {
       orderId: json['order_id']?.toString() ?? '',
       orderNo:
           json['order_no']?.toString() ?? json['order_id']?.toString() ?? '',
+      id: int.tryParse(json['id']?.toString() ?? '') ?? 0,
       serviceId: int.tryParse(json['service_id']?.toString() ?? '') ?? 0,
       subServiceId: int.tryParse(json['sub_service_id']?.toString() ?? '') ?? 0,
       orderDate: json['order_date']?.toString() ?? '',

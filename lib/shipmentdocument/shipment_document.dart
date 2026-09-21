@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:yogayog/paperworkrequired/provider/paperwork_required_provider.dart';
+import 'package:yogayog/shipmentdocument/provider/shipmentdocumentprovider.dart';
 
 class ShipmentDocument extends StatefulWidget {
   const ShipmentDocument({
@@ -15,6 +16,7 @@ class ShipmentDocument extends StatefulWidget {
     this.pickupCity = '',
     this.dropCity = '',
     this.shipmentType = 'Export',
+    this.id = 0,
   });
 
   final String orderId;
@@ -24,6 +26,7 @@ class ShipmentDocument extends StatefulWidget {
   final String pickupCity;
   final String dropCity;
   final String shipmentType;
+  final int id;
 
   @override
   State<ShipmentDocument> createState() => _ShipmentDocumentState();
@@ -188,7 +191,7 @@ class _ShipmentDocumentState extends State<ShipmentDocument> {
         'Way Bill – Part B',
       ]),
       ..._documentGroup('National Document', const [
-        'Sales',
+        // 'Sales',
         'Invoice',
         'Way Bill – Part A',
         // 'Indian',
@@ -402,13 +405,16 @@ class _ShipmentDocumentState extends State<ShipmentDocument> {
                         return;
                       }
                       setDialogState(() => isSubmitting = true);
-                      final type = document.title
-                          .toLowerCase()
-                          .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
-                          .replaceAll(RegExp(r'^_|_$'), '');
+                      final type = _documentType(document.title);
                       final success = await context
-                          .read<PaperworkRequiredProvider>()
-                          .uploadDocument(documentType: type, image: image!);
+                          .read<ShipmentDocumentProvider>()
+                          .uploadDocument(
+                            orderId: widget.id > 0
+                                ? widget.id.toString()
+                                : widget.orderId,
+                            documentType: type,
+                            file: image!,
+                          );
                       if (!mounted) return;
                       if (!success) {
                         setDialogState(() => isSubmitting = false);
@@ -445,6 +451,29 @@ class _ShipmentDocumentState extends State<ShipmentDocument> {
         ),
       ),
     );
+  }
+
+  String _documentType(String title) {
+    switch (title) {
+      case 'Commercial Invoice':
+      case 'Invoice':
+        return 'commercial_invoice';
+      case 'Way Bill – Part A':
+        return 'waybill_part_a';
+      case 'Way Bill – Part B':
+        return 'waybill_part_b';
+      case 'Packing List':
+        return 'packing_list';
+      case 'Shipping Bill':
+        return 'shipping_bill';
+      case 'Declaration':
+        return 'declaration';
+      default:
+        return title
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+            .replaceAll(RegExp(r'^_|_$'), '');
+    }
   }
 }
 

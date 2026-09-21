@@ -1258,6 +1258,7 @@ class _HomeScreenState extends State<HomeScreen>
       details.isEmpty ? booking.subServiceName : details,
       displayStatus,
       booking.orderNo,
+      booking.id,
     );
   }
 
@@ -1317,6 +1318,7 @@ class _HomeScreenState extends State<HomeScreen>
     String number,
     String status, [
     String? trackingId,
+    int? id,
   ]) {
     final isDelivered = status.toLowerCase().contains('delivered');
     final isTransit = status.toLowerCase().contains('transit');
@@ -1420,6 +1422,7 @@ class _HomeScreenState extends State<HomeScreen>
                               MaterialPageRoute(
                                 builder: (_) => ShipmentDocument(
                                   orderId: trackingId ?? number,
+                                  id: id ?? 0,
                                 ),
                               ),
                             );

@@ -20,6 +20,7 @@ class ApiEndpoints {
   static const String verifyAadhar = "kyc/verify-aadhar";
   static const String verifyVoter = "kyc/verify-voter";
   static const String uploadKycDocument = "kyc/documents";
+  static const String uploadShipmentDocument = "upload-document";
   static const String createPostpaidOrder = "order/create-postpaid";
   static const String pickupLocation = "locations/pickup";
     static const String dropLocation = "locations/drop";

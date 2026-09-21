@@ -33,6 +33,7 @@ import 'package:yogayog/internationaldetails/provider/international_details_prov
 import 'package:yogayog/Payment/provider/payment_national_provider.dart';
 import 'package:yogayog/Payment/provider/payment_national_import_provider.dart';
 import 'package:yogayog/paperworkrequired/provider/paperwork_required_provider.dart';
+import 'package:yogayog/shipmentdocument/provider/shipmentdocumentprovider.dart';
 import 'package:yogayog/internationalimport/provider/international_import_provider.dart';
 import 'package:yogayog/Invoices/provider/invoices_provider.dart';
 import 'package:yogayog/Payment/provider/payment_national_export_provider.dart';
@@ -89,6 +90,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => InternationalImportProvider()),
         ChangeNotifierProvider(create: (_) => InvoicesProvider()),
         ChangeNotifierProvider(create: (_) => PaperworkRequiredProvider()),
+        ChangeNotifierProvider(create: (_) => ShipmentDocumentProvider()),
       ],
       child: const MyApp(),
     ),

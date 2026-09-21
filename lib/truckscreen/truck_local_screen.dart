@@ -1191,7 +1191,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       _dropLatitude = selected.latitude;
       _dropLongitude = selected.longitude;
     });
-    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+    final saved = await context.read<BikescreenProvider>().saveDropLocation(
       payload: _dropLocationPayload(selected),
     );
     if (!mounted) return selected;
@@ -1268,26 +1268,31 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         dropPhoneController.text = result.mobile;
       }
     });
-    final saved = await context.read<BikescreenProvider>().savePickupLocation(
-      payload: {
-        'name': result.name,
-        'mobile': result.mobile,
-        'service_id': 1,
-        'house_numb': result.houseNumber.isNotEmpty
-            ? result.houseNumber
-            : _houseNumberFromAddress(result.address),
-        'street': result.address,
-        'city': result.city,
-        'district': result.city,
-        'state': result.state,
-        'pin': result.pincode,
-        'country': 'India',
-        'country_cde': 'IN',
-        'flag': pickup ? 'pick' : 'drop',
-        'lat': result.latitude,
-        'lon': result.longitude,
-      },
-    );
+    final payload = {
+      'name': result.name,
+      'mobile': result.mobile,
+      'service_id': 1,
+      'house_numb': result.houseNumber.isNotEmpty
+          ? result.houseNumber
+          : _houseNumberFromAddress(result.address),
+      'street': result.address,
+      'city': result.city,
+      'district': result.city,
+      'state': result.state,
+      'pin': result.pincode,
+      'country': 'India',
+      'country_cde': 'IN',
+      'flag': pickup ? 'pick' : 'drop',
+      'lat': result.latitude,
+      'lon': result.longitude,
+    };
+    final saved = pickup
+        ? await context.read<BikescreenProvider>().savePickupLocation(
+            payload: payload,
+          )
+        : await context.read<BikescreenProvider>().saveDropLocation(
+            payload: payload,
+          );
     if (!mounted) return;
     _showMessage(
       saved
@@ -1392,7 +1397,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       _dropLatitude = result.latitude;
       _dropLongitude = result.longitude;
     });
-    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+    final saved = await context.read<BikescreenProvider>().saveDropLocation(
       payload: _dropLocationPayload(selected),
     );
     if (!mounted) return;

@@ -3,7 +3,8 @@ import 'package:yogayog/core/services/bikescreen_service.dart';
 import 'package:yogayog/core/services/pincodecheck_service.dart';
 
 class BikescreenProvider extends ChangeNotifier {
-  BikescreenProvider({BikescreenService? service}) : _service = service ?? BikescreenService();
+  BikescreenProvider({BikescreenService? service})
+    : _service = service ?? BikescreenService();
 
   final BikescreenService _service;
   List<SavedLocation> _locations = [];
@@ -48,9 +49,8 @@ class BikescreenProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-  Future<bool> saveDropLocation({
-    required Map<String, dynamic> payload,
-  }) async {
+
+  Future<bool> saveDropLocation({required Map<String, dynamic> payload}) async {
     _errorMessage = null;
     try {
       await _service.saveDropLocation(payload: payload);
@@ -64,6 +64,7 @@ class BikescreenProvider extends ChangeNotifier {
       return false;
     }
   }
+
   Future<bool> savePickupLocation({
     required Map<String, dynamic> payload,
   }) async {
@@ -81,7 +82,9 @@ class BikescreenProvider extends ChangeNotifier {
     }
   }
 
-  Future<RateResponse?> loadRates({required Map<String, dynamic> payload}) async {
+  Future<RateResponse?> loadRates({
+    required Map<String, dynamic> payload,
+  }) async {
     _isRateLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -108,7 +111,9 @@ class BikescreenProvider extends ChangeNotifier {
     }
   }
 
-  Future<OrderCreated?> createOrder({required Map<String, dynamic> payload}) async {
+  Future<OrderCreated?> createOrder({
+    required Map<String, dynamic> payload,
+  }) async {
     _errorMessage = null;
     notifyListeners();
     try {

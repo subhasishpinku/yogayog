@@ -1570,7 +1570,7 @@ class _NationalDetailsState extends State<NationalDetails> {
                       onPressed: () async {
                         final saved = await context
                             .read<BikescreenProvider>()
-                            .savePickupLocation(
+                            .saveDropLocation(
                               payload: {
                                 'name': receiverNameController.text.trim(),
                                 'mobile': mobileController.text.trim(),
@@ -1735,7 +1735,7 @@ class _NationalDetailsState extends State<NationalDetails> {
     });
     if (!await _checkNationalPincode(selected.pincode)) return;
     if (await _rejectUnserviceableKolkataRoute()) return;
-    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+    final saved = await context.read<BikescreenProvider>().saveDropLocation(
       payload: {
         'name': receiverNameController.text.trim(),
         'mobile': mobileController.text.trim(),
@@ -1798,7 +1798,7 @@ class _NationalDetailsState extends State<NationalDetails> {
     });
     if (!await _checkNationalPincode(selected.pincode)) return;
     if (await _rejectUnserviceableKolkataRoute()) return;
-    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+    final saved = await context.read<BikescreenProvider>().saveDropLocation(
       payload: {
         'name': receiverNameController.text.trim(),
         'mobile': mobileController.text.trim(),
@@ -1897,7 +1897,7 @@ class _NationalDetailsState extends State<NationalDetails> {
     });
     if (!await _checkNationalPincode(selected.pincode)) return;
     if (await _rejectUnserviceableKolkataRoute()) return;
-    final saved = await context.read<BikescreenProvider>().savePickupLocation(
+    final saved = await context.read<BikescreenProvider>().saveDropLocation(
       payload: {
         'name': receiverNameController.text.trim(),
         'mobile': mobileController.text.trim(),

@@ -102,7 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: () => _open(const TermPrivacy()),
                   ),
                   // const SizedBox(height: 2),
-                  // _logoutItem(),
+                  _logoutItem(),
                 ],
               ),
             ),
