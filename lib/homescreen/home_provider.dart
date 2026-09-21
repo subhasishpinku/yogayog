@@ -10,11 +10,13 @@ class HomeProvider extends ChangeNotifier {
   String? _errorMessage;
   ProfileData? _profile;
   List<StaticService> _services = const [];
+  List<HomeMiddleBanner> _middleBanners = const [];
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   ProfileData? get profile => _profile;
   List<StaticService> get services => _services;
+  List<HomeMiddleBanner> get middleBanners => _middleBanners;
 
   Future<void> loadProfile() async {
     if (_isLoading) return;
@@ -95,6 +97,18 @@ class HomeProvider extends ChangeNotifier {
       _errorMessage = error.message;
     } catch (_) {
       _errorMessage = 'Something went wrong while loading services.';
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadMiddleBanners() async {
+    try {
+      _middleBanners = await _service.getHomeScreenMiddleBanners();
+    } on HomeException {
+      _middleBanners = const [];
+    } catch (_) {
+      _middleBanners = const [];
     } finally {
       notifyListeners();
     }

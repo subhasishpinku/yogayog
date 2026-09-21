@@ -73,6 +73,45 @@ class HomeService {
     }
   }
 
+  Future<List<HomeMiddleBanner>> getHomeScreenMiddleBanners() async {
+    try {
+      final response = await _dio.get(ApiEndpoints.homeScreenMiddleBanners);
+      final data = response.data;
+      var rawBanners = data is Map
+          ? (data['data'] ?? data['banners'] ?? data['results'])
+          : data;
+      if (rawBanners is Map) {
+        rawBanners =
+            rawBanners['banners'] ??
+            rawBanners['data'] ??
+            rawBanners['items'];
+      }
+      if (rawBanners is! List) {
+        throw HomeException(
+          data is Map
+              ? data['message']?.toString() ?? 'Unable to load banners'
+              : 'Invalid response from the server',
+        );
+      }
+      return rawBanners
+          .whereType<Map>()
+          .map(
+            (item) => HomeMiddleBanner.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .where((banner) => banner.imageUrl.trim().isNotEmpty)
+          .toList();
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      throw HomeException(
+        data is Map && data['message'] != null
+            ? data['message'].toString()
+            : error.message ?? 'Network error while loading banners',
+      );
+    }
+  }
+
   Future<TrackOrderData> trackOrder(String trackingNumber) async {
     try {
       final response = await _dio.post(
@@ -180,6 +219,37 @@ class StaticService {
       description: json['description']?.toString() ?? '',
       icon: json['icon']?.toString() ?? '📦',
       price: json['price']?.toString() ?? '0.00',
+    );
+  }
+}
+
+class HomeMiddleBanner {
+  const HomeMiddleBanner({
+    required this.imageUrl,
+    this.title = '',
+    this.subtitle = '',
+  });
+
+  final String imageUrl;
+  final String title;
+  final String subtitle;
+
+  factory HomeMiddleBanner.fromJson(Map<String, dynamic> json) {
+    return HomeMiddleBanner(
+      imageUrl:
+          json['image_url']?.toString() ??
+          json['banner_image']?.toString() ??
+          json['banner_url']?.toString() ??
+          json['file_url']?.toString() ??
+          json['path']?.toString() ??
+          json['image']?.toString() ??
+          json['url']?.toString() ??
+          '',
+      title: json['title']?.toString() ?? json['name']?.toString() ?? '',
+      subtitle:
+          json['subtitle']?.toString() ??
+          json['description']?.toString() ??
+          '',
     );
   }
 }

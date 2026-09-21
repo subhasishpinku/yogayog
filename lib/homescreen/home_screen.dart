@@ -40,7 +40,9 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _logoController;
   late final PageController _activeShipmentController;
+  late final PageController _middleBannerController;
   Timer? _activeShipmentTimer;
+  Timer? _middleBannerTimer;
   String _currentAddress = 'Fetching current location...';
   double? _currentLatitude;
   double? _currentLongitude;
@@ -53,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
     _activeShipmentController = PageController(viewportFraction: .95);
+    _middleBannerController = PageController(viewportFraction: .92);
     _activeShipmentTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!mounted || !_activeShipmentController.hasClients) return;
 
@@ -72,9 +75,22 @@ class _HomeScreenState extends State<HomeScreen>
         curve: Curves.easeInOut,
       );
     });
+    _middleBannerTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted || !_middleBannerController.hasClients) return;
+      final count = context.read<HomeProvider>().middleBanners.length;
+      if (count < 2) return;
+      final currentPage = _middleBannerController.page?.round() ?? 0;
+      final nextPage = (currentPage + 1) % count;
+      _middleBannerController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+      );
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) context.read<HomeProvider>().loadProfile();
       if (mounted) context.read<HomeProvider>().loadServices();
+      if (mounted) context.read<HomeProvider>().loadMiddleBanners();
       if (mounted) context.read<HistoryProvider>().loadBookings();
       _loadCurrentLocation();
     });
@@ -83,8 +99,10 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _activeShipmentTimer?.cancel();
+    _middleBannerTimer?.cancel();
     _logoController.dispose();
     _activeShipmentController.dispose();
+    _middleBannerController.dispose();
     super.dispose();
   }
 
@@ -166,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen>
                 children: [
                   _buildActiveShipment(),
                   _buildServices(),
+                  _buildMiddleBanners(),
                   _buildRecentShipmentsFromApi(),
                 ],
               ),
@@ -1114,7 +1133,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildServices() {
-    final services = context.watch<HomeProvider>().services;
+    final home = context.watch<HomeProvider>();
+    final services = home.services;
 
     return Column(
       children: [
@@ -1170,6 +1190,61 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildMiddleBanners() {
+    final banners = context.watch<HomeProvider>().middleBanners;
+    if (banners.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: SizedBox(
+        height: 150,
+        child: PageView.builder(
+          controller: _middleBannerController,
+          itemCount: banners.length,
+          itemBuilder: (context, index) {
+            final banner = banners[index];
+            final imageUrl = banner.imageUrl.trim();
+            return Container(
+              width: MediaQuery.sizeOf(context).width - 28,
+              margin: const EdgeInsets.symmetric(horizontal: 5),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: const Color(0xFF111111),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.network(
+                    imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const ColoredBox(
+                      color: Color(0xFF111111),
+                      child: Icon(
+                        Icons.image_not_supported_outlined,
+                        color: Colors.white54,
+                      ),
+                    ),
+                    loadingBuilder: (context, child, progress) =>
+                        progress == null
+                        ? child
+                        : const Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                yellow,
+                              ),
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 

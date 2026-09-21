@@ -8,6 +8,7 @@ class ApiEndpoints {
   static const String authLogout = "logout";
   static const String profile = "profile";
   static const String staticServices = "static-services";
+  static const String homeScreenMiddleBanners = "home-screen-middle-banners";
   static const String trackOrder = "track-order";
   static const String customerWalletLedger = "customer-wallet-ledger";
   static const String customerWalletPay = "customer-wallet-pay";
