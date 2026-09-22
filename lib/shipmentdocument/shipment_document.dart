@@ -183,30 +183,38 @@ class _ShipmentDocumentState extends State<ShipmentDocument> {
   }
 
   List<Widget> _documentSections() {
-    return [
-      // ..._documentGroup('Bike Document', const ['Invoice', 'Way Bill']),
-      ..._documentGroup('Truck Document', const [
+    final shipmentType = widget.shipmentType.trim().toLowerCase();
+
+    if (shipmentType.contains('truck')) {
+      return _documentGroup('Truck Document', const [
         'Invoice',
         'Way Bill – Part A',
         'Way Bill – Part B',
-      ]),
-      ..._documentGroup('National Document', const [
+      ]);
+    }
+
+    if (shipmentType.contains('nation')) {
+      return _documentGroup('National Document', const [
         // 'Sales',
         'Invoice',
         'Way Bill – Part A',
         // 'Indian',
-      ]),
-      ..._documentGroup('International Export Document', const [
-        'Packing List',
-        'Shipping Bill',
+      ]);
+    }
+
+    if (shipmentType.contains('import')) {
+      return _documentGroup('International Import Document', const [
         'Commercial Invoice',
         'Declaration',
-      ]),
-      ..._documentGroup('International Import Document', const [
-        'Commercial Invoice',
-        'Declaration',
-      ]),
-    ];
+      ]);
+    }
+
+    return _documentGroup('International Export Document', const [
+      'Packing List',
+      'Shipping Bill',
+      'Commercial Invoice',
+      'Declaration',
+    ]);
   }
 
   List<Widget> _documentGroup(String heading, List<String> titles) {

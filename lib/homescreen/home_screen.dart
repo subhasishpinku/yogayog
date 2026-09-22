@@ -184,8 +184,7 @@ class _HomeScreenState extends State<HomeScreen>
                 children: [
                   _buildActiveShipment(),
                   _buildServices(),
-                  SizedBox(height: 12),
-                  _buildMiddleBanners(),
+
                   _buildRecentShipmentsFromApi(),
                 ],
               ),
@@ -1146,6 +1145,9 @@ class _HomeScreenState extends State<HomeScreen>
     return Column(
       children: [
         _sectionTitle('Our Services', ''),
+
+        _buildMiddleBanners(),
+        SizedBox(height: 12),
         SizedBox(
           height: 145,
           child: ListView(
@@ -1313,7 +1315,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           )
         else
-          ...history.history!.ordersToDisplay.take(3).map(_bookingTile),
+          ...history.history!.ordersToDisplay.map(_bookingTile),
       ],
     );
   }
@@ -1339,6 +1341,7 @@ class _HomeScreenState extends State<HomeScreen>
       displayStatus,
       booking.orderNo,
       booking.id,
+      booking.serviceName,
     );
   }
 
@@ -1399,6 +1402,7 @@ class _HomeScreenState extends State<HomeScreen>
     String status, [
     String? trackingId,
     int? id,
+    String? serviceName,
   ]) {
     final isDelivered = status.toLowerCase().contains('delivered');
     final isTransit = status.toLowerCase().contains('transit');
@@ -1502,6 +1506,7 @@ class _HomeScreenState extends State<HomeScreen>
                               MaterialPageRoute(
                                 builder: (_) => ShipmentDocument(
                                   orderId: trackingId ?? number,
+                                  shipmentType: serviceName ?? '',
                                   id: id ?? 0,
                                 ),
                               ),

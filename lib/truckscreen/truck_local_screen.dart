@@ -541,6 +541,10 @@ class _PickupEditDialogState extends State<_PickupEditDialog> {
 
   void _searchAddress(String value) {
     _debounce?.cancel();
+    _latitude = null;
+    _longitude = null;
+    _latitudeController.clear();
+    _longitudeController.clear();
     if (value.trim().length < 2) {
       setState(() => _suggestions = []);
       return;
@@ -1085,6 +1089,38 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     );
   }
 
+  Future<gmaps.LatLng?> _geocodeFullAddress(String address) async {
+    if (_googlePlacesApiKey.isEmpty || address.trim().isEmpty) return null;
+    try {
+      final response = await Dio().get(
+        'https://maps.googleapis.com/maps/api/geocode/json',
+        queryParameters: {
+          'address': address,
+          'components': 'country:IN',
+          'region': 'in',
+          'key': _googlePlacesApiKey,
+        },
+      );
+      final data = response.data;
+      final results = data is Map ? data['results'] : null;
+      if (data is! Map ||
+          data['status'] != 'OK' ||
+          results is! List ||
+          results.isEmpty) {
+        return null;
+      }
+      final first = results.first;
+      final geometry = first is Map ? first['geometry'] : null;
+      final location = geometry is Map ? geometry['location'] : null;
+      final latitude = location is Map ? location['lat'] : null;
+      final longitude = location is Map ? location['lng'] : null;
+      if (latitude is num && longitude is num) {
+        return gmaps.LatLng(latitude.toDouble(), longitude.toDouble());
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _updateAddressFromPincode({
     required bool pickup,
     required String pincode,
@@ -1380,13 +1416,20 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       });
       return;
     }
+    var latitude = result.latitude;
+    var longitude = result.longitude;
+    if (latitude == null || longitude == null) {
+      final location = await _geocodeFullAddress(result.address);
+      latitude = location?.latitude;
+      longitude = location?.longitude;
+    }
     final selected = _DropLocation(
       address: result.address,
       city: result.city,
       pincode: result.pincode,
       state: result.state,
-      latitude: result.latitude,
-      longitude: result.longitude,
+      latitude: latitude,
+      longitude: longitude,
     );
     setState(() {
       _dropAddress = result.address;
@@ -1394,8 +1437,8 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       _dropPincode = result.pincode;
       pincodeController.text = result.pincode;
       _dropState = result.state;
-      _dropLatitude = result.latitude;
-      _dropLongitude = result.longitude;
+      _dropLatitude = latitude;
+      _dropLongitude = longitude;
     });
     final saved = await context.read<BikescreenProvider>().saveDropLocation(
       payload: _dropLocationPayload(selected),
@@ -1564,8 +1607,53 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
     }
   }
 
-  Future<void> _pickLocationFromMap({required bool pickup}) async {
-    const initial = gmaps.LatLng(22.5726, 88.3639);
+  Future<void> _pickLocationFromMap({
+    required bool pickup,
+    required String address,
+  }) async {
+    var initial = pickup
+        ? (_pickupLatitude != null && _pickupLongitude != null
+              ? gmaps.LatLng(_pickupLatitude!, _pickupLongitude!)
+              : const gmaps.LatLng(22.5726, 88.3639))
+        : (_dropLatitude != null && _dropLongitude != null
+              ? gmaps.LatLng(_dropLatitude!, _dropLongitude!)
+              : const gmaps.LatLng(22.5726, 88.3639));
+
+    if (address.trim().isNotEmpty &&
+        address != 'Fetching current location...' &&
+        address != 'Tap to add destination') {
+      try {
+        if (_googlePlacesApiKey.isNotEmpty) {
+          final response = await Dio().get(
+            'https://maps.googleapis.com/maps/api/geocode/json',
+            queryParameters: {
+              'address': address,
+              'components': 'country:IN',
+              'region': 'in',
+              'key': _googlePlacesApiKey,
+            },
+          );
+          final data = response.data;
+          final results = data is Map ? data['results'] : null;
+          if (data is Map &&
+              data['status'] == 'OK' &&
+              results is List &&
+              results.isNotEmpty) {
+            final first = results.first;
+            final geometry = first is Map ? first['geometry'] : null;
+            final location = geometry is Map ? geometry['location'] : null;
+            final latitude = location is Map ? location['lat'] : null;
+            final longitude = location is Map ? location['lng'] : null;
+            if (latitude is num && longitude is num) {
+              initial = gmaps.LatLng(latitude.toDouble(), longitude.toDouble());
+            }
+          }
+        }
+      } catch (_) {
+        // Keep the saved coordinates when the address cannot be geocoded.
+      }
+    }
+
     final selected = await showDialog<gmaps.LatLng>(
       context: context,
       builder: (dialogContext) {
@@ -1579,7 +1667,7 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
               width: double.maxFinite,
               height: 420,
               child: gmaps.GoogleMap(
-                initialCameraPosition: const gmaps.CameraPosition(
+                initialCameraPosition: gmaps.CameraPosition(
                   target: initial,
                   zoom: 15,
                 ),
@@ -1633,6 +1721,9 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         place?.street,
         place?.subLocality,
         place?.locality,
+        place?.administrativeArea,
+        place?.postalCode,
+        place?.country,
       ].where((value) => value?.trim().isNotEmpty == true).join(', ');
       final address = fullAddress.isEmpty
           ? 'Selected map location'
@@ -1699,14 +1790,21 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
       });
       return;
     }
+    var latitude = result.latitude;
+    var longitude = result.longitude;
+    if (latitude == null || longitude == null) {
+      final location = await _geocodeFullAddress(result.address);
+      latitude = location?.latitude;
+      longitude = location?.longitude;
+    }
     setState(() {
       _pickupAddress = result.address;
       _pickupCity = result.city;
       _pickupPincode = result.pincode;
       pickupPincodeController.text = result.pincode;
       _pickupState = result.state;
-      _pickupLatitude = result.latitude;
-      _pickupLongitude = result.longitude;
+      _pickupLatitude = latitude;
+      _pickupLongitude = longitude;
     });
     final saved = await context.read<BikescreenProvider>().savePickupLocation(
       payload: {
@@ -1722,8 +1820,8 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
         'country': 'India',
         'country_cde': 'IN',
         "flag": "pick",
-        'lat': result.latitude,
-        'lon': result.longitude,
+        'lat': latitude,
+        'lon': longitude,
       },
     );
     if (!mounted) return;
@@ -2932,7 +3030,8 @@ class _TruckLocalScreenState extends State<TruckLocalScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               IconButton(
-                onPressed: () => _pickLocationFromMap(pickup: pickup),
+                onPressed: () =>
+                    _pickLocationFromMap(pickup: pickup, address: address),
                 icon: Icon(
                   Icons.map_outlined,
                   color: pickup ? yellow : Colors.black,

@@ -40,8 +40,8 @@ class _PaymentAddWalletScreenState extends State<PaymentAddWalletScreen> {
     if (!isCashOnDelivery) {
       // The payment API requires amount for every online payment, including
       // booking payments whose order payload may not contain it.
-      // payload['amount'] = widget.amount;
-      payload['amount'] = isTopUp ? widget.amount : 1;
+       payload['amount'] = widget.amount;
+     // payload['amount'] = isTopUp ? widget.amount : 1;
 
       final payment = await context
           .read<PaymentProvider>()
