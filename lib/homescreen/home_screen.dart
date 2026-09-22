@@ -184,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen>
                 children: [
                   _buildActiveShipment(),
                   _buildServices(),
+                  SizedBox(height: 12),
                   _buildMiddleBanners(),
                   _buildRecentShipmentsFromApi(),
                 ],
@@ -221,33 +222,51 @@ class _HomeScreenState extends State<HomeScreen>
           Row(
             children: [
               Expanded(
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: AnimatedBuilder(
-                    animation: _logoController,
-                    builder: (context, child) {
-                      final animationValue = _logoController.value;
-                      return Opacity(
-                        opacity: 0.92 + (animationValue * 0.08),
-                        child: Transform.scale(
-                          scale: 0.97 + (animationValue * 0.03),
-                          alignment: Alignment.topLeft,
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: SizedBox(
-                      width: 100,
-                      height: 50,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(20),
-                        child: Image.asset(
-                          'assets/images/logo.png',
-                          fit: BoxFit.contain,
+                child: Row(
+                  children: [
+                    Align(
+                      alignment: Alignment.topLeft,
+                      child: AnimatedBuilder(
+                        animation: _logoController,
+                        builder: (context, child) {
+                          final animationValue = _logoController.value;
+                          return Opacity(
+                            opacity: 0.92 + (animationValue * 0.08),
+                            child: Transform.scale(
+                              scale: 0.97 + (animationValue * 0.03),
+                              alignment: Alignment.topLeft,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: SizedBox(
+                          width: 90,
+                          height: 50,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    if (profile?.email.isNotEmpty == true) ...[
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          '${profile!.email}\n${profile.mobile}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               Column(
@@ -370,18 +389,6 @@ class _HomeScreenState extends State<HomeScreen>
                       //   ],
                       // ),
                       // const SizedBox(width: 5),
-                      if (profile?.email.isNotEmpty == true) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          'Email: ${profile!.email}  Number: ${profile.mobile}',
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-
                       // if (profile?.mobile.isNotEmpty == true) ...[
                       //   const SizedBox(height: 2),
                       //   Text(
@@ -1233,9 +1240,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ? child
                         : const Center(
                             child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                yellow,
-                              ),
+                              valueColor: AlwaysStoppedAnimation<Color>(yellow),
                             ),
                           ),
                   ),
