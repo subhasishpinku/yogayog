@@ -263,17 +263,17 @@ class _SavedaddressesState extends State<Savedaddresses> {
               ],
             ),
           ),
-          _iconButton(
-            Icons.edit_outlined,
-            const Color(0xFFF0F1FF),
-            () => _message('Edit address ${index + 1}'),
-          ),
-          const SizedBox(width: 8),
-          _iconButton(
-            Icons.delete_outline,
-            const Color(0xFFFFEEEE),
-            () => _message('Delete address ${index + 1}'),
-          ),
+          // _iconButton(
+          //   Icons.edit_outlined,
+          //   const Color(0xFFF0F1FF),
+          //   () => _message('Edit address ${index + 1}'),
+          // ),
+          // const SizedBox(width: 8),
+          // _iconButton(
+          //   Icons.delete_outline,
+          //   const Color(0xFFFFEEEE),
+          //   () => _message('Delete address ${index + 1}'),
+          // ),
         ],
       ),
     );
