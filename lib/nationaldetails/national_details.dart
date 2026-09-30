@@ -2079,7 +2079,9 @@ class _NationalDetailsState extends State<NationalDetails> {
             pickup
                 ? () => _showPickupBottomSheet()
                 : () => _showDropBottomSheet(),
-            onEdit: pickup ? _editPickup : _editDrop,
+            onEdit: pickup
+                ? () => _showPickupBottomSheet()
+                : () => _showDropBottomSheet(),
           ),
         ],
       ),
@@ -2150,6 +2152,8 @@ class _NationalDetailsState extends State<NationalDetails> {
           const Spacer(),
           TextButton.icon(
             onPressed: pickup ? _openSavedLocations : _openSavedDropLocations,
+
+            // onPressed: pickup ? _showPickupBottomSheet : _showDropBottomSheet,
             icon: const Icon(Icons.folder, size: 22),
             label: const Text('SAVED ADDRESS'),
             style: TextButton.styleFrom(

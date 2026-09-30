@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
@@ -1165,6 +1166,8 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                     controller: pickupMobileController,
                     hintText: 'Pickup mobile number',
                     keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 10,
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -1201,6 +1204,14 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                         }
                         if (pickupHouseNumberController.text.trim().isEmpty) {
                           _showMessage('Please enter pickup house number');
+                          return;
+                        }
+                        if (!RegExp(
+                          r'^\d{10}$',
+                        ).hasMatch(pickupMobileController.text.trim())) {
+                          _showMessage(
+                            'Please enter a valid 10-digit pickup phone number',
+                          );
                           return;
                         }
                         final houseNumber = pickupHouseNumberController.text
@@ -1603,6 +1614,8 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                     controller: mobileController,
                     hintText: 'Drop phone',
                     keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 10,
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -1639,6 +1652,14 @@ class _InternationalDetailsState extends State<InternationalDetails> {
                         }
                         if (deliveryHouseNumberController.text.trim().isEmpty) {
                           _showMessage('Please enter drop house number');
+                          return;
+                        }
+                        if (!RegExp(
+                          r'^\d{10}$',
+                        ).hasMatch(mobileController.text.trim())) {
+                          _showMessage(
+                            'Please enter a valid 10-digit drop phone number',
+                          );
                           return;
                         }
                         final houseNumber = deliveryHouseNumberController.text
@@ -1989,6 +2010,8 @@ class _InternationalDetailsState extends State<InternationalDetails> {
     TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
     bool readOnly = false,
+    List<TextInputFormatter>? inputFormatters,
+    int? maxLength,
   }) {
     return TextField(
       key: key,
@@ -1996,6 +2019,8 @@ class _InternationalDetailsState extends State<InternationalDetails> {
       readOnly: readOnly,
       keyboardType: keyboardType,
       onChanged: onChanged,
+      inputFormatters: inputFormatters,
+      maxLength: maxLength,
       style: const TextStyle(color: Color(0xFF536078), fontSize: 16),
       decoration: InputDecoration(
         hintText: hintText,

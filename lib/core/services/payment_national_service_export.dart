@@ -67,7 +67,10 @@ class PaymentNationalExportService {
         data: payload,
       );
       final data = response.data;
-      if (data is! Map || data['success'] != true || data['gatewayResponse'] is! Map) {
+      print('createBillDeskPayment response: $data');
+      if (data is! Map ||
+          data['success'] != true ||
+          data['gatewayResponse'] is! Map) {
         throw PaymentNationalExportException(
           data is Map
               ? data['message']?.toString() ?? 'Unable to initialize payment'

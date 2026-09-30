@@ -39,8 +39,8 @@ class _PaymentNationalScreenExportState
     final payload = Map<String, dynamic>.from(widget.orderPayload)
       ..['payment_method'] = isCashOnDelivery ? 'COD' : 'ONLINE';
     if (!isCashOnDelivery) {
-      payload['amount'] = widget.amount;
-      // payload['amount'] = 1;
+      // payload['amount'] = widget.amount;
+      payload['amount'] = 0.02;
       final payment = await context
           .read<PaymentNationalExportProvider>()
           .createBillDeskPayment(payload: payload);

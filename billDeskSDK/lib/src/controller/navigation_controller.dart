@@ -262,24 +262,10 @@ class NavigationController extends GetxController {
       builder: (context) {
         return PopScope(
           canPop: false,
-          onPopInvokedWithResult: (bool didPop, dynamic result) async {
-            if (didPop) return;
-            if (!await inAppWebViewController.canGoBack()) {
-              final NavigatorState navigator = Navigator.of(context);
-              final bool? shouldNavigateBack =
-                  await showConfirmationDialog(context);
-              if (shouldNavigateBack ?? false) {
-                navigator.pop();
-              }
-            }
-          },
+          onPopInvokedWithResult: (bool didPop, dynamic result) {},
           child: Scaffold(
               appBar: AppBar(
-                leading: IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    }),
+                leading: const SizedBox.shrink(),
                 iconTheme: const IconThemeData(color: Color(0xff001e2e)),
                 shadowColor: Colors.white,
                 title: Obx(() => Text(currentTitle.value,
@@ -336,7 +322,7 @@ class NavigationController extends GetxController {
       supportZoom: false,
       builtInZoomControls: false,
       displayZoomControls: false,
-      textZoom: 100, 
+      textZoom: 100,
     );
   }
 
@@ -381,7 +367,8 @@ class NavigationController extends GetxController {
     final deviceInfoPlugin = DeviceInfoPlugin();
 
     if (Platform.isAndroid) {
-      final AndroidDeviceInfo androidDeviceInfo = await deviceInfoPlugin.androidInfo;
+      final AndroidDeviceInfo androidDeviceInfo =
+          await deviceInfoPlugin.androidInfo;
       items["OS version"] = "Android ${androidDeviceInfo.version.release}";
       items["Manufacturer"] = androidDeviceInfo.manufacturer;
       items["Device model name"] = androidDeviceInfo.model;
@@ -436,7 +423,8 @@ class NavigationController extends GetxController {
         builder: (context) {
           return AlertDialog(
             title: Container(
-                alignment: Alignment.center, child: const Text("BillDesk SDK Info")),
+                alignment: Alignment.center,
+                child: const Text("BillDesk SDK Info")),
             content: SizedBox(
               width: 900,
               child: SingleChildScrollView(
@@ -469,9 +457,8 @@ class NavigationController extends GetxController {
     // Add a new JavaScript handler to detect page load progress
     _addJavaScriptHandlers(controller);
 
-    final dio.Response<dynamic>? orderDetails =
-      presenter.sdkContext?.scope.get("orderResponse")
-        as dio.Response<dynamic>?;
+    final dio.Response<dynamic>? orderDetails = presenter.sdkContext?.scope
+        .get("orderResponse") as dio.Response<dynamic>?;
     final String? redirectUrl = orderDetails?.data?['ru'] as String?;
 
     if (redirectUrl != null && uri.toString().startsWith(redirectUrl)) {
@@ -523,7 +510,7 @@ class NavigationController extends GetxController {
     controller.addJavaScriptHandler(
         handlerName: "buildDetailEvent",
         callback: (args) async {
-            final Map<String, dynamic> buildInfoEvent =
+          final Map<String, dynamic> buildInfoEvent =
               Map<String, dynamic>.from(jsonDecode(args[0] as String) as Map);
 
           if (buildInfoEvent["alert"] == true) {
@@ -552,11 +539,13 @@ class NavigationController extends GetxController {
   void _loadWebPage(InAppWebViewController controller, Uri? uri) async {
     // isLoading.value = false;
     _handleLoadComplete();
+    _hideHostedPaymentBackButton(controller);
     if (uri.toString().contains("billdesksdk://web-flow")) {
       controller.evaluateJavascript(source: """
                     document.getElementById("loading-info").innerText = "Processing payment. please wait. Don't click back or refresh the page"
                   """).then((value) async {
-        final Map<String, String> params = Uri.parse(uri.toString()).queryParameters;
+        final Map<String, String> params =
+            Uri.parse(uri.toString()).queryParameters;
         presenter.sdkContext?.scope.set("final_response.isCancelledByUser",
             _getSdkState(params["status"]!));
         presenter.sdkContext?.scope.set("bd-modal.shouldModalClose", true);
@@ -575,6 +564,36 @@ class NavigationController extends GetxController {
         await _safeUpdateUrlByKey(controller);
       }
     }
+  }
+
+  void _hideHostedPaymentBackButton(InAppWebViewController controller) {
+    controller.evaluateJavascript(source: r'''
+      (() => {
+        const hideTopBack = () => {
+          const elements = document.querySelectorAll(
+            'button, a, [role="button"], [aria-label], [class*="back" i]'
+          );
+          for (const element of elements) {
+            const rect = element.getBoundingClientRect();
+            const label = `${element.getAttribute('aria-label') || ''} ${element.textContent || ''} ${element.className || ''}`.toLowerCase();
+            if (rect.top >= 0 && rect.top < 110 && rect.left >= 0 && rect.left < 95 &&
+                rect.width > 12 && rect.width < 120 && rect.height > 12 &&
+                (label.includes('back') || label.includes('arrow') ||
+                 element.querySelector('svg, img'))) {
+              element.style.setProperty('display', 'none', 'important');
+            }
+          }
+        };
+        hideTopBack();
+        if (!window.__yogayogBackObserver) {
+          window.__yogayogBackObserver = new MutationObserver(hideTopBack);
+          window.__yogayogBackObserver.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+          });
+        }
+      })();
+    ''');
   }
 
   Map<String, dynamic> _filterJsonProperty(Map<String, dynamic> json) {
@@ -837,10 +856,8 @@ class NavigationController extends GetxController {
   """);
   }
 
-  void _showAppNotInstalledOverlay(
-      BuildContext context,
-      SdkWebViewController sdkWebViewController,
-      SdkPresenter presenter) {
+  void _showAppNotInstalledOverlay(BuildContext context,
+      SdkWebViewController sdkWebViewController, SdkPresenter presenter) {
     PlatformAdaptiveDialog.show(
       context: context,
       title: "App not accessible",

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:yogayog/internationalimport/internationalimport_delivery_address.dart';
 import 'package:yogayog/internationalimport/internationalimport_package.dart';
 import 'package:geocoding/geocoding.dart';
@@ -1168,6 +1169,8 @@ class _InternationalImportState extends State<InternationalImport> {
                     controller: pickupMobileController,
                     hintText: 'Pickup mobile number',
                     keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 10,
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -1199,6 +1202,14 @@ class _InternationalImportState extends State<InternationalImport> {
                       onPressed: () async {
                         if (addressController.text.trim().isEmpty) {
                           _showMessage('Please select pickup address');
+                          return;
+                        }
+                        if (!RegExp(
+                          r'^\d{10}$',
+                        ).hasMatch(pickupMobileController.text.trim())) {
+                          _showMessage(
+                            'Please enter a valid 10-digit pickup phone number',
+                          );
                           return;
                         }
                         // if (pickupHouseNumberController.text.trim().isEmpty) {
@@ -1662,6 +1673,8 @@ class _InternationalImportState extends State<InternationalImport> {
                     controller: dropMobileController,
                     hintText: 'Drop phone',
                     keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    maxLength: 10,
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -1695,6 +1708,14 @@ class _InternationalImportState extends State<InternationalImport> {
                             addressController.text ==
                                 'Tap to add destination') {
                           _showMessage('Please select drop address');
+                          return;
+                        }
+                        if (!RegExp(
+                          r'^\d{10}$',
+                        ).hasMatch(dropMobileController.text.trim())) {
+                          _showMessage(
+                            'Please enter a valid 10-digit drop phone number',
+                          );
                           return;
                         }
                         final address = addressController.text.trim();
@@ -2080,12 +2101,16 @@ class _InternationalImportState extends State<InternationalImport> {
     TextInputType? keyboardType,
     ValueChanged<String>? onChanged,
     bool readOnly = false,
+    List<TextInputFormatter>? inputFormatters,
+    int? maxLength,
   }) {
     return TextField(
       controller: controller,
       readOnly: readOnly,
       keyboardType: keyboardType,
       onChanged: onChanged,
+      inputFormatters: inputFormatters,
+      maxLength: maxLength,
       style: const TextStyle(color: Color(0xFF536078), fontSize: 16),
       decoration: InputDecoration(
         hintText: hintText,

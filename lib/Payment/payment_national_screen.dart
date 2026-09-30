@@ -23,6 +23,7 @@ class PaymentNationalScreen extends StatefulWidget {
 
 class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
   String? selectedMethod;
+  bool _orderCreationStarted = false;
 
   Future<void> _processPayment() async {
     if (selectedMethod == null) {
@@ -41,7 +42,9 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
       return;
     }
     // The only remaining method is online UPI payment.
-    payload['amount'] = 1;
+    payload['amount'] = 0.02;
+    // payload['amount'] = widget.amount;
+
     final payment = await context
         .read<PaymentNationalProvider>()
         .createBillDeskPayment(payload: payload);
@@ -55,8 +58,9 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
           ),
         ),
       );
+      return;
     }
-    if (payment != null) _openBillDesk(payment, orderPayload: payload);
+    _openBillDesk(payment, orderPayload: payload);
   }
 
   Future<void> _createNationalOrder(Map<String, dynamic> payload) async {
@@ -112,7 +116,10 @@ class _PaymentNationalScreenState extends State<PaymentNationalScreen> {
   Future<void> _createOrderAfterPayment(
     Map<String, dynamic> orderPayload,
   ) async {
-    if (!mounted) return;
+    // BillDesk can deliver more than one terminal callback while closing the
+    // web view. Only the first one is allowed to create the order.
+    if (_orderCreationStarted || !mounted) return;
+    _orderCreationStarted = true;
     final order = await context.read<PaymentNationalProvider>().createOrder(
       payload: orderPayload,
     );
@@ -464,7 +471,11 @@ class _BillDeskResponseHandler extends ResponseHandler {
 
   @override
   void onTransactionResponse(TxnInfo txnInfo) {
-    if (txnInfo.txnInfoMap['isCancelledByUser'] == true) {
+    final cancelled =
+        txnInfo.txnInfoMap['isCancelledByUser'] == true ||
+        txnInfo.txnInfoMap['isCancelledByUser']?.toString().toLowerCase() ==
+            'true';
+    if (cancelled) {
       onFailure();
     } else {
       onSuccess();

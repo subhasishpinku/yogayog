@@ -68,7 +68,9 @@ class PaymentNationalService {
         data: payload,
       );
       final data = response.data;
-      if (data is! Map || data['success'] != true || data['gatewayResponse'] is! Map) {
+      if (data is! Map ||
+          data['success'] != true ||
+          data['gatewayResponse'] is! Map) {
         throw PaymentNationalException(
           data is Map
               ? data['message']?.toString() ?? 'Unable to initialize payment'
